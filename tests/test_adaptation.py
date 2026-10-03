@@ -80,9 +80,7 @@ def test_harder_and_easier_targets_hold_or_reduce(plan):
 def test_apply_is_atomic_repeatable_and_scales_future(store):
     plan = store.plan()
     today = plan.setup.start + timedelta(weeks=1)
-    store.save_sync(
-        [], (today - timedelta(days=14)).isoformat(), today.isoformat(), today=today
-    )
+    store.save_sync([], (today - timedelta(days=14)).isoformat(), today.isoformat(), today=today)
     preview = adapt(store, 2, today)
     assert not preview.applied
     assert store.plan() == plan

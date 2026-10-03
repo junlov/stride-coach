@@ -121,9 +121,7 @@ def test_cli_adapt_positional_week_preview_and_apply(store, monkeypatch):
             return monday
 
     monkeypatch.setattr(service, "date", Clock)
-    Coach(store).sync(
-        SyncRequest(since=monday - timedelta(days=14), activities=[]), today=monday
-    )
+    Coach(store).sync(SyncRequest(since=monday - timedelta(days=14), activities=[]), today=monday)
     args = ["--db", str(store.path), "adapt", "2"]
     preview = runner.invoke(app, args)
     assert preview.exit_code == 0, preview.output
