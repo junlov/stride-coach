@@ -1,0 +1,294 @@
+from copy import deepcopy
+from types import SimpleNamespace
+
+import pytest
+
+from stride_coach.garmin import (
+    GarminClient,
+    GarminError,
+    normalize_activity,
+    pending,
+    push,
+    remove,
+    workout_payload,
+)
+
+
+class FakeGarmin:
+    def __init__(self):
+        self.data, self.events, self.writes = {}, [], []
+        self.fail_create = False
+        self.fail_schedule = False
+        self.hide_workouts = False
+
+    def workouts(self):
+        return [] if self.hide_workouts else list(self.data.values())
+
+    def workout(self, remote_id):
+        return deepcopy(self.data[remote_id])
+
+    def calendar(self, day):
+        return deepcopy(self.events)
+
+    def create(self, payload):
+        remote_id = str(len(self.data) + 1)
+        self.data[remote_id] = {**deepcopy(payload), "workoutId": remote_id}
+        self.writes.append("create")
+        if self.fail_create:
+            raise GarminError("Response lost after upload")
+        return remote_id
+
+    def update(self, remote_id, payload):
+        self.writes.append("update")
+        self.data[remote_id] = {**deepcopy(payload), "workoutId": remote_id}
+
+    def schedule(self, remote_id, day):
+        self.writes.append("schedule")
+        self.events.append(
+            {
+                "id": len(self.events) + 1,
+                "workoutId": remote_id,
+                "date": day.isoformat(),
+                "itemType": "workout",
+            }
+        )
+        if self.fail_schedule:
+            raise GarminError("Response lost after schedule")
+
+    def unschedule(self, schedule_id):
+        self.events = [e for e in self.events if str(e["id"]) != schedule_id]
+        self.writes.append("unschedule")
+
+    def delete(self, remote_id):
+        self.writes.append("delete")
+        del self.data[remote_id]
+
+
+def test_dry_run_needs_no_client_and_writes_no_ledger(store):
+    preview = push(store, store.plan().workouts[:1])
+    assert preview[0]["action"] == "preview"
+    assert not store.db.execute("SELECT * FROM scheduled").fetchall()
+    assert remove(store)[0]["action"] == "preview removal"
+
+
+def test_create_rerun_update_and_remove_only_owned(store):
+    client = FakeGarmin()
+    workouts = store.plan().workouts[:2]
+    push(store, workouts, client, False)
+    assert client.writes == ["create", "schedule", "create", "schedule"]
+    push(store, workouts, client, False)
+    assert client.writes == ["create", "schedule", "create", "schedule"]
+    plan = store.plan()
+    plan.workouts[0].steps[0].minutes *= 0.8
+    with store.db:
+        store.db.execute("UPDATE plan SET data=?", (plan.model_dump_json(),))
+    push(store, workouts, client, False)
+    assert client.writes[-1] == "update"
+    assert client.writes.count("schedule") == 2
+    client.data["999"] = {"workoutId": "999", "workoutName": "My personal workout"}
+    remove(store, client, False)
+    assert set(client.data) == {"999"}
+    assert not client.events
+    assert not store.db.execute("SELECT * FROM scheduled").fetchall()
+
+
+@pytest.mark.parametrize("failure", ["fail_create", "fail_schedule"])
+def test_lost_response_reconciles_without_duplicate(store, failure):
+    client = FakeGarmin()
+    setattr(client, failure, True)
+    workouts = store.plan().workouts[:1]
+    with pytest.raises(GarminError, match="Response lost"):
+        push(store, workouts, client, False)
+    setattr(client, failure, False)
+    push(store, workouts, client, False)
+    assert client.writes.count("create") == 1
+    assert client.writes.count("schedule") == 1
+    assert len(client.data) == len(client.events) == 1
+
+
+def test_uncertain_upload_does_not_retry_blindly(store):
+    client = FakeGarmin()
+    client.fail_create = True
+    workouts = store.plan().workouts[:1]
+    with pytest.raises(GarminError):
+        push(store, workouts, client, False)
+    client.hide_workouts = True
+    with pytest.raises(GarminError, match="unresolved"):
+        push(store, workouts, client, False)
+    assert client.writes.count("create") == 1
+    assert pending(store, f"create:{workouts[0].id}")
+
+
+def test_uncertain_schedule_does_not_retry_blindly(store):
+    client = FakeGarmin()
+    client.fail_schedule = True
+    workouts = store.plan().workouts[:1]
+    with pytest.raises(GarminError):
+        push(store, workouts, client, False)
+    client.events.clear()
+    with pytest.raises(GarminError, match="calendar write"):
+        push(store, workouts, client, False)
+    assert client.writes.count("schedule") == 1
+
+
+def test_altered_tag_never_authorizes_update_or_removal(store):
+    client = FakeGarmin()
+    workouts = store.plan().workouts[:1]
+    push(store, workouts, client, False)
+    client.data["1"]["description"] = "Not owned"
+    with pytest.raises(GarminError):
+        push(store, workouts, client, False)
+    remove(store, client, False)
+    assert "1" in client.data
+    assert "delete" not in client.writes
+
+
+def test_recovery_without_local_ledger(store):
+    client = FakeGarmin()
+    workouts = store.plan().workouts[:1]
+    push(store, workouts, client, False)
+    store.forget_remote(workouts[0].id)
+    push(store, workouts, client, False)
+    assert client.writes.count("create") == client.writes.count("schedule") == 1
+
+
+def test_workout_payload_units(plan):
+    workout = plan.workouts[0]
+    payload = workout_payload(workout)
+    step = payload["workoutSegments"][0]["workoutSteps"][0]
+    assert step["endConditionValue"] == pytest.approx(workout.minutes * 60, abs=0.001)
+    assert step["targetType"] == {"workoutTargetTypeId": 6, "workoutTargetTypeKey": "pace.zone"}
+    assert step["targetValueOne"] == pytest.approx(1000 / workout.steps[0].pace_max)
+    assert step["targetValueOne"] < step["targetValueTwo"]
+    workout.steps[0].pace_min = workout.steps[0].pace_max = None
+    workout.steps[0].hr_min, workout.steps[0].hr_max = 130, 145
+    step = workout_payload(workout)["workoutSegments"][0]["workoutSteps"][0]
+    assert step["targetType"]["workoutTargetTypeId"] == 4
+    assert step["targetValueOne"] == 130
+
+
+def test_normalizes_fake_garmin_response():
+    activity = normalize_activity(
+        {
+            "activityId": 123,
+            "startTimeLocal": "2026-10-03 08:00:00",
+            "distance": 5000,
+            "duration": 1800,
+            "averageHR": 145,
+            "activityType": {"typeKey": "trail_running"},
+        }
+    )
+    assert activity.distance_km == 5 and activity.duration_min == 30
+    assert activity.sport == "running" and activity.kind is None
+
+
+def test_missing_tokens_never_login(tmp_path, monkeypatch):
+    import garminconnect
+
+    monkeypatch.setattr(
+        garminconnect.Garmin, "login", lambda *a, **k: pytest.fail("login must never be called")
+    )
+    with pytest.raises(GarminError, match="never performs SSO"):
+        GarminClient(tmp_path / "missing")
+
+
+def test_expired_tokens_fail_without_network(tmp_path, monkeypatch):
+    from garth.http import Client
+
+    def load(self, path):
+        self.oauth1_token = object()
+        self.oauth2_token = SimpleNamespace(expired=True)
+
+    monkeypatch.setattr(Client, "load", load)
+    with pytest.raises(GarminError, match="expired"):
+        GarminClient(tmp_path)
+
+
+def test_valid_token_load_disables_refresh_and_retry(tmp_path, monkeypatch):
+    from garth.http import Client
+
+    def load(self, path):
+        self.oauth1_token = object()
+        self.oauth2_token = SimpleNamespace(expired=False)
+
+    monkeypatch.setattr(Client, "load", load)
+    client = GarminClient(tmp_path)
+    assert client.api.garth.retries == 0
+    with pytest.raises(GarminError, match="SSO"):
+        client.api.garth.refresh_oauth2()
+    with pytest.raises(GarminError, match="No login or write retry"):
+        client._call(lambda: (_ for _ in ()).throw(RuntimeError("secret token")))
+
+
+def test_adapter_endpoints_and_response_parsing(monkeypatch):
+    client = GarminClient.__new__(GarminClient)
+    calls = []
+
+    def request(*args, **kwargs):
+        calls.append((args, kwargs))
+        return SimpleNamespace(json=lambda: {"workoutId": 17})
+
+    def connectapi(path):
+        calls.append(((path,), {}))
+        return {"calendarItems": []}
+
+    client.api = SimpleNamespace(
+        garth=SimpleNamespace(
+            oauth1_token=True,
+            oauth2_token=SimpleNamespace(expired=False),
+            request=request,
+            post=request,
+            delete=request,
+        ),
+        connectapi=connectapi,
+        get_workouts=lambda **kwargs: [],
+        get_workout_by_id=lambda remote_id: {"workoutId": remote_id},
+        upload_workout=lambda payload: {"workoutId": 17},
+        get_activities_by_date=lambda *args, **kwargs: [],
+    )
+    from datetime import date
+
+    day = date(2026, 10, 5)
+    assert client.activities(day, day) == []
+    assert client.workouts() == []
+    assert client.workout("17") == {"workoutId": "17"}
+    assert client.calendar(day) == []
+    assert calls[-1][0] == ("/calendar-service/year/2026/month/9",)
+    assert client.create({}) == "17"
+    client.update("17", {"description": "test"})
+    assert calls[-1] == (
+        ("PUT", "connectapi", "/workout-service/workout/17"),
+        {"api": True, "json": {"description": "test", "workoutId": 17}},
+    )
+    client.schedule("17", day)
+    assert calls[-1][1]["json"] == {"date": "2026-10-05"}
+    client.unschedule("18")
+    assert calls[-1][0][-1] == "/workout-service/schedule/18"
+    client.delete("17")
+    assert calls[-1][0][-1] == "/workout-service/workout/17"
+    client.api.get_workouts = lambda **kwargs: {}
+    with pytest.raises(GarminError, match="Unexpected"):
+        client.workouts()
+    client.api.connectapi = lambda *args: {}
+    with pytest.raises(GarminError, match="Unexpected"):
+        client.calendar(day)
+
+
+def test_duplicate_tags_stop_writes(store):
+    client = FakeGarmin()
+    workouts = store.plan().workouts[:1]
+    payload = workout_payload(workouts[0])
+    client.create(payload)
+    client.create(payload)
+    with pytest.raises(GarminError, match="Multiple"):
+        push(store, workouts, client, False)
+    assert client.writes == ["create", "create"]
+
+
+def test_remove_cannot_clear_an_unresolved_upload(store):
+    client = FakeGarmin()
+    workout = store.plan().workouts[0]
+    pending(store, f"create:{workout.id}", True)
+    with pytest.raises(GarminError, match="unresolved"):
+        remove(store, client, False)
+    assert pending(store, f"create:{workout.id}")
