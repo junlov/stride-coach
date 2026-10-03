@@ -3,6 +3,7 @@
 import json
 import sqlite3
 from contextlib import contextmanager
+from datetime import date, timedelta
 from pathlib import Path
 
 from .models import Activity, Adjustment, Plan
@@ -22,8 +23,7 @@ class Store:
         self.db.executescript("""
             CREATE TABLE IF NOT EXISTS plan (id INTEGER PRIMARY KEY CHECK(id=1), data TEXT);
             CREATE TABLE IF NOT EXISTS activities (id TEXT PRIMARY KEY, data TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS matches
-                (workout_id TEXT PRIMARY KEY, activity_id TEXT UNIQUE NOT NULL, method TEXT);
+            DROP TABLE IF EXISTS matches;
             CREATE TABLE IF NOT EXISTS scheduled
                 (workout_id TEXT PRIMARY KEY, remote_id TEXT NOT NULL, fingerprint TEXT NOT NULL,
                  scheduled INTEGER NOT NULL DEFAULT 0);
@@ -65,28 +65,39 @@ class Store:
             for r in self.db.execute("SELECT data FROM activities ORDER BY id")
         ]
 
-    def save_sync(self, activities: list[Activity], since: str, until: str):
+    def save_sync(
+        self, activities: list[Activity], since: str, until: str, *, today: date | None = None
+    ):
+        begin, end = date.fromisoformat(since), date.fromisoformat(until)
+        today = today or date.today()
+        if begin > end or end > today:
+            raise ValueError("Sync needs since <= until <= today")
+        complete_end = min(end, today - timedelta(days=1))
+        complete_window = (
+            {"since": since, "until": complete_end.isoformat()} if begin <= complete_end else {}
+        )
         with self.db:
+            self.db.execute(
+                "DELETE FROM activities WHERE json_extract(data, '$.day') BETWEEN ? AND ?",
+                (since, until),
+            )
             self.db.executemany(
                 "INSERT OR REPLACE INTO activities VALUES (?, ?)",
-                [(a.id, a.model_dump_json()) for a in activities],
+                [(a.id, a.model_dump_json()) for a in activities if begin <= a.day <= end],
             )
-            self.db.execute(
-                "INSERT OR REPLACE INTO metadata VALUES ('sync', ?)",
-                (json.dumps({"since": since, "until": until}),),
-            )
-
-    def sync_window(self) -> dict:
-        row = self.db.execute("SELECT value FROM metadata WHERE key='sync'").fetchone()
-        return json.loads(row[0]) if row else {}
-
-    def save_matches(self, matches: list[dict]):
-        with self.db:
-            self.db.execute("DELETE FROM matches")
             self.db.executemany(
-                "INSERT INTO matches VALUES (?, ?, ?)",
-                [(m["workout_id"], m["activity_id"], m["method"]) for m in matches],
+                "INSERT OR REPLACE INTO metadata VALUES (?, ?)",
+                [
+                    ("sync", json.dumps({"since": since, "until": until})),
+                    ("sync_complete", json.dumps(complete_window)),
+                ],
             )
+
+    def sync_window(self, *, complete: bool = False) -> dict:
+        row = self.db.execute(
+            "SELECT value FROM metadata WHERE key=?", ("sync_complete" if complete else "sync",)
+        ).fetchone()
+        return json.loads(row[0]) if row else {}
 
     def scheduled(self, workout_id: str):
         return self.db.execute(

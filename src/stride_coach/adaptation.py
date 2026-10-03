@@ -135,7 +135,7 @@ def adapt(store: Store, week: int, today: date, apply: bool = False) -> Adjustme
         start = plan.setup.start + timedelta(weeks=week - 1)
         if start != today:
             raise ValueError("Adapt on the target week's Monday, after the previous week closes.")
-        window = store.sync_window()
+        window = store.sync_window(complete=True)
         required_since = start - timedelta(days=14)
         if (
             not window

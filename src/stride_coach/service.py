@@ -7,7 +7,7 @@ from pathlib import Path
 from pydantic import Field
 
 from .adaptation import adapt as adapt_week
-from .adaptation import match_activities, propose, week_metrics
+from .adaptation import propose, week_metrics
 from .engine import generate_plan
 from .garmin import GarminClient
 from .garmin import push as push_workouts
@@ -229,9 +229,7 @@ class Coach:
         )
         runs = [a for a in runs if begin <= a.day <= end]
         with self.store.lock():
-            self.store.save_sync(runs, begin.isoformat(), end.isoformat())
-            if self.store.db.execute("SELECT 1 FROM plan").fetchone():
-                self.store.save_matches(match_activities(self.plan(), self.store.activities()))
+            self.store.save_sync(runs, begin.isoformat(), end.isoformat(), today=today)
         return SyncResult(
             synced=len(runs),
             since=begin,
