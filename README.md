@@ -116,8 +116,8 @@ On Monday, sync through the completed Sunday, review the proposal, then apply it
 ```sh
 uv run stride-coach sync
 uv run stride-coach status
-uv run stride-coach adapt --week 2
-uv run stride-coach adapt --week 2 --apply
+uv run stride-coach adapt 2
+uv run stride-coach adapt 2 --apply
 uv run stride-coach push --week 2 --dry-run
 uv run stride-coach push --week 2 --apply
 ```

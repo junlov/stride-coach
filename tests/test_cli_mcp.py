@@ -6,6 +6,7 @@ from typer.testing import CliRunner
 
 from stride_coach.cli import app
 from stride_coach.mcp import create_server
+from stride_coach.service import Coach, SyncRequest
 
 runner = CliRunner()
 
@@ -107,3 +108,28 @@ def test_mcp_stdio_handshake_and_proposal(store):
                 assert data["adjustment"]["factor"] == 0.75
 
     asyncio.run(exercise())
+
+
+def test_cli_adapt_positional_week_preview_and_apply(store, monkeypatch):
+    import stride_coach.service as service
+
+    monday = store.plan().setup.start + timedelta(weeks=1)
+
+    class Clock(date):
+        @classmethod
+        def today(cls):
+            return monday
+
+    monkeypatch.setattr(service, "date", Clock)
+    Coach(store).sync(
+        SyncRequest(since=monday - timedelta(days=14), activities=[]), today=monday
+    )
+    args = ["--db", str(store.path), "adapt", "2"]
+    preview = runner.invoke(app, args)
+    assert preview.exit_code == 0, preview.output
+    assert not json.loads(preview.stdout)["applied"]
+    assert store.adjustment(2) is None
+    applied = runner.invoke(app, args + ["--apply"])
+    assert applied.exit_code == 0, applied.output
+    assert json.loads(applied.stdout)["applied"]
+    assert store.adjustment(2).applied

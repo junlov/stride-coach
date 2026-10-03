@@ -1,11 +1,15 @@
 import json
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import timedelta
+from threading import Event
 
 import pytest
 
 from stride_coach.models import Activity
 from stride_coach.service import AdaptRequest, Coach, SyncRequest
+from stride_coach.storage import Store
 
 
 def test_sync_reconciles_range_and_computes_matches(store):
@@ -101,3 +105,56 @@ def test_legacy_sync_requires_fresh_complete_coverage(store):
         )
     with pytest.raises(ValueError, match="Sync"):
         Coach(store).adapt(AdaptRequest(week=2), today=monday)
+
+
+def test_concurrent_sync_preserves_newer_snapshot(store, monkeypatch):
+    monday = store.plan().setup.start + timedelta(weeks=1)
+    sunday = monday - timedelta(days=1)
+    since = monday - timedelta(days=14)
+    run = Activity(id="new-run", day=sunday, distance_km=5, duration_min=30)
+    first_fetched, release_first = Event(), Event()
+    second_lock_attempted, second_fetched = Event(), Event()
+    second_store = Store(store.path)
+    shared_lock = second_store.lock
+
+    @contextmanager
+    def observed_lock():
+        second_lock_attempted.set()
+        with shared_lock():
+            yield
+
+    monkeypatch.setattr(second_store, "lock", observed_lock)
+
+    class OlderGarmin:
+        def activities(self, begin, end):
+            first_fetched.set()
+            assert release_first.wait(5)
+            return []
+
+    class NewerGarmin:
+        def activities(self, begin, end):
+            second_fetched.set()
+            return [run]
+
+    older = Coach(store, client_factory=lambda _: OlderGarmin())
+    newer = Coach(second_store, client_factory=lambda _: NewerGarmin())
+    request = SyncRequest(since=since, until=sunday)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(older.sync, request, today=monday)
+            try:
+                assert first_fetched.wait(5)
+                second = pool.submit(newer.sync, request, today=monday)
+                assert second_lock_attempted.wait(5)
+                if second_fetched.is_set():
+                    second.result(timeout=5)
+            finally:
+                release_first.set()
+            first.result(timeout=5)
+            second.result(timeout=5)
+        assert store.activities() == [run]
+        assert store.sync_window(complete=True) == {"since": str(since), "until": str(sunday)}
+        assert older.week(1).metrics.completed_minutes == 30
+        assert not older.adapt(AdaptRequest(week=2), today=monday).applied
+    finally:
+        second_store.close()

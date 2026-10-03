@@ -222,13 +222,13 @@ class Coach:
         begin = request.since or self.plan().setup.start - timedelta(days=28)
         if begin > end or end > today:
             raise ValueError("Sync needs since <= until <= today")
-        runs = (
-            request.activities
-            if request.activities is not None
-            else self.client_factory(self.token_dir).activities(begin, end)
-        )
-        runs = [a for a in runs if begin <= a.day <= end]
         with self.store.lock():
+            runs = (
+                request.activities
+                if request.activities is not None
+                else self.client_factory(self.token_dir).activities(begin, end)
+            )
+            runs = [a for a in runs if begin <= a.day <= end]
             self.store.save_sync(runs, begin.isoformat(), end.isoformat(), today=today)
         return SyncResult(
             synced=len(runs),
