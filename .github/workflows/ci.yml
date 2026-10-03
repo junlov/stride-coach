@@ -1,0 +1,23 @@
+name: CI
+on:
+  push:
+    branches-ignore: [main, master]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.21'
+          enable-cache: true
+      - run: uv sync --locked --python '${{ matrix.python }}'
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest --cov=stride_coach --cov-fail-under=90
