@@ -2,9 +2,11 @@
 
 `models.py` defines validated inputs and records. `engine.py` and the proposal calculations
 in `adaptation.py` are deterministic and have no Garmin or LLM dependency. `storage.py`
-keeps one plan, normalized activities, one-to-one matches, remote workout mappings,
-write-intent metadata, and applied adjustments in SQLite. Applied plan changes and their
-adjustment record commit in one transaction. `service.py` owns application operations and typed
+keeps one plan, normalized activities, remote workout mappings,
+write-intent metadata, sync coverage, and applied adjustments in SQLite.
+`adaptation.week_metrics` computes matches from the current plan and activities on demand.
+Applied plan changes and their adjustment record commit in one transaction.
+`service.py` owns application operations and typed
 request/response models. CLI, FastAPI, and MCP are thin transports over `service.Coach`.
 `mcp.py` opens the same file with SQLite `mode=ro` and exposes only read-only operations.
 `api.py` authenticates before opening a request-scoped SQLite connection; HTTP workers never
@@ -50,6 +52,11 @@ local workouts retain their remote ID. Existing local mappings never authorize r
 an unmarked remote workout.
 
 A local file lock serializes push, removal, sync, and adaptation for the same database.
+Sync holds this lock throughout fetching and saving, so concurrent fetches cannot commit snapshots out of order.
+Activity replacement and fetched-range and complete-day coverage records commit in one SQLite transaction.
+The latest sync replaces both coverage records, rather than merging coverage across separate syncs.
+See the [weekly loop](../README.md#weekly-loop) for adaptation coverage requirements.
+
 Before create or schedule, a committed intent marks the operation pending. A response lost
 after Garmin accepted a write can be recovered from the ownership tag/calendar entry.
 If that evidence is missing, retry stops. This trades automatic availability for avoiding

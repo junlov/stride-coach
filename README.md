@@ -27,8 +27,9 @@ Use one database for an active plan. `init` refuses to overwrite one.
 
 ## Plan and review
 
-A plan starts on a Monday, defaults to the next Monday, and needs an end date 8 to 52 weeks
-away. Dates below are examples; choose your own future dates. Goal values are `5k`, `10k`,
+A plan starts on a Monday and defaults to today if today is Monday, or the next Monday otherwise.
+The end date must be 8 to 52 weeks after the start. Choose your own future dates for the examples below.
+Goal values are `5k`, `10k`,
 `half`, `marathon`, and `return-to-running`. For return to running, the date is the program
 completion date, and 2 or 3 days per week are supported. Other goals support 2 to 6 days.
 Long-run day uses Monday=0 through Sunday=6.
@@ -65,6 +66,11 @@ Alternatively, `init --recent-runs PATH` accepts a normalized JSON array with th
 A recent marked effort provides a VDOT-style estimate. Garmin averages are not automatically
 classified as maximal efforts. Without one, the engine uses recent easy paces or HR targets.
 `sync --activities PATH --since DATE --until DATE` imports normalized data offline.
+
+Each successful sync replaces stored activities within the inclusive date range,
+including removal of activities absent from the result.
+For an offline import, supply the complete activity list for that range.
+An empty list clears that range.
 
 ## Garmin authentication and first live check
 
@@ -122,8 +128,12 @@ uv run stride-coach push --week 2 --dry-run
 uv run stride-coach push --week 2 --apply
 ```
 
-`adapt` requires the target week's Monday and sync coverage for the previous two full weeks.
-It compares completion, total duration, easy-run targets, and running Banister TRIMP from
+`adapt` requires the target week's Monday and one successful sync covering the previous two full weeks.
+Sync again after Sunday ends, even if you synced on Sunday.
+The `status.sync` and sync response dates describe the fetched range, which can include today.
+Today's activities are stored, but today does not count as a complete day for adaptation.
+
+Adaptation compares completion, total duration, easy-run targets, and running Banister TRIMP from
 average HR. Missing HR is reported as unknown. Walking and other sports do not count as runs.
 Garmin does not reliably return a planned session type, so date plus running matches are
 explicitly labeled **inferred**. A normalized activity's optional `kind` supplies an exact type.
@@ -149,7 +159,7 @@ Ask Claude Code: "Review my last week, explain compliance and load, and propose 
 adjustment." The MCP tools open SQLite read-only, never invoke Garmin, and make no LLM calls.
 It exposes training data to your MCP client, so use a client/account you trust with that data.
 Proposals are previews and may include an incomplete week. Actual application remains the
-CLI's explicit `adapt --apply`, with date and sync checks. MCP cannot upload, remove, or apply.
+CLI's explicit `adapt WEEK --apply`, with date and sync checks. MCP cannot upload, remove, or apply.
 
 ## JSON API for a phone client
 
