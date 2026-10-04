@@ -2,16 +2,20 @@
 
 import argparse
 import os
-from contextlib import contextmanager
+from collections.abc import Callable
 from datetime import datetime
+from typing import TypeVar
 from zoneinfo import ZoneInfo
 
+from anyio import to_thread
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 
 from .service import Coach
 from .storage import Store
+
+T = TypeVar("T")
 
 
 def create_server(
@@ -35,69 +39,67 @@ def create_server(
         readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
     )
 
-    @contextmanager
-    def read():
-        store = Store(database_url, read_only=True)
-        try:
-            yield Coach(store)
-        finally:
-            store.close()
+    async def read(operation: Callable[[Coach], T]) -> T:
+        def execute():
+            store = Store(database_url, read_only=True)
+            try:
+                return operation(Coach(store))
+            finally:
+                store.close()
+
+        return await to_thread.run_sync(execute)
 
     @server.tool(annotations=annotations)
-    def plan() -> dict:
+    async def plan() -> dict:
         """Read the local training plan, targets, and baseline warnings."""
-        with read() as coach:
-            return coach.plan().model_dump(mode="json")
+        return await read(lambda coach: coach.plan().model_dump(mode="json"))
 
     @server.tool(annotations=annotations)
-    def week(number: int) -> dict:
+    async def week(number: int) -> dict:
         """Read one week's workouts and measured completion."""
-        with read() as coach:
-            return coach.week(number).model_dump(mode="json")
+        return await read(lambda coach: coach.week(number).model_dump(mode="json"))
 
     @server.tool(annotations=annotations)
-    def today_workout() -> dict:
+    async def today_workout() -> dict:
         """Read today's workouts in the server timezone, or an explicit rest/outside-plan status."""
-        with read() as coach:
-            return coach.today_workout(datetime.now(zone).date()).model_dump(mode="json")
+        return await read(
+            lambda coach: coach.today_workout(datetime.now(zone).date()).model_dump(mode="json")
+        )
 
     @server.tool(annotations=annotations)
-    def current_week() -> dict:
+    async def current_week() -> dict:
         """Read this week's workouts and measured completion; null week/view outside the plan."""
-        with read() as coach:
-            return coach.current_week(datetime.now(zone).date()).model_dump(mode="json")
+        return await read(
+            lambda coach: coach.current_week(datetime.now(zone).date()).model_dump(mode="json")
+        )
 
     @server.tool(annotations=annotations)
-    def status() -> dict:
+    async def status() -> dict:
         """Read stored sync coverage and applied plan changes with their saved reasons.
 
         Sync is a covered date range, not the time of the last sync attempt. Null means
         no stored coverage. Adjustments are saved changes, not new proposals. Never syncs.
         """
-        with read() as coach:
-            return coach.status().model_dump(mode="json")
+        return await read(lambda coach: coach.status().model_dump(mode="json"))
 
     @server.tool(annotations=annotations)
-    def compliance() -> list[dict]:
+    async def compliance() -> list[dict]:
         """Read weekly session matching; inferred matches are labeled."""
-        with read() as coach:
-            return [m.model_dump(mode="json") for m in coach.compliance()]
+        return await read(lambda coach: [m.model_dump(mode="json") for m in coach.compliance()])
 
     @server.tool(annotations=annotations)
-    def load() -> list[dict]:
+    async def load() -> list[dict]:
         """Read running Banister TRIMP and missing-HR counts by week."""
-        with read() as coach:
-            return [m.model_dump(mode="json") for m in coach.load()]
+        return await read(lambda coach: [m.model_dump(mode="json") for m in coach.load()])
 
     @server.tool(annotations=annotations)
-    def propose_adjustment(number: int) -> dict:
+    async def propose_adjustment(number: int) -> dict:
         """Preview deterministic rules from local data; never apply or push changes.
 
         A preview can include an incomplete week. The adapt operation enforces date and sync
         coverage before saving. No coaching text or arbitrary commands become executable input.
         """
-        with read() as coach:
-            return coach.propose_adjustment(number).model_dump(mode="json")
+        return await read(lambda coach: coach.propose_adjustment(number).model_dump(mode="json"))
 
     return server
 
