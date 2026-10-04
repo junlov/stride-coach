@@ -134,7 +134,9 @@ async function main() {
     assert.equal(proposal.preview_only, true);
     const preview = await client.push({ week: 1, dry_run: true, apply: false });
     for (const item of preview) {
-      const workout = plan.workouts.find((workout) => workout.day === item.date);
+      const workout = plan.workouts.find(
+        (workout) => workout.day === item.date,
+      );
       assert(workout);
       assert.equal(item.payload?.workoutName, workout.name);
       assert(workout.name.length <= 15);

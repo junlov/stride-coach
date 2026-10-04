@@ -66,8 +66,10 @@ The exact `stride-coach:v1:<id>` tag is its own final description line. Discover
 old exact-tag descriptions and new descriptions containing that exact line. Old `SC <id>`
 names only narrow discovery; the fetched workout must still contain the tag. Substrings,
 extra suffixes and a matching name without a tag cannot authorize updates or deletion.
-When inventory summaries omit descriptions, details are fetched to verify tags, even for
-renamed workouts. This may require more read calls for inventories without descriptions.
+When inventory summaries omit descriptions, discovery fetches each workout's details once
+per push or removal operation, including renamed workouts.
+Before updates or deletion, candidate details are fetched again to make sure that the exact
+ownership line remains present. Cached discovery details alone never authorize writes.
 
 A normal explicit push of an existing tagged workout uses the existing update endpoint
 because its payload fingerprint changes. It keeps the remote ID and existing schedule.

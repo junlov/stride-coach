@@ -238,8 +238,7 @@ def owned_remote(client, inventory: list[dict], workout: Workout) -> dict | None
     candidates = [
         r
         for r in inventory
-        if (r.get("workoutName") or "").startswith(f"SC {workout.id} ")
-        or has_tag(r, workout)
+        if (r.get("workoutName") or "").startswith(f"SC {workout.id} ") or has_tag(r, workout)
     ]
     owned = [client.workout(str(r["workoutId"])) for r in candidates]
     owned = [r for r in owned if has_tag(r, workout)]

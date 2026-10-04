@@ -201,12 +201,10 @@ Garmin's normal calendar/device sync; this tool does not force a device message.
 
 Workouts use short runner-facing names, such as `Easy Run 40 min` and `Tempo 3 x 8 min`,
 shared with the app. Descriptions explain the effort and targets; step instructions include
-pace or heart rate. See [Garmin workout text and example payload](docs/garmin-workouts.md).
+pace or heart rate. See [Garmin workout text, ownership, and migration](docs/garmin-workouts.md)
+for naming limits, an example payload, and updates to older workouts.
 
-Workouts have an exact `stride-coach:v1:<id>` ownership line and stable per-date identity.
-The ownership line follows the runner guidance. Old tag-only descriptions and `SC <id>`
-names remain discoverable, but a name alone never grants ownership. Re-pushing a tagged
-workout updates it in place to the new text without creating another workout.
+Workouts have an ownership marker and stable per-date identity.
 Re-running reconciles remote workouts and calendar entries, updates changed workouts in place,
 and skips unchanged ones. PostgreSQL advisory locks serialize writers, and durable intents record uncertain operations
 before sending them. If a request might have succeeded but Garmin has not exposed it yet,
