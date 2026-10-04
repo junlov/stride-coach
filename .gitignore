@@ -19,3 +19,7 @@ app/coverage/
 app/ios/
 app/android/
 *.tsbuildinfo
+
+# Personal originals are private. Only synthetic test fixtures are tracked.
+*.fit
+!tests/fixtures/synthetic-run.fit

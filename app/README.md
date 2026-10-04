@@ -141,7 +141,8 @@ See [API limits](#runner-design-and-api-limits) for excluded features.
 ## Generated API contract
 
 `src/api/schema.ts` is generated from `../docs/openapi.json`. Do not edit it by hand.
-`src/api/client.ts` provides typed operations, bearer auth, error handling, and a 15-second timeout.
+`src/api/client.ts` provides typed operations, bearer auth, error handling, and a default 15-second timeout.
+See [run capture timing](../docs/activity-data.md) for the longer sync timeout.
 
 ```sh
 npm run generate:api
@@ -283,10 +284,10 @@ missing-heart-rate runs make the known TRIMP subtotal incomplete, not zero. Plan
 shows the server's saved adjustment totals and reasons. Apply still requires server-side
 eligibility checks and does not send Garmin workouts.
 
-The current API does not return recorded activity measurements or unmatched activity rows,
-activity provenance/laps/routes, distance history, heart-rate coverage minutes, personalized
-workout explanations, per-workout adjustment diffs, downstream adjustment diffs or adjustment
-timestamps. The UI discloses these gaps and renders the available totals, steps and reasons.
+The [run detail API](../docs/activity-data.md#streams-and-read-api) exposes stored measurements by activity ID.
+The current screens do not use these endpoints. They render the available totals, steps and reasons.
+The API still lacks an unmatched activity list, distance history, and heart-rate coverage minutes.
+It also lacks personalized workout explanations, per-workout adjustment diffs, downstream adjustment diffs, and adjustment timestamps.
 The repeated-interval design, imports, exports and offline cache are outside this implementation.
 
 After a write fails with an uncertain result, Actions disables further operations. **Inspect

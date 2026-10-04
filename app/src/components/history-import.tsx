@@ -19,9 +19,11 @@ export function HistoryImport(props: { onComplete?: () => void }) {
 
 function HistoryImportSession({ onComplete }: { onComplete?: () => void }) {
   const { client, refresh } = useConnection();
+  const requestVersion = useRef(0);
   const load = useCallback(async (api: Client) => {
+    const version = ++requestVersion.current;
     const status = await api.syncStatus();
-    return status.history ?? null;
+    return { version, job: status.history ?? null };
   }, []);
   const query = useQuery(load);
   const [job, setJob] = useState<Schema<"SyncAttempt"> | null>(null);
@@ -29,7 +31,8 @@ function HistoryImportSession({ onComplete }: { onComplete?: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const lock = useRef(false);
   useEffect(() => {
-    if (query.data) setJob(query.data);
+    if (query.data?.version === requestVersion.current && !lock.current)
+      setJob(query.data.job);
   }, [query.data]);
   const current = job;
   const done = useRef<string | null>(null);
@@ -44,20 +47,24 @@ function HistoryImportSession({ onComplete }: { onComplete?: () => void }) {
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
     async function poll() {
+      const version = ++requestVersion.current;
       try {
         const status = await client!.syncStatus();
-        if (active) {
+        if (active && version === requestVersion.current && !lock.current) {
           setJob(status.history ?? null);
           setError(null);
-          if (status.history?.result !== "running") refresh();
-          else timer = setTimeout(poll, 2000);
+          if (status.history?.result !== "running") {
+            refresh();
+            return;
+          }
         }
       } catch (e) {
-        if (active) {
+        if (active && version === requestVersion.current && !lock.current)
           setError((e as Error).message);
-          timer = setTimeout(poll, 5000);
-        }
+        if (active) timer = setTimeout(poll, 5000);
+        return;
       }
+      if (active) timer = setTimeout(poll, 2000);
     }
     timer = setTimeout(poll, 2000);
     return () => {
@@ -70,6 +77,7 @@ function HistoryImportSession({ onComplete }: { onComplete?: () => void }) {
   async function start(range: Range) {
     if (!client || lock.current) return;
     lock.current = true;
+    requestVersion.current++;
     setBusy(true);
     setError(null);
     try {
@@ -77,6 +85,7 @@ function HistoryImportSession({ onComplete }: { onComplete?: () => void }) {
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      requestVersion.current++;
       lock.current = false;
       setBusy(false);
     }

@@ -11,6 +11,9 @@ services:
       STRIDE_COACH_API_TOKEN: ${STRIDE_COACH_API_TOKEN:?Set STRIDE_COACH_API_TOKEN in .env}
       STRIDE_COACH_TOKENS: ${STRIDE_COACH_TOKENS:-/data/garmin}
       STRIDE_COACH_CORS_ORIGINS: ${STRIDE_COACH_CORS_ORIGINS:-}
+      STRIDE_COACH_FIT_DIR: /data/fit
+      STRIDE_COACH_STORE_GPS: ${STRIDE_COACH_STORE_GPS:-true}
+      STRIDE_COACH_DETAIL_DELAY_SECONDS: ${STRIDE_COACH_DETAIL_DELAY_SECONDS:-1}
       TZ: ${TZ:-UTC}
       STRIDE_COACH_SYNC_ENABLED: ${STRIDE_COACH_SYNC_ENABLED:-true}
       STRIDE_COACH_SYNC_TIME: ${STRIDE_COACH_SYNC_TIME:-06:00}
@@ -19,6 +22,7 @@ services:
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-8000}:8000"
     volumes:
+      - ${STRIDE_COACH_FIT_VOLUME:-run-originals}:/data/fit
       - garmin-session:${STRIDE_COACH_TOKENS:-/data/garmin}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
@@ -43,3 +47,4 @@ services:
 volumes:
   postgres-data:
   garmin-session:
+  run-originals:

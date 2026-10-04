@@ -12,6 +12,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     ForeignKeyConstraint,
+    LargeBinary,
     Numeric,
     Text,
     UniqueConstraint,
@@ -201,3 +202,105 @@ class SyncAttemptRow(Base):
     history_range: Mapped[str | None]
     next_page: Mapped[int]
     next_page_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ActivityDetailRow(Base):
+    __tablename__ = "activity_details"
+    activity_id: Mapped[str] = mapped_column(
+        ForeignKey("activities.id", ondelete="CASCADE"), primary_key=True
+    )
+    source: Mapped[str] = mapped_column(default="local")
+    raw_summary: Mapped[dict | None] = mapped_column(JSONB)
+    state: Mapped[str] = mapped_column(default="pending")
+    attempts: Mapped[int] = mapped_column(default=0)
+    error: Mapped[str | None]
+    fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fit_name: Mapped[str | None]
+    moving_time_s: Mapped[float | None]
+    elapsed_time_s: Mapped[float | None]
+    average_pace_s_km: Mapped[float | None]
+    max_pace_s_km: Mapped[float | None]
+    average_speed_m_s: Mapped[float | None]
+    max_speed_m_s: Mapped[float | None]
+    max_hr: Mapped[float | None]
+    average_cadence_spm: Mapped[float | None]
+    max_cadence_spm: Mapped[float | None]
+    stride_length_cm: Mapped[float | None]
+    vertical_oscillation_cm: Mapped[float | None]
+    vertical_ratio_percent: Mapped[float | None]
+    ground_contact_time_ms: Mapped[float | None]
+    average_power_w: Mapped[float | None]
+    max_power_w: Mapped[float | None]
+    normalized_power_w: Mapped[float | None]
+    elevation_gain_m: Mapped[float | None]
+    elevation_loss_m: Mapped[float | None]
+    min_elevation_m: Mapped[float | None]
+    max_elevation_m: Mapped[float | None]
+    average_temperature_c: Mapped[float | None]
+    min_temperature_c: Mapped[float | None]
+    max_temperature_c: Mapped[float | None]
+    calories: Mapped[float | None]
+    aerobic_training_effect: Mapped[float | None]
+    anaerobic_training_effect: Mapped[float | None]
+    training_load: Mapped[float | None]
+    vo2_max: Mapped[float | None]
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    timezone: Mapped[str | None]
+    device: Mapped[str | None]
+
+
+class ActivityLapRow(Base):
+    __tablename__ = "activity_laps"
+    activity_id: Mapped[str] = mapped_column(
+        ForeignKey("activities.id", ondelete="CASCADE"), primary_key=True
+    )
+    position: Mapped[int] = mapped_column(primary_key=True)
+    distance_m: Mapped[float]
+    duration_s: Mapped[float]
+    average_pace_s_km: Mapped[float | None]
+    average_hr: Mapped[float | None]
+    max_hr: Mapped[float | None]
+    average_cadence_spm: Mapped[float | None]
+    elevation_gain_m: Mapped[float | None]
+    elevation_loss_m: Mapped[float | None]
+    average_power_w: Mapped[float | None]
+    max_power_w: Mapped[float | None]
+
+
+class ActivitySplitRow(Base):
+    __tablename__ = "activity_splits"
+    activity_id: Mapped[str] = mapped_column(
+        ForeignKey("activities.id", ondelete="CASCADE"), primary_key=True
+    )
+    position: Mapped[int] = mapped_column(primary_key=True)
+    distance_m: Mapped[float]
+    duration_s: Mapped[float]
+    average_pace_s_km: Mapped[float | None]
+    average_hr: Mapped[float | None]
+    max_hr: Mapped[float | None]
+    average_cadence_spm: Mapped[float | None]
+    elevation_gain_m: Mapped[float | None]
+    elevation_loss_m: Mapped[float | None]
+    average_power_w: Mapped[float | None]
+    max_power_w: Mapped[float | None]
+
+
+class ActivityZoneRow(Base):
+    __tablename__ = "activity_hr_zones"
+    activity_id: Mapped[str] = mapped_column(
+        ForeignKey("activities.id", ondelete="CASCADE"), primary_key=True
+    )
+    position: Mapped[int] = mapped_column(primary_key=True)
+    zone: Mapped[int]
+    seconds: Mapped[float]
+    lower_bpm: Mapped[float | None]
+    upper_bpm: Mapped[float | None]
+
+
+class ActivityStreamRow(Base):
+    __tablename__ = "activity_streams"
+    activity_id: Mapped[str] = mapped_column(
+        ForeignKey("activities.id", ondelete="CASCADE"), primary_key=True
+    )
+    format: Mapped[str]
+    data: Mapped[bytes] = mapped_column(LargeBinary)

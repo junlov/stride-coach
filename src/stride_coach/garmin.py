@@ -71,6 +71,11 @@ class GarminClient:
             raise GarminError("Unexpected Garmin activity page. Retry the import.")
         return [normalize_activity(row) for row in rows]
 
+    def activity_detail(self, activity_id: str, *, gps: bool = True):
+        from .activity_capture import fetch_detail
+
+        return fetch_detail(self, activity_id, gps=gps)
+
     def workouts(self) -> list[dict]:
         result = []
         for start in range(0, 10000, 100):
@@ -133,7 +138,10 @@ class GarminClient:
 
 
 def normalize_activity(row: dict) -> Activity:
-    kind = row.get("activityType", {}).get("typeKey", "")
+    from .activity_capture import normalize_metrics
+    from .activity_storage import store_gps
+
+    kind = row.get("activityType", row.get("activityTypeDTO", {})).get("typeKey", "")
     running = kind in {
         "running",
         "trail_running",
@@ -151,6 +159,9 @@ def normalize_activity(row: dict) -> Activity:
         duration_min=float(row["duration"]) / 60,
         average_hr=row.get("averageHR"),
         sport="running" if running else kind,
+        metrics=normalize_metrics(row),
+        raw_summary=row if store_gps() else None,
+        source="garmin",
     )
 
 

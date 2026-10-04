@@ -239,6 +239,17 @@ def sync(
         )
 
 
+@app.command("backfill-details")
+def backfill_details(
+    ctx: typer.Context,
+    limit: Annotated[int, typer.Option(min=1, max=1000)] = 20,
+    include_legacy: bool = False,
+):
+    """Fetch pending run details; optionally include pre-detail-storage Garmin IDs."""
+    with session(ctx) as coach:
+        emit(coach.backfill_details(limit, include_legacy))
+
+
 @app.command()
 def adapt(
     ctx: typer.Context, week: int, apply: bool = False, proposal_fingerprint: str | None = None

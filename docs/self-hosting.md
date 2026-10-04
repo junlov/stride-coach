@@ -25,7 +25,8 @@ CORS origins. Generate independent random secrets rather than human-chosen passw
 
 The API image uses pinned Python and uv versions, installs the locked production dependencies
 in a build stage, and runs as UID/GID `10001:10001`. Named volumes persist PostgreSQL and the
-private Garmin session directory. PostgreSQL has no published port. The API binds to host
+private Garmin session directory. The [run detail archive](#run-detail-archive) also requires persistent storage.
+PostgreSQL has no published port. The API binds to host
 loopback by default. Both services have healthchecks and restart policies.
 
 The Compose file builds locally; this project does not publish an image. Keep the checkout
@@ -137,15 +138,16 @@ curl --fail http://127.0.0.1:8000/health
 The explicit upgrade step is optional because startup applies pending migrations. Upgrades are
 serialized with a PostgreSQL advisory lock. The runtime and MCP refuse an incompatible schema;
 MCP never performs migrations. Do not downgrade the schema in production. To roll back an
-incompatible application upgrade, restore the paired pre-upgrade database and session backups
-and run the previous image/commit. Changing `POSTGRES_PASSWORD` in `.env` does not change an
+incompatible application upgrade, restore the paired pre-upgrade database, session, and FIT backups.
+Run the previous image/commit. Changing `POSTGRES_PASSWORD` in `.env` does not change an
 existing PostgreSQL role's password; rotate the database role and connection settings together.
 PostgreSQL major-version upgrades need PostgreSQL's own migration procedure, not only a new tag.
 
 ## Backup and restore
 
 Stop the API and any external CLI writers so the database ledger and session snapshot describe
-the same point in time. Protect backups as secrets and keep copies off the host. Never discard
+the same point in time. Include the [run detail archive](#run-detail-archive) in every paired backup and restore.
+Protect backups as secrets and keep copies off the host. Never discard
 the scheduled ledger or pending intents to bypass a failed Garmin write.
 
 ### Bundled database only
@@ -162,8 +164,9 @@ docker compose exec -T postgres sh -c \
   'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > backups/stride.dump
 docker compose run --rm -T --no-deps --entrypoint tar api \
   -C /data/garmin -czf - . > backups/garmin-session.tgz
-docker compose start api
 ```
+
+Complete the [run detail archive backup](#run-detail-archive), then run `docker compose start api`.
 
 If you customized `STRIDE_COACH_TOKENS`, replace `/data/garmin` in these commands. Capture the
 configured timezone, credentials, and deployed commit securely with the backup. `pg_dump -Fc`
@@ -182,8 +185,9 @@ docker compose exec -T postgres sh -c \
 docker compose run --rm -T --no-deps --user 0 --entrypoint sh api -c \
   'tar -C /data/garmin -xzf - && chown -R 10001:10001 /data/garmin && chmod 700 /data/garmin && find /data/garmin -type f -exec chmod 600 {} \;' \
   < backups/garmin-session.tgz
-docker compose up -d --wait api
 ```
+
+Restore the paired [run detail archive](#run-detail-archive), then run `docker compose up -d --wait api`.
 
 ### External database
 
@@ -238,13 +242,14 @@ After the database backup succeeds, save the paired Garmin session before you re
 pg_dump --dbname=service=stride_backup --format=custom --file=backups/stride.dump
 docker compose run --rm -T --no-deps --entrypoint tar api \
   -C /data/garmin -czf - . > backups/garmin-session.tgz
-docker compose start api
 rm backups/pg_service.conf
 unset PGSERVICEFILE
 ```
 
-If either backup fails, keep writers stopped and repeat the paired backup before you restart the API.
-Protect both archives as secrets. Save the deployed commit and timezone securely with them.
+Complete the [run detail archive backup](#run-detail-archive), then run `docker compose start api`.
+
+If any backup fails, keep writers stopped and repeat the paired backup before you restart the API.
+Protect all archives as secrets. Save the deployed commit and timezone securely with them.
 If you customized `STRIDE_COACH_TOKENS`, replace `/data/garmin` in the session commands.
 
 For restore, stop all writers and take a paired safety backup first.
@@ -260,13 +265,14 @@ unset PGSERVICEFILE
 ```
 
 After the database restore succeeds, restore its paired Garmin session archive with the session restore command above.
-Preserve its ownership and permissions. Restart the API only after both restores succeed.
+Preserve its ownership and permissions. Restore the paired [run detail archive](#run-detail-archive).
+Restart the API only after all restores succeed.
 Delete the private service file after any failed attempt too.
 
 After restore, inspect the plan and Garmin connection status before syncing or applying changes.
 An older backup cannot know about remote writes made after it: inspect Garmin for discrepancies
 and unresolved writes before proceeding. Do not run `docker compose down -v` on a deployment
-you want to keep; that deletes both named volumes.
+you want to keep; that deletes the declared named volumes.
 
 ## Openship equivalent (untested on this platform)
 
@@ -281,7 +287,7 @@ probe controls. No Openship deployment was performed for this change.
 | Public ingress | HTTPS hostname at the platform proxy, forwarding to port 8000 |
 | Readiness and liveness | HTTP `GET /health`, no auth header, allow startup migration time |
 | Environment | `DATABASE_URL`, `STRIDE_COACH_API_TOKEN`, `STRIDE_COACH_TOKENS=/data/garmin`, `TZ`; CORS only for web clients |
-| API volume | Persistent `/data/garmin`, writable by UID/GID `10001:10001` |
+| API volumes | Persistent `/data/garmin` and the [run detail archive](#run-detail-archive), writable by UID/GID `10001:10001` |
 | PostgreSQL | Private PostgreSQL 17 service, strong role password, persistent `/var/lib/postgresql/data` |
 | Restart | Restart on failure; keep exactly one service instance |
 
@@ -346,3 +352,23 @@ Applied adjustments retain reason text and an input snapshot (weekly completion/
 parameters, target effort counts, rule version, and complete sync coverage). `/status` returns
 this evidence; **Progress** shows why each applied week changed. Older adjustments retain their
 existing reasons with an empty input snapshot because their original inputs cannot be recovered.
+
+## Run detail archive
+
+See [run data and normalized imports](activity-data.md) for the metric schema, read endpoints,
+GPS opt-out, backfill command, and compact stream format.
+See [archive paths and privacy controls](activity-data.md#original-files-and-privacy) for volume configuration and permissions.
+
+In the backup procedure above, save the FIT archive before you restart any writer.
+Use the same private `backups` directory and `umask 077`:
+
+```sh
+docker compose run --rm -T --no-deps --entrypoint tar api \
+  -C /data/fit -czf - . > backups/run-originals.tgz
+```
+
+Restore the paired archive into the configured FIT volume with UID/GID `10001:10001`, directory
+mode 700 and file mode 600 before resuming capture. Keep the same volume when upgrading or
+moving hosts. Stream records, metrics, laps, zones and capture checkpoints are included in
+PostgreSQL backups. Deleting Compose volumes also deletes originals. Protect these backups:
+GPS tracks reveal locations, and FIT files may contain additional personal data.

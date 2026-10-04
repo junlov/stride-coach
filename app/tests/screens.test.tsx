@@ -779,3 +779,76 @@ test("resuming replaces a completed local import with another device's job and p
     jest.useRealTimers();
   }
 });
+
+test.each(["before submission", "during submission"])(
+  "an obsolete status read from %s cannot replace the submitted import",
+  async (timing) => {
+    jest.useFakeTimers();
+    try {
+      const original = server.getMockImplementation()!;
+      let resolveStatus!: (value: Response) => void;
+      let resolveImport!: (value: Response) => void;
+      const running = { ...historyJob, id: "new-import", activity_count: 0 };
+      let delayed = timing === "before submission";
+      server.mockImplementation(async (input) => {
+        if (String(input).endsWith("/sync/history"))
+          return new Promise<Response>((resolve) => {
+            resolveImport = resolve;
+          });
+        if (String(input).endsWith("/sync/status")) {
+          if (delayed)
+            return new Promise<Response>((resolve) => {
+              resolveStatus = resolve;
+            });
+          return response({ history: null });
+        }
+        return original(input);
+      });
+      const complete = jest.fn();
+      await mount(<HistoryImport onComplete={complete} />);
+      if (timing === "before submission")
+        await waitFor(() => expect(resolveStatus).toBeDefined());
+      await fireEvent.press(await screen.findByText("Import 6 months"));
+      if (timing === "during submission") {
+        delayed = true;
+        const listeners = jest
+          .mocked(AppState.addEventListener)
+          .mock.calls.map((call) => call[1]);
+        await act(async () =>
+          listeners.forEach((listener) => listener("active")),
+        );
+        await waitFor(() => expect(resolveStatus).toBeDefined());
+      }
+      await act(async () => resolveImport(response(running)));
+      expect(
+        await screen.findByText("0 runs imported · Importing..."),
+      ).toBeTruthy();
+      await act(async () =>
+        resolveStatus(
+          response({ history: { ...historyJob, result: "success" } }),
+        ),
+      );
+      expect(screen.queryByText("100 runs imported · Complete")).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Import 6 months" }),
+      ).toBeDisabled();
+      expect(complete).not.toHaveBeenCalled();
+      server.mockImplementation(async (input) =>
+        String(input).endsWith("/sync/status")
+          ? response({
+              history: { ...running, result: "success", activity_count: 8 },
+            })
+          : original(input),
+      );
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(2000);
+      });
+      expect(
+        await screen.findByText("8 runs imported · Complete"),
+      ).toBeTruthy();
+      expect(complete).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  },
+);

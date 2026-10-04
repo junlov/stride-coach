@@ -7,6 +7,9 @@ from uuid import uuid4
 
 from pydantic import Field
 
+from .activity_capture import capture_pending
+from .activity_models import BackfillResult
+from .activity_storage import read_detail, read_streams
 from .adaptation import adapt as adapt_week
 from .adaptation import propose, week_metrics
 from .engine import generate_plan
@@ -62,6 +65,7 @@ class Created(Record):
 
 
 class SyncResult(Record):
+    details: BackfillResult | None = None
     synced: int
     since: date
     until: date
@@ -234,12 +238,15 @@ class Coach:
             )
             self.store.save_attempt(attempt)
             try:
+                client = self.client_factory(self.token_dir) if request.activities is None else None
                 runs = (
                     request.activities
                     if request.activities is not None
-                    else self.client_factory(self.token_dir).activities(begin, end)
+                    else client.activities(begin, end)
                 )
                 runs = [a for a in runs if begin <= a.day <= end]
+                if request.activities is not None:
+                    runs = [a.model_copy(update={"source": "local"}) for a in runs]
                 self.store.save_sync(runs, begin.isoformat(), end.isoformat(), today=today)
                 attempt.result = "success"
                 attempt.activity_count = len(runs)
@@ -250,11 +257,31 @@ class Coach:
             finally:
                 attempt.finished_at = datetime.now(UTC)
                 self.store.save_attempt(attempt)
+        details = (
+            capture_pending(self.store, client)
+            if client and hasattr(client, "activity_detail")
+            else None
+        )
         return SyncResult(
+            details=details,
             synced=len(runs),
             since=begin,
             until=end,
             source="local import" if request.activities is not None else "Garmin",
+        )
+
+    def activity(self, activity_id: str):
+        return read_detail(self.store, activity_id)
+
+    def activity_streams(self, activity_id: str):
+        return read_streams(self.store, activity_id)
+
+    def backfill_details(self, limit: int = 20, include_legacy: bool = False):
+        return capture_pending(
+            self.store,
+            self.client_factory(self.token_dir),
+            limit=limit,
+            include_legacy=include_legacy,
         )
 
     def adapt(self, request: AdaptRequest, today: date | None = None) -> Adjustment:
