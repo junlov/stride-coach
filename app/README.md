@@ -287,7 +287,11 @@ shows the server's saved adjustment totals and reasons. Apply still requires ser
 eligibility checks and does not send Garmin workouts.
 
 The [run detail API](../docs/activity-data.md#streams-and-read-api) exposes stored measurements by activity ID.
-The current screens do not use these endpoints. They render the available totals, steps and reasons.
+Opening **Review matched run** on Today or Week reads `/activities/{id}` and shows recorded
+duration, distance, average pace, average heart rate, and ordered laps beside planned minutes.
+Missing measurements are labeled unavailable, separately from zero; an empty lap list says
+no laps recorded. Loading and failed reads use the shared loading and retry UI. Streams and
+routes are not displayed.
 The API still lacks an unmatched activity list, distance history, and heart-rate coverage minutes.
 It also lacks personalized workout explanations, per-workout adjustment diffs, downstream adjustment diffs, and adjustment timestamps.
 The repeated-interval design, imports, exports and offline cache are outside this implementation.
@@ -306,3 +310,6 @@ reason history, plus seven-day matching, progress accessibility, unavailable dat
 appearances, authentication recovery, eligibility rejection and unknown-write inspection.
 The existing screen tests continue to prove explicit apply, empty/failed previews,
 cancellation, scope edits and connection changes.
+
+`tests/run-detail.test.tsx` covers matched-run measurements on Today and Week, partial and
+missing sensors, zero values, loading, late responses after close, and failed reads with retry.
