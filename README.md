@@ -55,13 +55,10 @@ or [build your own installable copy](app/README.md#build-your-own-app-copy).
    npm start -- --go
    ```
 
-4. In **Settings**, enter your HTTPS server URL and the `.env` API token. Tap **Test connection**
-   and **Save connection**. A new server has no plan yet; that is expected.
-5. Tap **Connect Garmin**, enter your Garmin credentials, and complete MFA if requested.
-   Open **Goal**, choose your distance, Monday start, goal date, and running days, then create
-   the plan. See [goal constraints](#plan-and-review). To use recent history for the initial
-   estimate, follow the [first-run sync instructions](docs/self-hosting.md#first-run-and-garmin)
-   before creating the goal.
+4. Follow the [mobile connection guide](app/README.md#connect-your-server) with your HTTPS server URL and the `.env` API token.
+5. Continue through Garmin connection and goal setup in that guide. See [goal constraints](#plan-and-review).
+   To use recent history for the initial estimate, follow the
+   [first-run sync instructions](docs/self-hosting.md#first-run-and-garmin) before creating the goal.
 6. Review **Today** and **Plan**. Preview a workout before confirming any Garmin upload.
    Use the [first live check](#garmin-authentication-and-first-live-check) for watch delivery.
 
@@ -144,12 +141,8 @@ An empty list clears that range.
 
 ## Garmin authentication and first live check
 
-The server owns the Garmin connection. In the mobile app, save your server URL and bearer
-token in **Settings**, then use **Connect Garmin** with your email and password. If Garmin
-asks for MFA, enter its code in the next step. No separate token-export tool is needed.
-Use **Refresh Garmin status** to see the account name (when available) and access-token expiry.
-**Disconnect Garmin** deletes the server's saved tokens and cancels pending login state;
-it does not revoke other Garmin sessions or erase already synced runs and workouts.
+The server owns the Garmin connection. Follow the [mobile connection guide](app/README.md#connect-your-server)
+for first-run setup, Garmin sign-in, and connection management. No separate token-export tool is needed.
 
 Operators can use the same connection from the CLI, with hidden password/MFA prompts:
 
@@ -176,6 +169,7 @@ It refuses shared stores such as `~/.garminconnect` and nonempty directories
 without its ownership marker. Choose a fresh directory, then connect again; do not point it at
 another tool's tokens. Disconnect removes token contents and leaves a non-secret generation marker
 to invalidate outstanding logins.
+Disconnect does not revoke other Garmin sessions.
 
 **Container deployment:** follow the [operator guide](docs/self-hosting.md). The supplied Compose
 file persists PostgreSQL and the dedicated Garmin session directory, validates configuration,

@@ -1,10 +1,21 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import { Client, Schema } from "../api/client";
 import { useQuery } from "../state/query";
 import { Button, Card, Copy, ErrorMessage, Field, Heading, Muted } from "./ui";
 
-export function GarminSettings({ client }: { client: Client }) {
+export function GarminSettings({
+  client,
+  onBusyChange,
+  showHeading = true,
+}: {
+  client: Client;
+  onBusyChange?: (busy: boolean) => void;
+  showHeading?: boolean;
+}) {
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const [disconnected, setDisconnected] = useState(false);
+  const [mfaFailed, setMfaFailed] = useState(false);
   const [status, setStatus] = useState<Schema<"GarminStatus"> | null>(null);
   const load = useCallback((api: Client) => {
     setStatus(null);
@@ -19,6 +30,9 @@ export function GarminSettings({ client }: { client: Client }) {
   const [error, setError] = useState<string | null>(null);
   const lock = useRef(false);
   const current = status ?? query.data;
+  useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
   useFocusEffect(
     useCallback(() => {
       return () => {
@@ -33,6 +47,8 @@ export function GarminSettings({ client }: { client: Client }) {
     lock.current = true;
     setBusy(true);
     setError(null);
+    setMfaFailed(false);
+    setDisconnected(false);
     const submittedPassword = password;
     const submittedCode = code;
     setPassword("");
@@ -42,6 +58,8 @@ export function GarminSettings({ client }: { client: Client }) {
     try {
       if (action === "logout") {
         setStatus(await client.garminLogout());
+        setConfirmDisconnect(false);
+        setDisconnected(true);
       } else {
         const result =
           action === "login"
@@ -54,6 +72,7 @@ export function GarminSettings({ client }: { client: Client }) {
         setChallenge(result.challenge_id ?? null);
       }
     } catch {
+      if (action === "mfa") setMfaFailed(true);
       // Never display upstream text that might echo a submitted credential.
       setError(
         action === "logout"
@@ -66,9 +85,75 @@ export function GarminSettings({ client }: { client: Client }) {
     }
   }
 
+  if (confirmDisconnect)
+    return (
+      <Card>
+        <Heading>Keep the plan. Close the connection.</Heading>
+        <Copy>
+          Disconnect the Garmin session on your server. Sync and Garmin workout
+          writes will stop.
+        </Copy>
+        <Heading>What stays</Heading>
+        <Copy>
+          Your plan and stored activities remain. Workouts already sent to
+          Garmin are not removed.
+        </Copy>
+        <Muted>
+          To remove server-owned Garmin workouts, use the separate removal flow
+          before disconnecting.
+        </Muted>
+        <ErrorMessage message={error} />
+        <Button
+          label="Confirm disconnect"
+          variant="danger"
+          disabled={busy}
+          onPress={() => void run("logout")}
+        />
+        <Button
+          label="Keep Garmin connected"
+          variant="secondary"
+          disabled={busy}
+          onPress={() => {
+            setConfirmDisconnect(false);
+            setError(null);
+          }}
+        />
+      </Card>
+    );
+
   return (
     <Card>
-      <Heading>Garmin</Heading>
+      {showHeading && (
+        <Heading>
+          {current?.connected
+            ? "Connected through your server."
+            : challenge
+              ? "One more step."
+              : "Bring your runs together."}
+        </Heading>
+      )}
+      <Muted>
+        Your server connects to Garmin. This session is separate from the app’s
+        server token.
+      </Muted>
+      {disconnected && (
+        <Copy>
+          Garmin disconnected. Your plan, stored activities and existing Garmin
+          workouts are unchanged.
+        </Copy>
+      )}
+      {(query.error || mfaFailed) && (
+        <>
+          <Heading>
+            {mfaFailed ? "Code not accepted" : "Reconnect when you are ready."}
+          </Heading>
+          <Muted>
+            {mfaFailed
+              ? "Verification failed or expired. Restart Garmin sign-in to request a new code. Your plan is unchanged."
+              : "Refresh status to check the session, or sign in again. Your plan and stored activities remain on the server."}
+          </Muted>
+        </>
+      )}
       {query.loading && !status && <Muted>Checking Garmin connection...</Muted>}
       {current && (
         <Copy>
@@ -85,6 +170,7 @@ export function GarminSettings({ client }: { client: Client }) {
       )}
       <ErrorMessage message={error ?? (status ? null : query.error)} />
       <Button
+        variant="secondary"
         label="Refresh Garmin status"
         disabled={busy || query.loading}
         onPress={() => {
@@ -112,6 +198,16 @@ export function GarminSettings({ client }: { client: Client }) {
               label="Complete Garmin connection"
               onPress={() => void run("mfa")}
               disabled={busy || !code.trim()}
+            />
+            <Button
+              label="Restart Garmin sign-in"
+              variant="secondary"
+              disabled={busy}
+              onPress={() => {
+                setChallenge(null);
+                setCode("");
+                setError(null);
+              }}
             />
           </>
         ) : (
@@ -145,12 +241,74 @@ export function GarminSettings({ client }: { client: Client }) {
             />
           </>
         ))}
-      <Button
-        label="Disconnect Garmin"
-        onPress={() => void run("logout")}
-        disabled={busy}
-      />
+      {current?.connected && (
+        <>
+          <GarminCoverage />
+          <Muted>
+            Sync after a run from Actions to bring activities into your week. A
+            connected session does not mean your activities have been synced.
+          </Muted>
+          <Button
+            label="Disconnect Garmin"
+            variant="danger"
+            onPress={() => {
+              setError(null);
+              setConfirmDisconnect(true);
+            }}
+            disabled={busy}
+          />
+        </>
+      )}
+      {!current?.connected && (query.error || mfaFailed || disconnected) && (
+        <Button
+          label={mfaFailed ? "Restart Garmin sign-in" : "Reconnect Garmin"}
+          variant="secondary"
+          disabled={busy}
+          onPress={() => {
+            setChallenge(null);
+            setCode("");
+            setPassword("");
+            setError(null);
+            setMfaFailed(false);
+            setDisconnected(false);
+          }}
+        />
+      )}
       {busy && <Muted>Waiting for Garmin...</Muted>}
     </Card>
+  );
+}
+
+function GarminCoverage() {
+  const load = useCallback(async (api: Client) => {
+    return (await api.status()).sync;
+  }, []);
+  const query = useQuery(load);
+  if (query.loading) return <Muted>Checking activity coverage...</Muted>;
+  if (query.error)
+    return (
+      <>
+        <Muted>
+          Activity coverage is unavailable. A Garmin connection alone does not
+          confirm a sync.
+        </Muted>
+        <Button
+          label="Retry activity coverage"
+          variant="secondary"
+          onPress={query.retry}
+        />
+      </>
+    );
+  return query.data ? (
+    <>
+      <Copy>Coverage starts: {query.data.since}</Copy>
+      <Copy>Coverage through: {query.data.until}</Copy>
+      <Muted>
+        Dates use the server’s timezone. Coverage dates describe activity
+        history, not the time of the last successful sync.
+      </Muted>
+    </>
+  ) : (
+    <Muted>No activity sync coverage recorded yet.</Muted>
   );
 }

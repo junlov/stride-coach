@@ -29,31 +29,63 @@ profile below. SDK 58 is not used while it is on npm's prerelease channel.
    Configure the same long bearer token on the server and phone.
 2. Put the server behind HTTPS with a trusted certificate. Point the phone at a URL such as
    `https://coach.example.com`, optionally with a reverse-proxy path prefix.
-3. Open **Settings**, enter the URL and token, tap **Test connection**, then **Save connection**.
-   The test calls `/status` with the entered values, even before saving. A server with no plan
-   will tell you to open Goal setup after saving.
-4. In the **Garmin** section, tap **Connect Garmin** after entering your Garmin email and password.
-   The app sends them once over the authenticated HTTPS connection and clears the password field
-   immediately. If requested, enter the MFA code Garmin sends. The server's challenge expires after five minutes.
-   After a server restart or a failed completion, start a new explicit login.
-5. Open **Goal** to create the initial plan. The server supports one plan per database. For a
-   later goal, the operator must configure a fresh database; the app cannot replace the plan.
+3. On a fresh install, the first-run wizard opens automatically. Enter the server URL and
+   bearer token, tap **Test connection**, then **Save connection**. Saving is enabled only after
+   an authenticated test passes. Changing either field requires another test. A server without
+   a plan is a valid connection and proceeds to goal setup.
+4. Choose **Connect Garmin** after entering your Garmin email and password, or **Skip Garmin
+   for now**. The app sends credentials once over the authenticated connection and clears the
+   password immediately. If requested, enter the MFA code Garmin sends. The challenge expires
+   after five minutes. After a failed completion, use **Restart Garmin sign-in** for a new
+   explicit login. After connecting, tap **Continue to goal**. You can also connect later in **Settings**.
+5. Choose your goal, Monday start, race or completion date, weekly running days, long-run day,
+   and heart rates. **Review goal** shows the exact constraints before **Confirm new plan**
+   creates it. Review any starting-fitness warnings, then tap **Go to Today**. If the server
+   already has a plan, the wizard opens that plan instead of attempting to replace it.
+
+The server supports one plan per database. For a later goal, the operator must configure a
+fresh database; the app cannot replace the plan. If setup is interrupted after saving the
+connection, the next launch opens the main app: **Set a running goal** in the empty-plan state
+continues setup, and Garmin remains available in Settings. Wizard progress and Garmin
+credentials are not persisted.
+
+If plan creation fails or times out, the app reads server status to find an existing plan.
+If that read succeeds, tap **Go to Today**.
+If it fails, tap **Check plan status** to retry the read before submitting the goal again.
+
+The **Import past runs** step is hidden by default. `ImportPastRunsStep` in
+`src/screens/onboarding.tsx` is the extension slot immediately after Garmin for a future
+server-backed import flow. The current wizard makes no import or Garmin sync requests.
+
+In **Settings**, **Manage connection** opens the server form. Test and save a changed URL or
+bearer token there. **Forget connection** opens a confirmation showing what will be removed.
+The onboarding and settings screens follow the phone’s light or dark appearance using
+`src/theme/index.ts` and `src/components/ui.tsx`. Expo system UI enables appearance changes in
+Android builds, as described in [Expo’s color theme guide](https://docs.expo.dev/develop/user-interface/color-themes/).
 
 **Refresh Garmin status** shows the connected account (when available) and access-token expiry.
-**Disconnect Garmin** deletes tokens from the server and cancels pending login. It does not erase
+**Disconnect Garmin** opens a confirmation; only **Confirm disconnect** deletes tokens from
+the server and cancels pending login. It does not erase
 synced runs or Garmin workouts. Sync and live Garmin actions prompt you to connect when needed;
 local previews still work without a Garmin connection. Login is never automatically retried.
 After a failed or timed-out request, refresh Garmin status before another login attempt.
 The server renews access tokens once per request when needed, without using your password.
+Connected settings show activity coverage from `/status` separately from the Garmin session.
+Without a plan, `/status` fails and the app shows coverage as unavailable, even when stored activities exist.
+After creating a plan, use **Retry activity coverage** to load coverage.
+The empty coverage message appears only after a successful response without coverage.
+The API does not expose a last-successful-sync timestamp or distinguish expired sessions from
+all other disconnections, so the app does not invent either value.
 
 See the root [Garmin guide](../README.md#garmin-authentication-and-first-live-check) for container
 storage, server configuration, MFA worker requirements, upstream login limitations, and CLI commands.
 
-Both server settings are saved together in `expo-secure-store`. **Forget connection** removes the
-saved server URL/bearer token and clears connected screen state. It does not disconnect Garmin
-on the server. Garmin email, password, and MFA code are never put in SecureStore. Tokens are never put in URLs, analytics,
-logs, source files, or build configuration.
-Saving or forgetting a connection clears pending previews, recovery inspection, acknowledgement, and the selected week.
+Both server settings are saved together in `expo-secure-store`.
+In the confirmation, **Forget server connection** removes the saved URL and bearer token, discards pending previews, and returns to onboarding.
+The server keeps its plan, activities, and Garmin connection. **Keep connection** cancels without removing credentials.
+Garmin email, password, and MFA code are never put in SecureStore. Tokens are never put in URLs, analytics,
+logs, source files, or build configuration. Changing connections invalidates pending previews.
+Saving or forgetting a connection clears recovery inspection, acknowledgement, and the selected week.
 The app ignores late responses from the previous connection.
 
 A physical phone's `localhost` is the phone itself. Use the server's HTTPS address for phones.
@@ -122,7 +154,11 @@ newer versions use React 19.3's reconciler.
 Jest uses `jest-expo` and React Native Testing Library with an in-memory mocked HTTP transport
 and mocked SecureStore. Tests run offline and never access Garmin or real credentials. GitHub
 Actions checks generated-type drift, typecheck, lint, tests, and both native bundle exports
-alongside the existing Python jobs.
+alongside the existing Python jobs. `tests/onboarding.test.tsx` walks a fresh install through
+Today with both Garmin login and skip paths, and exercises the settings states in both themes.
+`tests/routing.test.tsx` uses the real Expo navigator to check that a Settings deep link still
+finishes onboarding on Today. The existing screen tests cover preview invalidation when the
+server changes and ensure credentials are never saved.
 
 For a real local HTTP proof, install the root Python dependencies (`uv sync --locked`), start
 the [disposable PostgreSQL](../docs/self-hosting.md#local-offline-tests-and-synthetic-proof),
@@ -158,13 +194,13 @@ require an Apple Developer membership. You do not need the maintainer's Expo acc
 
 Before running EAS, edit **your fork's** `app/app.json`:
 
-| Field under `expo` | Change |
-| --- | --- |
-| `owner` | Replace `junlov` with your Expo username or organization |
-| `extra.eas.projectId` | Delete this property, then let `eas init` generate your own ID |
-| `android.package` | Replace `org.stridecoach.app` with your unique reverse-domain identifier |
-| `ios.bundleIdentifier` | Replace `org.stridecoach.app` with your unique reverse-domain identifier |
-| `name`, `slug`, `scheme` | Choose names and a URL scheme for your copy |
+| Field under `expo`       | Change                                                                   |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `owner`                  | Replace `junlov` with your Expo username or organization                 |
+| `extra.eas.projectId`    | Delete this property, then let `eas init` generate your own ID           |
+| `android.package`        | Replace `org.stridecoach.app` with your unique reverse-domain identifier |
+| `ios.bundleIdentifier`   | Replace `org.stridecoach.app` with your unique reverse-domain identifier |
+| `name`, `slug`, `scheme` | Choose names and a URL scheme for your copy                              |
 
 **The committed project ID `1292c8fc-a736-43a2-be85-a0fb899f9475` belongs to the maintainer.
 It must be replaced, not reused.** Keep `extra.router` and the other configuration intact.
@@ -217,8 +253,8 @@ after the owner's submission and Apple's processing. Users install a TestFlight 
 an invitation in TestFlight. An IPA is not a universal iPhone download. Store listings and
 submission are outside this guide. EAS build completion alone does not prove device installation.
 
-After installing either preview app, open **Settings**, connect your server, and follow the
-[connection steps](#connect-your-server). For a development build instead, use the
+After installing either preview app, follow the [connection steps](#connect-your-server).
+For a development build instead, use the
 `development` profile and start Metro with `npm start -- --dev-client`.
 
 The Expo build-properties plugin enables SDK 57's scene lifecycle support for iOS builds using

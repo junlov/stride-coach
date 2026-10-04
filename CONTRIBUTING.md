@@ -54,10 +54,10 @@ npm ci
 npm start -- --go
 ```
 
-Use an SDK 57-compatible Expo Go. In Settings, set `http://127.0.0.1:8001` for the iOS simulator,
-or `http://10.0.2.2:8001` for the Android emulator, and paste the token from `.local/dev/api-token`
-at the repository root. Test and save the connection. The dev plan already exists, so open
-Today/Plan rather than submitting another goal. To test empty goal onboarding, use a fresh
+Use an SDK 57-compatible Expo Go. Follow the [mobile connection guide](app/README.md#connect-your-server)
+with `http://127.0.0.1:8001` for the iOS simulator or `http://10.0.2.2:8001` for the Android emulator.
+Use the token from `.local/dev/api-token` at the repository root.
+The dev plan already exists. To test empty goal onboarding, use a fresh
 self-hosting setup instead. For physical phones, provide a trusted HTTPS reverse proxy to
 port 8001 and use its hostname; the server intentionally binds to loopback.
 
