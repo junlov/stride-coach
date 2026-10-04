@@ -125,14 +125,7 @@ To revoke access, [rotate the shared token](../README.md#api-authentication-and-
 ## First run and Garmin
 
 Follow the [mobile connection guide](../app/README.md#connect-your-server) to connect your phone and Garmin during first-run setup.
-Before sending workouts, [set up one training plan on your watch](../README.md#use-one-training-plan-on-your-watch):
-turn off Daily Suggested Workout prompts on the watch and pause or quit an active
-Garmin Coach or adaptive running plan in Garmin Connect. The linked guide gives
-confirmed watch, Connect app, and website steps, and marks unconfirmed controls.
-Turning off prompts does not remove suggestions or stop a Coach plan. After changing
-the plan in Connect, sync the watch and check its upcoming workouts. Stride Coach
-shows a reminder in Garmin settings and every push confirmation, including your
-first push; it does not detect clashes or change Garmin's coaching settings.
+Before sending workouts, follow the [one-plan setup guide](../README.md#use-one-training-plan-on-your-watch) for Garmin controls, app reminders, and limitations.
 
 For terminal sign-in, use the same container and volume:
 
