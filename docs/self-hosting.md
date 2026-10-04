@@ -439,17 +439,17 @@ monitoring. There are no background pushes.
 
 Cleanup requires a Stride Coach ownership tag verified in the workout detail. It removes
 owned workouts no longer in the plan and future workouts beyond the window. Past,
-uncompleted scheduled workouts are removed only when synced activity coverage includes
-their dates. Sync first so completed runs can be matched and preserved. Untagged workouts
-are never changed. The existing manual removal action still removes all matching owned
+uncompleted workouts are removed only when complete-day sync coverage includes
+their planned dates and any past schedule dates. Sync first so completed runs can be matched and preserved.
+Untagged workouts are never changed. The existing manual removal action still removes all matching owned
 plan workouts when explicitly confirmed.
 
 `GET /calendar/settings` reads the window. `POST /calendar/settings` accepts
 `{"window_days":14}`. `POST /calendar` with `{}` reads Garmin and returns the preview,
 including `preview_id`; confirm with `{"apply":true,"preview_id":"..."}`. After a failed
-or uncertain apply, inspect Garmin and request a fresh preview. Existing upload and
-schedule recovery guards prevent blind duplicate retries. This preview needs a Garmin
-connection; ordinary `/push` dry runs still work offline.
+or uncertain apply, inspect Garmin and request a fresh preview.
+See [recovery rules](architecture.md#idempotency-and-uncertainty) for interrupted removal and uncertain writes.
+This preview needs a Garmin connection. Ordinary `/push` dry runs still work offline.
 
 Synthetic loopback proof (disposable PostgreSQL, fake Garmin only):
 

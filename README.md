@@ -196,7 +196,8 @@ Do not repeatedly retry rejected logins; check status and investigate the failur
    then explicitly upload it with `uv run stride-coach push --week 1 --apply`.
 
 Without `--apply`, every push is a local dry run, including bulk pushes. `--apply` and
-`--dry-run` together are rejected. Past workouts are excluded. Garmin device delivery uses
+`--dry-run` together are rejected. Push selections follow the
+[Garmin calendar window](docs/self-hosting.md#garmin-calendar-window). Garmin device delivery uses
 Garmin's normal calendar/device sync; this tool does not force a device message.
 
 Workouts use short runner-facing names, such as `Easy Run 40 min` and `Tempo 3 x 8 min`,
@@ -278,8 +279,8 @@ explicitly labeled **inferred**. A normalized activity's optional `kind` supplie
 Matches are one-to-one, preferring exact type and closest duration.
 
 Every applied adjustment retains its reasons and before/after volume. Applying the same week
-again returns the saved adjustment. Reductions also scale later weeks to preserve progression;
-if those weeks were already pushed, push them again to update Garmin. There is no automatic
+again returns the saved adjustment. Reductions also scale later weeks to preserve progression.
+Use the [calendar workflow](docs/self-hosting.md#garmin-calendar-window) to review Garmin updates. There is no automatic
 Garmin write from sync or adapt. See [training rules](docs/training-rules.md) for the thresholds
 and limitations, and [architecture](docs/architecture.md) for storage and recovery behavior.
 
@@ -418,7 +419,7 @@ Run one server instance using the same PostgreSQL database and session directory
 | `GET /weeks/{number}` | Workouts with total minutes and week metrics |
 | `GET /status`, `/compliance`, `/load` | Sync coverage, adjustments, completion, and TRIMP |
 | `POST /push` | Optional `week`/`workout`, limited to the Garmin window; defaults to dry run, `apply: true` writes Garmin |
-| `GET /calendar/settings`, `POST /calendar/settings` | Read or save the Garmin window (default 14 days, range 7 to 28) |
+| `GET /calendar/settings`, `POST /calendar/settings` | Read or save the Garmin window |
 | `POST /calendar` | Read a combined Garmin preview; `apply: true` requires its `preview_id` |
 | `POST /sync` | Pull Garmin, or pass normalized `activities` plus date range |
 | `POST /adapt` | `{week: 2}` proposes; add `apply: true` and the reviewed `inputs.proposal_fingerprint` as `proposal_fingerprint` to save locally |
