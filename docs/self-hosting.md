@@ -145,6 +145,11 @@ Stop the API and any external CLI writers so the database ledger and session sna
 the same point in time. Protect backups as secrets and keep copies off the host. Never discard
 the scheduled ledger or pending intents to bypass a failed Garmin write.
 
+### Bundled database only
+
+Use the following backup and restore commands only when the API uses the bundled `postgres` service.
+If `DATABASE_URL` points elsewhere, use the external database procedure below instead.
+
 ```sh
 mkdir -p backups
 chmod 700 backups
@@ -161,7 +166,7 @@ If you customized `STRIDE_COACH_TOKENS`, replace `/data/garmin` in these command
 configured timezone, credentials, and deployed commit securely with the backup. `pg_dump -Fc`
 creates a portable custom-format archive; use the same PostgreSQL major version to restore.
 
-To restore into the configured PostgreSQL database, stop all writers and take a safety backup
+To restore into the bundled PostgreSQL database, stop all writers and take a safety backup
 first. The following command **replaces existing database objects and data** with the backup:
 
 ```sh
@@ -176,6 +181,84 @@ docker compose run --rm -T --no-deps --user 0 --entrypoint sh api -c \
   < backups/garmin-session.tgz
 docker compose up -d --wait api
 ```
+
+### External database
+
+Run these commands from the repository on an operator host with uv, PostgreSQL 17 client tools, and network access to the external database.
+The API image does not include `pg_dump` or `pg_restore`.
+Supply provider-required CA files at the paths specified in the connection URL on this host.
+
+Stop all writers, including the API, before you save either backup:
+
+```sh
+mkdir -p backups
+chmod 700 backups
+umask 077
+docker compose stop api
+set +x
+```
+
+Use your secret manager to export the deployed API's exact `DATABASE_URL` into this shell.
+Do not paste credentials into command arguments or shell history.
+Do not substitute the bundled service's credentials or database name.
+
+Create a private PostgreSQL service file, a named connection configuration, from that URL.
+The conversion removes the SQLAlchemy driver suffix and preserves encoded credentials and TLS parameters.
+The client tools receive only the service name in their arguments.
+Keep shell tracing disabled throughout this procedure.
+
+```sh
+uv run --locked python - <<'PY'
+import configparser
+import os
+from pathlib import Path
+
+from psycopg.conninfo import conninfo_to_dict
+from sqlalchemy.engine import make_url
+
+url = make_url(os.environ["DATABASE_URL"]).set(drivername="postgresql")
+service = configparser.ConfigParser(interpolation=None)
+service["stride_backup"] = conninfo_to_dict(url.render_as_string(hide_password=False))
+path = Path("backups/pg_service.conf")
+with path.open("w", encoding="utf-8") as output:
+    path.chmod(0o600)
+    service.write(output, space_around_delimiters=False)
+PY
+export PGSERVICEFILE="$PWD/backups/pg_service.conf"
+unset DATABASE_URL
+```
+
+For backup, run `pg_dump` against this service.
+After the database backup succeeds, save the paired Garmin session before you restart the API:
+
+```sh
+pg_dump --dbname=service=stride_backup --format=custom --file=backups/stride.dump
+docker compose run --rm -T --no-deps --entrypoint tar api \
+  -C /data/garmin -czf - . > backups/garmin-session.tgz
+docker compose start api
+rm backups/pg_service.conf
+unset PGSERVICEFILE
+```
+
+If either backup fails, keep writers stopped and repeat the paired backup before you restart the API.
+Protect both archives as secrets. Save the deployed commit and timezone securely with them.
+If you customized `STRIDE_COACH_TOKENS`, replace `/data/garmin` in the session commands.
+
+For restore, stop all writers and take a paired safety backup first.
+Repeat the external preparation above with the intended deployment's current `DATABASE_URL`.
+Make sure that this configuration identifies the intended destination.
+The following command replaces existing database objects and data with the backup:
+
+```sh
+pg_restore --dbname=service=stride_backup --clean --if-exists --no-owner --exit-on-error \
+  backups/stride.dump
+rm backups/pg_service.conf
+unset PGSERVICEFILE
+```
+
+After the database restore succeeds, restore its paired Garmin session archive with the session restore command above.
+Preserve its ownership and permissions. Restart the API only after both restores succeed.
+Delete the private service file after any failed attempt too.
 
 After restore, inspect the plan and Garmin connection status before syncing or applying changes.
 An older backup cannot know about remote writes made after it: inspect Garmin for discrepancies
