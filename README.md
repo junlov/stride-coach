@@ -316,7 +316,9 @@ Ask Claude: "What is today's workout, how did this week go, and why did my plan 
 Both use the server's `TZ` (UTC by default). `status` includes stored sync coverage and
 applied adjustments with reasons and before/after minutes. Empty adjustments mean no saved
 changes; null sync means no stored coverage. Coverage is not the time of the last sync attempt.
-Detailed sync-attempt status remains a follow-up to the separate sync-status work.
+The `sync_status` field returns stored sync-attempt details and history import progress.
+See [automatic sync and import recovery](docs/self-hosting.md#automatic-sync-and-import-recovery)
+for their meaning.
 
 The MCP tools open PostgreSQL transactions read-only, never invoke Garmin, and make no LLM calls.
 It exposes training data to your MCP client, so use a client/account you trust with that data.

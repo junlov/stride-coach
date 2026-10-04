@@ -161,7 +161,13 @@ def test_every_remote_tool_reads_fixtures_without_writes(api, store, monkeypatch
         ),
         today=monday,
     )
-    applied = service.adapt(AdaptRequest(week=2, apply=True), today=monday)
+    preview = service.adapt(AdaptRequest(week=2), today=monday)
+    applied = service.adapt(
+        AdaptRequest(
+            week=2, apply=True, proposal_fingerprint=preview.inputs["proposal_fingerprint"]
+        ),
+        today=monday,
+    )
     freeze(monkeypatch, datetime.combine(monday, datetime.min.time(), UTC) + timedelta(hours=12))
     expected = {
         "plan": service.plan().model_dump(mode="json"),
