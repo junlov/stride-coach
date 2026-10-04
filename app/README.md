@@ -26,13 +26,14 @@ profile below. SDK 58 is not used while it is on npm's prerelease channel.
 ## Connect your server
 
 1. Start the server using the root [HTTP server guide](../README.md#json-api-for-a-phone-client).
-   Configure the same long bearer token on the server and phone.
+   Keep the generated bearer token in the server environment. Pairing transfers it securely.
 2. Put the server behind HTTPS with a trusted certificate. Point the phone at a URL such as
    `https://coach.example.com`, optionally with a reverse-proxy path prefix.
-3. On a fresh install, the first-run wizard opens automatically. Enter the server URL and
-   bearer token, tap **Test connection**, then **Save connection**. Saving is enabled only after
-   an authenticated test passes. Changing either field requires another test. A server without
-   a plan is a valid connection and proceeds to goal setup.
+3. On a fresh install, the first-run wizard opens automatically. Use **Scan to connect** with
+   a [pairing QR code](#pair-with-a-qr-code), check the server address, then **Connect to server**.
+   Alternatively enter the URL and bearer token, tap **Test connection**, then **Save connection**.
+   Manual saving is enabled only after an authenticated test passes. A server without a plan
+   is a valid connection and proceeds to goal setup.
 4. Choose **Connect Garmin** after entering your Garmin email and password, or **Skip Garmin
    for now**. The app sends credentials once over the authenticated connection and clears the
    password immediately. If requested, enter the MFA code Garmin sends. The challenge expires
@@ -45,6 +46,43 @@ profile below. SDK 58 is not used while it is on npm's prerelease channel.
    and heart rates. **Review goal** shows the exact constraints before **Confirm new plan**
    creates it. Review any starting-fitness warnings, then tap **Go to Today**. If the server
    already has a plan, the wizard opens that plan instead of attempting to replace it.
+
+### Pair with a QR code
+
+Keep the server running. On its computer, use one of these commands with your HTTPS hostname:
+
+```sh
+# Compose, from the repository root:
+docker compose exec api stride-coach pair --server https://coach.example.com
+# Plain install, in a shell with the server's STRIDE_COACH_API_TOKEN:
+uv run stride-coach pair --server https://coach.example.com
+# Plain install with a non-default local port:
+uv run stride-coach pair --server https://coach.example.com --api-url http://127.0.0.1:8001
+```
+
+The terminal shows a QR code and a plain-text code. Tap **Scan to connect** in the wizard or
+**Settings > Manage connection**, allow camera access, and scan the terminal. Confirm that the
+server URL belongs to you, then tap **Connect to server**. Pairing tests the connection and saves
+it through the same device-only SecureStore path as manual entry. In Settings, this replaces
+the previous connection and clears connected screen state and pending previews.
+
+If camera access is denied or unavailable, close the scanner and choose **Enter pairing code**
+to enter the URL and 24-character code. Manual URL and token fields also remain available.
+Invalid, expired, and already-used codes show an error and do not change the saved connection.
+Generate a fresh code after ten minutes or after a lost exchange response. For a rate-limit
+message, wait one minute. If secure storage fails after exchange, retry **Connect to server**
+without leaving that screen; the token is retained only in memory for that retry.
+
+An installed app also opens `stridecoach://pair?server=...&code=...` links scanned by the phone's
+camera, whether the app is closed or running. The link still requires you to confirm the host.
+Rebuild the native app after this change to register the `stridecoach` scheme and camera
+permission. The existing `stride-coach` scheme remains supported for existing routes. Expo Go
+can use the in-app scanner but cannot register this app's custom scheme. Camera scanning needs
+a physical device; emulator workflows can use **Enter pairing code**.
+
+The QR never contains the API token. It holds a one-time, ten-minute code, so keep it private.
+No accounts or per-device tokens are created; every paired phone uses the server's existing token.
+See [pairing operations](../docs/self-hosting.md#phone-pairing) for server behavior and limits.
 
 The server supports one plan per database. For a later goal, the operator must configure a
 fresh database; the app cannot replace the plan. If setup is interrupted after saving the
@@ -180,7 +218,8 @@ npm run proof
 ```
 
 This starts the actual FastAPI server on a temporary loopback port, uses a generated ephemeral
-bearer token, and exercises the mobile TypeScript client: rejected auth, goal creation, plan and
+bearer token, invokes the real pairing CLI, exchanges the one-time code with the mobile client,
+checks reuse rejection and secret-free logs, and exercises the mobile TypeScript client: rejected auth, goal creation, plan and
 week reads, load/compliance, an empty synthetic activity import, adjustment proposal, and Garmin
 dry-run previews. It asserts zero scheduled Garmin workouts. No Garmin login or network calls
 are made. The proof uses an isolated PostgreSQL schema that is removed on shutdown. Server logs stay

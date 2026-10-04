@@ -1,3 +1,4 @@
+import { PairConnection } from "../components/pair-connection";
 import React, { useEffect, useState } from "react";
 import { useRootNavigationState, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -19,16 +20,18 @@ export type ImportPastRunsStep = (props: {
 export function OnboardingScreen({
   importPastRunsStep: ImportPastRuns = GarminHistoryStep,
   onComplete,
+  initialHasPlan,
 }: {
   importPastRunsStep?: ImportPastRunsStep;
   onComplete?: () => void;
+  initialHasPlan?: boolean;
 }) {
   const { client, connectionVersion, finishOnboarding } = useConnection();
   const complete = onComplete ?? finishOnboarding;
   const [step, setStep] = useState<
     "server" | "garmin" | "import" | "goal" | "existing"
-  >("server");
-  const [hasPlan, setHasPlan] = useState(false);
+  >(initialHasPlan === undefined ? "server" : "garmin");
+  const [hasPlan, setHasPlan] = useState(initialHasPlan ?? false);
   const [garminBusy, setGarminBusy] = useState(false);
   function goalStep() {
     setStep(hasPlan ? "existing" : "goal");
@@ -134,7 +137,15 @@ function GarminHistoryStep({ onContinue }: { onContinue: () => void }) {
 }
 
 export function FirstRunGate({ children }: React.PropsWithChildren) {
-  const { loading, onboarding, finishOnboarding } = useConnection();
+  const {
+    connection,
+    loading,
+    onboarding,
+    finishOnboarding,
+    pairingLink,
+    dismissPairing,
+  } = useConnection();
+  const [pairedPlan, setPairedPlan] = useState<boolean | undefined>(undefined);
   const [returnToToday, setReturnToToday] = useState(false);
   const { colors: c, dark } = useTheme();
   if (loading)
@@ -144,11 +155,27 @@ export function FirstRunGate({ children }: React.PropsWithChildren) {
         color={c.accent}
       />
     );
+  if (pairingLink)
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: c.background }}>
+        <Page eyebrow="Server connection" title="Connect your coach.">
+          <PairConnection
+            link={pairingLink}
+            onCancel={dismissPairing}
+            onSaved={(hasPlan) => {
+              setPairedPlan(hasPlan);
+              dismissPairing();
+            }}
+          />
+        </Page>
+      </SafeAreaView>
+    );
   if (onboarding)
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: c.background }}>
         <StatusBar style={dark ? "light" : "dark"} />
         <OnboardingScreen
+          initialHasPlan={connection ? pairedPlan : undefined}
           onComplete={() => {
             setReturnToToday(true);
             finishOnboarding();

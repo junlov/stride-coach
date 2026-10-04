@@ -802,6 +802,58 @@
         "title": "Metrics",
         "type": "object"
       },
+      "PairedToken": {
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "PairedToken",
+        "type": "object"
+      },
+      "PairingCode": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "pattern": "^[A-F0-9]{24}$",
+            "title": "Code",
+            "type": "string"
+          },
+          "expires_in": {
+            "default": 600,
+            "title": "Expires In",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "PairingCode",
+        "type": "object"
+      },
+      "PairingExchange": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "PairingExchange",
+        "type": "object"
+      },
       "Plan": {
         "additionalProperties": false,
         "properties": {
@@ -2360,7 +2412,7 @@
     }
   },
   "info": {
-    "description": "Single-user running coach. Bearer authentication is required. Garmin push/removal default to previews; only apply=true permits writes.",
+    "description": "Single-user running coach. Bearer authentication is required except for the rate-limited one-time pairing exchange. Garmin push/removal default to previews; only apply=true permits writes.",
     "title": "stride-coach",
     "version": "0.1.0"
   },
@@ -3126,6 +3178,127 @@
           }
         ],
         "summary": "Load"
+      }
+    },
+    "/pairing/codes": {
+      "post": {
+        "operationId": "create_pairing_code",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairingCode"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        },
+        "security": [
+          {
+            "CoachBearer": []
+          }
+        ],
+        "summary": "Create Pairing Code"
+      }
+    },
+    "/pairing/exchange": {
+      "post": {
+        "operationId": "exchange_pairing_code",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PairingExchange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairedToken"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Exchange Pairing Code"
       }
     },
     "/plan": {

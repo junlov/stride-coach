@@ -1,3 +1,4 @@
+import { PairConnection } from "./pair-connection";
 import { useRef, useState } from "react";
 import { ApiError, createClient } from "../api/client";
 import { useConnection } from "../state/connection";
@@ -21,6 +22,7 @@ export function ServerConnection({
   const [token, setToken] = useState(connection?.token ?? "");
   const [tested, setTested] = useState<{ hasPlan: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pairingBusy, setPairingBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lock = useRef(false);
@@ -31,7 +33,7 @@ export function ServerConnection({
     setError(null);
   }
   async function run(action: "test" | "save") {
-    if (lock.current || (action === "save" && !tested)) return;
+    if (lock.current || pairingBusy || (action === "save" && !tested)) return;
     lock.current = true;
     setBusy(true);
     setError(null);
@@ -63,57 +65,72 @@ export function ServerConnection({
     }
   }
   return (
-    <Card>
-      <Field
-        label="Server URL"
-        value={url}
-        onChangeText={(v) => edit(setUrl, v)}
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="url"
-        placeholder="https://coach.example.com"
-        editable={!busy && !loading}
+    <>
+      <PairConnection
+        disabled={busy}
+        onBusyChange={setPairingBusy}
+        onSaved={(hasPlan, paired) => {
+          setUrl(paired.serverUrl);
+          setToken(paired.token);
+          setTested(null);
+          setSaved(false);
+          setError(null);
+          onSaved?.(hasPlan);
+        }}
       />
-      <Field
-        label="Bearer token"
-        value={token}
-        onChangeText={(v) => edit(setToken, v)}
-        secureTextEntry
-        autoCapitalize="none"
-        autoCorrect={false}
-        editable={!busy && !loading}
-      />
-      <Muted>
-        The server token authenticates this app. It is separate from your Garmin
-        session. Your URL and token stay in this device’s secure storage.
-      </Muted>
-      {tested && (
-        <>
-          <Heading>Your server is reachable.</Heading>
-          <Copy>
-            {tested.hasPlan
-              ? "Connected. Authentication and status are working."
-              : "Authentication accepted. No active plan yet. Save your connection to set a running goal."}
-          </Copy>
-          {!saved && (
-            <Muted>Ready to save. The connection is not saved yet.</Muted>
-          )}
-        </>
-      )}
-      <ErrorMessage message={error ?? storageError} />
-      {saved && <Copy>Connection saved securely.</Copy>}
-      <Button
-        label={busy ? "Working..." : "Test connection"}
-        onPress={() => void run("test")}
-        disabled={busy || loading}
-        variant="secondary"
-      />
-      <Button
-        label="Save connection"
-        onPress={() => void run("save")}
-        disabled={busy || loading || !tested}
-      />
-      {!tested && <Muted>Save only after the connection test passes.</Muted>}
-    </Card>
+      <Card>
+        <Field
+          label="Server URL"
+          value={url}
+          onChangeText={(v) => edit(setUrl, v)}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          placeholder="https://coach.example.com"
+          editable={!busy && !pairingBusy && !loading}
+        />
+        <Field
+          label="Bearer token"
+          value={token}
+          onChangeText={(v) => edit(setToken, v)}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          editable={!busy && !pairingBusy && !loading}
+        />
+        <Muted>
+          The server token authenticates this app. It is separate from your
+          Garmin session. Your URL and token stay in this device’s secure
+          storage.
+        </Muted>
+        {tested && (
+          <>
+            <Heading>Your server is reachable.</Heading>
+            <Copy>
+              {tested.hasPlan
+                ? "Connected. Authentication and status are working."
+                : "Authentication accepted. No active plan yet. Save your connection to set a running goal."}
+            </Copy>
+            {!saved && (
+              <Muted>Ready to save. The connection is not saved yet.</Muted>
+            )}
+          </>
+        )}
+        <ErrorMessage message={error ?? storageError} />
+        {saved && <Copy>Connection saved securely.</Copy>}
+        <Button
+          label={busy ? "Working..." : "Test connection"}
+          onPress={() => void run("test")}
+          disabled={busy || pairingBusy || loading}
+          variant="secondary"
+        />
+        <Button
+          label="Save connection"
+          onPress={() => void run("save")}
+          disabled={busy || pairingBusy || loading || !tested}
+        />
+        {!tested && <Muted>Save only after the connection test passes.</Muted>}
+      </Card>
+    </>
   );
 }

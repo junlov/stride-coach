@@ -19,6 +19,7 @@ from pydantic import Field, SecretStr, field_validator
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
+from starlette.concurrency import run_in_threadpool
 
 from .activity_models import RunStreams
 from .database import check_schema, database_url, make_engine, upgrade
@@ -32,6 +33,7 @@ from .garmin_auth import (
 )
 from .mcp import create_server
 from .models import Adjustment, Plan, Record, RunDetail
+from .pairing import PairedToken, PairingCode, PairingExchange, PairingStore
 from .service import (
     DEFAULT_TOKENS,
     AdaptRequest,
@@ -153,6 +155,7 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
         client_factory = partial(GarminClient, database_url=url)
 
     worker = SyncWorker(config, connection, client_factory)
+    pairing = PairingStore(url, config.token.get_secret_value())
 
     @asynccontextmanager
     async def lifespan(app):
@@ -171,6 +174,7 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
         finally:
             worker.close()
             connection.close()
+            pairing.close()
 
     app = FastAPI(
         lifespan=lifespan,
@@ -179,11 +183,13 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
-        description="Single-user running coach. Bearer authentication is required. "
+        description="Single-user running coach. Bearer authentication is required except for "
+        "the rate-limited one-time pairing exchange. "
         "Garmin push/removal default to previews; only apply=true permits writes.",
     )
     app.state.garmin_connection = connection
     app.state.sync_worker = worker
+    app.state.pairing = pairing
     bearer = HTTPBearer(auto_error=False, scheme_name="CoachBearer")
 
     def authenticate(credentials: Annotated[HTTPAuthorizationCredentials | None, Security(bearer)]):
@@ -223,6 +229,25 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
             origin = request.headers.get("origin")
             if origin is not None and origin not in config.cors_origins:
                 return JSONResponse(status_code=403, content={"detail": "Invalid Origin"})
+        if request.url.path.startswith("/pairing/"):
+            if request.url.path.rstrip("/") == "/pairing/exchange" and request.method == "POST":
+                try:
+                    allowed = await run_in_threadpool(pairing.allow_attempt)
+                except SQLAlchemyError:
+                    return JSONResponse(
+                        status_code=503,
+                        content={"detail": "Database unavailable"},
+                        headers={"Cache-Control": "no-store"},
+                    )
+                if not allowed:
+                    return JSONResponse(
+                        status_code=429,
+                        content={"detail": "Too many pairing attempts. Wait one minute."},
+                        headers={"Retry-After": "60", "Cache-Control": "no-store"},
+                    )
+            response = await call_next(request)
+            response.headers["Cache-Control"] = "no-store"
+            return response
         return await call_next(request)
 
     app.mount("/mcp", mcp_app)
@@ -257,10 +282,36 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     async def invalid_body(request: Request, exc: RequestValidationError):
-        # Garmin inputs can contain passwords, including in malformed JSON and extra fields.
-        if getattr(request.scope.get("route"), "path", "").startswith("/garmin/"):
+        # Never echo secret inputs, including malformed JSON or extra fields.
+        if getattr(request.scope.get("route"), "path", "").startswith(("/garmin/", "/pairing/")):
             return JSONResponse(status_code=422, content={"detail": "Invalid request fields."})
         return await request_validation_exception_handler(request, exc)
+
+    @app.post(
+        "/pairing/codes",
+        response_model=PairingCode,
+        responses=errors,
+        operation_id="create_pairing_code",
+        dependencies=[Depends(authenticate)],
+    )
+    def create_pairing_code():
+        return pairing.issue()
+
+    @app.post(
+        "/pairing/exchange",
+        response_model=PairedToken,
+        responses={
+            400: {"model": Error},
+            422: {"model": Error},
+            429: {"model": Error},
+            503: {"model": Error},
+        },
+        operation_id="exchange_pairing_code",
+    )
+    def exchange_pairing_code(body: PairingExchange):
+        if not pairing.consume(body.code.get_secret_value()):
+            raise HTTPException(status_code=400, detail="Pairing code is invalid or expired.")
+        return PairedToken(token=config.token.get_secret_value())
 
     @app.post(
         "/garmin/login",

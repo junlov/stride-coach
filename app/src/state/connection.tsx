@@ -5,11 +5,13 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { AppState } from "react-native";
+import { AppState, Linking } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { Connection, createClient, normalizeConnection } from "../api/client";
 const KEY = "stride-coach.connection";
 type State = {
+  pairingLink: string | null;
+  dismissPairing: () => void;
   connection: Connection | null;
   client: ReturnType<typeof createClient> | null;
   loading: boolean;
@@ -24,6 +26,24 @@ type State = {
 };
 const Context = createContext<State | null>(null);
 export function ConnectionProvider({ children }: React.PropsWithChildren) {
+  const [pairingLink, setPairingLink] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    const accept = (url: string | null) => {
+      if (active && url?.toLowerCase().startsWith("stridecoach:"))
+        setPairingLink(url);
+    };
+    const subscription = Linking.addEventListener("url", ({ url }) =>
+      accept(url),
+    );
+    void Linking.getInitialURL()
+      .then(accept)
+      .catch(() => {});
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, []);
   const [connection, setConnection] = useState<Connection | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +104,8 @@ export function ConnectionProvider({ children }: React.PropsWithChildren) {
     };
   }, [client]);
   const value: State = {
+    pairingLink,
+    dismissPairing: () => setPairingLink(null),
     connection,
     client,
     loading,

@@ -40,6 +40,8 @@ transaction-mode pooling cannot preserve the advisory locks used across committe
 | Variable | Use |
 | --- | --- |
 | `STRIDE_COACH_API_TOKEN` | Required generated bearer secret, at least 32 characters |
+| `STRIDE_COACH_PUBLIC_URL` | Optional phone-facing HTTPS URL for `stride-coach pair` |
+| `STRIDE_COACH_PAIR_API_URL` | Plain-install CLI endpoint override, default `http://127.0.0.1:8000`; use `--api-url` in Compose if needed |
 | `POSTGRES_PASSWORD` | Required independent generated database secret; use hex for Compose URL interpolation |
 | `POSTGRES_USER`, `POSTGRES_DB` | Bundled database role and database, default `stride` |
 | `DATABASE_URL` | Optional override for external PostgreSQL; otherwise Compose constructs it from the above credentials |
@@ -70,10 +72,55 @@ coach.example.com {
 
 Use your own hostname and certificate configuration. A proxy on the same Docker network can
 instead reach `api:8000`. Keep PostgreSQL and the API origin private. Disable request-body and
-Authorization logging at the proxy. The phone's base URL is `https://coach.example.com`.
-All data routes and `/openapi.json` require bearer authentication. Only `GET /health` is public;
-it checks database access and the exact schema version and returns only `ready` or `unavailable`
+Authorization logging at the proxy. Disable response-body logging for pairing as well. The phone's base URL is `https://coach.example.com`.
+All data routes and `/openapi.json` require bearer authentication. `POST /pairing/exchange` is public and rate-limited. The public `GET /health` probe
+checks database access and the exact schema version and returns only `ready` or `unavailable`
 (HTTP 503). It never calls Garmin and does not require an existing plan or Garmin login.
+
+## Phone pairing
+
+After HTTPS is ready, generate a code against the running server:
+
+```sh
+# Compose uses its existing token environment and the container's port 8000.
+docker compose exec api stride-coach pair --server https://coach.example.com
+
+# Plain install: inherit the same STRIDE_COACH_API_TOKEN as the running server.
+uv run stride-coach pair --server https://coach.example.com
+# Different local port:
+uv run stride-coach pair --server https://coach.example.com --api-url http://127.0.0.1:8001
+```
+
+Use your own HTTPS hostname. `--server` is the address embedded in the QR for the phone;
+`--api-url` is the endpoint the CLI contacts. A phone's localhost points at the phone.
+You may set `STRIDE_COACH_PUBLIC_URL` in `.env` for Compose or the plain install's environment
+and omit `--server`. The CLI authenticates code creation with the existing API token.
+It must reach the server; it does not write codes directly to the database or start a server.
+
+Use **Scan to connect** in onboarding or **Settings > Manage connection**, then confirm the
+server address. **Enter pairing code** accepts the printed code if scanning is unavailable.
+The phone camera can open the `stridecoach://pair` link in a rebuilt installed app.
+Manual token entry is still available. See the [app guide](../app/README.md#pair-with-a-qr-code).
+
+Codes contain 96 random bits, expire after ten minutes, and are removed atomically when used.
+PostgreSQL stores SHA-256 hashes, never raw codes or API tokens. Codes are bound to the current
+API token, so changing it invalidates outstanding codes. Expired rows are cleared when a new
+code is issued. Multiple outstanding codes are allowed. Exchange attempts, including malformed
+bodies, share a limit of 20 per minute across the single-user server. The next window opens one
+minute after the first attempt in the current window. A limit response is HTTP 429 with
+`Retry-After: 60`; wait a minute and retry. The budget persists across process restarts and
+cannot be bypassed with forwarded IP headers. A busy or attacked exchange may temporarily
+prevent pairing; authenticated API operations remain available.
+
+Pairing responses use `Cache-Control: no-store`. Keep access logs disabled as
+in `stride-coach serve`; never log pairing request/response bodies, Authorization headers,
+terminal QR output, or deep links. Configure proxies and tracing accordingly. Use HTTPS between
+the phone and proxy, and a private or encrypted proxy-to-API connection. If an exchange response
+is lost after consumption, generate a new code. A failed phone secure-storage save can be retried
+in the same pairing screen without exchanging the code again.
+
+Pairing shares the existing single-user token. Per-device tokens, token revocation, and accounts
+remain follow-ups; forgetting a connection only clears that phone's secure storage.
 
 ## First run and Garmin
 

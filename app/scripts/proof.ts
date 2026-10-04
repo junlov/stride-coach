@@ -1,12 +1,14 @@
 /** Loopback proof with a disposable database. Never connects to Garmin. */
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdir, mkdtemp, open } from "node:fs/promises";
+import { mkdir, mkdtemp, open, readFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
+import { promisify } from "node:util";
+import { exchangePairing, parsePairingLink } from "../src/api/pairing";
 import { createClient } from "../src/api/client";
 
 async function main() {
@@ -65,7 +67,35 @@ async function main() {
       await delay(100);
     }
     assert(ready, "Proof server must start");
-    const client = createClient({ serverUrl, token });
+    const { stdout } = await promisify(execFile)(
+      "uv",
+      [
+        "run",
+        "stride-coach",
+        "pair",
+        "--server",
+        serverUrl,
+        "--api-url",
+        serverUrl,
+      ],
+      { cwd: root, env: { ...process.env, STRIDE_COACH_API_TOKEN: token } },
+    );
+    assert(!stdout.includes(token), "CLI must never print the API token");
+    const code = stdout.match(/Pairing code: ([A-F0-9]{24})/)?.[1];
+    assert(code, "Running CLI must return a pairing code");
+    const pairing = parsePairingLink(
+      `stridecoach://pair?server=${encodeURIComponent(serverUrl)}&code=${code}`,
+    );
+    const paired = await exchangePairing(pairing);
+    assert.equal(paired.token, token);
+    await assert.rejects(
+      exchangePairing(pairing),
+      /invalid, expired, or already used/,
+    );
+    console.log(
+      "pairing: real CLI issued QR/code; mobile client exchanged once; reuse rejected",
+    );
+    const client = createClient(paired);
     await assert.rejects(
       createClient({ serverUrl, token: "invalid" }).status(),
       /Authentication failed/,
@@ -116,6 +146,14 @@ async function main() {
     assert.equal((await client.status()).scheduled_workouts, 0);
     console.log(
       "actions: local empty sync, adjustment proposal, push/removal previews; zero Garmin calls",
+    );
+    const logs = await readFile(resolve(directory, "server.log"), "utf8");
+    assert(
+      !logs.includes(token) && !logs.includes(code),
+      "Server logs must not contain pairing secrets",
+    );
+    console.log(
+      "pairing: API token absent from CLI output; code and token absent from server logs",
     );
     console.log(
       "proof: mobile TypeScript client completed real FastAPI loopback workflow",

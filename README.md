@@ -56,7 +56,7 @@ or [build your own installable copy](app/README.md#build-your-own-app-copy).
    npm start -- --go
    ```
 
-4. Follow the [mobile connection guide](app/README.md#connect-your-server) with your HTTPS server URL and the `.env` API token.
+4. Follow the [mobile connection guide](app/README.md#connect-your-server) to pair with a QR code and your HTTPS server URL.
 5. Continue through Garmin connection and goal setup in that guide. See [goal constraints](#plan-and-review).
    To use recent history for the initial estimate, follow the
    [first-run sync instructions](docs/self-hosting.md#first-run-and-garmin) before creating the goal.
@@ -330,10 +330,10 @@ It reads changes after the app or CLI saves them.
 
 The package includes FastAPI. CLI, MCP, and API
 use the same `service.Coach` operations. The API is single-user and requires a bearer token
-on every data operation, including the schema endpoint. The non-sensitive `/health` probe is public. It accepts the token only in the
+on every data operation, including the schema endpoint. The non-sensitive `/health` probe and one-time `/pairing/exchange` endpoint are public. It accepts the token only in the
 `Authorization: Bearer ...` header, never a query parameter or cookie.
 
-Generate a secret, save it securely for both server and phone configuration, then start:
+Generate a secret, save it securely in the server configuration, then start:
 
 ```sh
 export STRIDE_COACH_API_TOKEN="$(uv run python -c 'import secrets; print(secrets.token_urlsafe(32))')"
@@ -341,6 +341,43 @@ export STRIDE_COACH_API_TOKEN="$(uv run python -c 'import secrets; print(secrets
 export STRIDE_COACH_CORS_ORIGINS="https://your-browser-client.example"
 uv run stride-coach serve --host 127.0.0.1 --port 8000
 ```
+
+### Pair your phone without typing the token
+
+Keep the server running. For Compose, run:
+
+```sh
+docker compose exec api stride-coach pair --server https://coach.example.com
+```
+
+For a plain install, open a second shell with the same `STRIDE_COACH_API_TOKEN`
+environment as the running server:
+
+```sh
+uv run stride-coach pair --server https://coach.example.com
+# If the local API uses another port:
+uv run stride-coach pair --server https://coach.example.com --api-url http://127.0.0.1:8001
+```
+
+Replace the hostname with the HTTPS address reachable from your phone. The CLI contacts
+`http://127.0.0.1:8000` by default, including inside the Compose API container.
+Set `STRIDE_COACH_PUBLIC_URL` to omit `--server`, and `STRIDE_COACH_PAIR_API_URL`
+to override the CLI's local endpoint. The command never starts another server.
+
+In the first-run wizard or **Settings > Manage connection**, tap **Scan to connect**.
+Scan the terminal QR, check the server address, then tap **Connect to server**. You can also
+scan with the phone's camera to open an installed app, or select **Enter pairing code** and
+enter the displayed server URL and code. Manual URL and bearer-token entry remains available.
+Custom `stridecoach://` links require a rebuilt development or installed app; Expo Go users
+can scan from inside the app. See the [app guide](app/README.md#pair-with-a-qr-code).
+
+The QR contains only the server URL and a random code, never the API token. Treat the QR
+and code as secrets until used: each works once and expires after ten minutes. The server
+stores only code hashes and returns the existing API token over the exchange connection;
+the app saves it in device secure storage. Generate another code if it expires or a response
+is lost. See [pairing operations](docs/self-hosting.md#phone-pairing) for limits and proxy logging.
+
+### API authentication and HTTPS
 
 The server refuses to start without a token of at least 32 characters. Keep the same secret
 in your process manager's protected environment configuration across restarts. To rotate it,
@@ -378,6 +415,8 @@ Run one server instance using the same PostgreSQL database and session directory
 | `POST /remove` | Preview owned removal; `apply: true` removes from Garmin |
 | `POST /garmin/login` | Submit `email` and `password` once; may return `challenge_id` and `mfa_required` |
 | `POST /garmin/mfa` | Complete pending login with `challenge_id` and `code` |
+| `POST /pairing/codes` | Bearer-authenticated creation of a one-time, ten-minute pairing code |
+| `POST /pairing/exchange` | Public, rate-limited code exchange for the existing API token |
 | `GET /garmin/status` | Connection state, optional display name, access-token expiry (Unix seconds); may renew once |
 | `POST /garmin/logout` | Delete stored Garmin tokens and cancel pending MFA |
 | `GET /openapi.json` | Authenticated generated client contract |

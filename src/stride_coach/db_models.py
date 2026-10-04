@@ -304,3 +304,19 @@ class ActivityStreamRow(Base):
     )
     format: Mapped[str]
     data: Mapped[bytes] = mapped_column(LargeBinary)
+
+
+class PairingCodeRow(Base):
+    __tablename__ = "pairing_codes"
+
+    code_hash: Mapped[str] = mapped_column(primary_key=True)
+    token_hash: Mapped[str]
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class PairingLimitRow(Base):
+    __tablename__ = "pairing_limit"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int]
