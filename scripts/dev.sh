@@ -15,7 +15,7 @@ if [ ! -s .local/dev/api-token ]; then
   uv run python -c 'import secrets; print(secrets.token_urlsafe(32))' > .local/dev/api-token
 fi
 export STRIDE_COACH_API_TOKEN="$(cat .local/dev/api-token)"
-docker compose -p stride-dev -f compose.dev.yaml up -d --wait
+bash scripts/dev-compose.sh up -d --wait
 uv run stride-coach db upgrade
 uv run python scripts/seed_dev.py
 echo "Synthetic API: http://127.0.0.1:${DEV_API_PORT:-8001}"

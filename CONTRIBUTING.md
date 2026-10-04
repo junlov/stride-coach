@@ -22,10 +22,17 @@ the API in the foreground at `http://127.0.0.1:8001`. No Garmin account is requi
 an existing dev plan on subsequent runs. The generated bearer token is in `.local/dev/api-token`.
 Use synthetic data here, never a production database or Garmin credentials.
 
-The Compose project is `stride-dev`, database port `55440`, and persistent volume
-`stride-dev_dev-postgres`. The script ignores deployment database/token environment values
-and uses its own local token directory. `.env` self-hosting credentials are not needed.
-If ports are occupied, run `DEV_DATABASE_PORT=55441 DEV_API_PORT=8002 make dev`; use those same
+Each checkout gets its own Compose project, `stride-dev-<hash>`, where `<hash>` is derived
+from its physical directory path, and its own persistent volume, `<project>_dev-postgres`.
+Moving the checkout changes the default project name. Set `DEV_PROJECT_NAME` to override it,
+for example `DEV_PROJECT_NAME=stride-my-feature make dev`. Use the same override for
+`make dev-stop` and any commands below. Reusing an override across checkouts intentionally
+shares their database, so choose different names to retain isolation.
+
+The default database port is `55440`. The script ignores deployment database/token environment
+values and uses its own local token directory. `.env` self-hosting credentials are not needed.
+Parallel checkouts still need different host ports: run
+`DEV_DATABASE_PORT=55441 DEV_API_PORT=8002 make dev` in the second checkout; use those same
 values on subsequent runs. Run only one `make dev` at a time per checkout/database.
 
 In another terminal:
@@ -41,8 +48,14 @@ make dev-stop
 ```
 
 To deliberately discard **only the synthetic dev database**, stop the API first, then run
-`docker compose -p stride-dev -f compose.dev.yaml down -v`. The next `make dev` seeds a fresh
-plan. Never run a volume-deletion command against a self-hosted deployment.
+`bash scripts/dev-compose.sh down -v`. The wrapper uses the same checkout project and
+`DEV_PROJECT_NAME` override as `make dev` and `make dev-stop`. The next `make dev` seeds a
+fresh plan. Never run a volume-deletion command against a self-hosted deployment.
+
+Older setups used the shared `stride-dev` project and `stride-dev_dev-postgres` volume.
+These are not migrated or deleted automatically. Once no checkout uses that old database,
+you can deliberately remove it with
+`docker compose -p stride-dev -f compose.dev.yaml down -v`. This deletes its data.
 
 ## Run the app
 
@@ -62,6 +75,12 @@ self-hosting setup instead. For physical phones, provide a trusted HTTPS reverse
 port 8001 and use its hostname; the server intentionally binds to loopback.
 
 ## Checks before a PR
+
+The dev isolation regression check needs no database or containers:
+
+```sh
+uv run pytest tests/test_dev_setup.py
+```
 
 Use a separate disposable database for tests. Tests allocate and clean up isolated schemas.
 Run these commands from the repository root, as CI does:
