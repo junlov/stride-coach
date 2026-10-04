@@ -153,7 +153,7 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
     @app.post(
         "/garmin/login",
         response_model=GarminLoginResult,
-        responses={**errors, 422: {"model": Error}},
+        responses={**errors, 422: {"model": Error, "description": "Unprocessable Content"}},
         operation_id="garmin_login",
         dependencies=[Depends(authenticate)],
     )
@@ -163,7 +163,7 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
     @app.post(
         "/garmin/mfa",
         response_model=GarminLoginResult,
-        responses={**errors, 422: {"model": Error}},
+        responses={**errors, 422: {"model": Error, "description": "Unprocessable Content"}},
         operation_id="garmin_mfa",
         dependencies=[Depends(authenticate)],
     )
@@ -173,7 +173,7 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
     @app.get(
         "/garmin/status",
         response_model=GarminStatus,
-        responses={**errors, 422: {"model": Error}},
+        responses={**errors, 422: {"model": Error, "description": "Unprocessable Content"}},
         operation_id="garmin_status",
         dependencies=[Depends(authenticate)],
     )
@@ -183,7 +183,7 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
     @app.post(
         "/garmin/logout",
         response_model=GarminStatus,
-        responses={**errors, 422: {"model": Error}},
+        responses={**errors, 422: {"model": Error, "description": "Unprocessable Content"}},
         operation_id="garmin_logout",
         dependencies=[Depends(authenticate)],
     )
