@@ -49,7 +49,7 @@ Keep the server timezone aligned with the athlete's local timezone.
 
 - **Today:** local-calendar current week and today's workouts, with rest-day and before/after-plan states.
   The app reads `/status` and `/plan` to identify the week, then `/weeks/{number}`.
-- **Plan:** all weeks, expandable into workout steps, target pace, and heart-rate ranges.
+- **Plan:** weeks with workouts, expandable into workout steps, target pace, and heart-rate ranges.
 - **Goal:** distance, Monday start, completion date, weekly frequency, long-run day, and heart rates.
   The server remains authoritative for validation and uses activities already stored there.
 - **Progress:** `/load` and `/compliance`, including missing-heart-rate notices.

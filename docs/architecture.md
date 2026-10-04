@@ -15,7 +15,7 @@ share connections. The generated `docs/openapi.json` is the mobile-client contra
 ```mermaid
 flowchart LR
     CLI[CLI] --> Service[Shared Coach service]
-    Phone[Future mobile client] -->|HTTPS + bearer| API[FastAPI]
+    Phone[Mobile client] -->|HTTPS + bearer| API[FastAPI]
     API --> Service
     Claude[Claude Code] --> MCP[MCP read tools and previews]
     MCP --> Service
