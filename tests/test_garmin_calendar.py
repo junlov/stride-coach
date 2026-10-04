@@ -221,3 +221,68 @@ def test_manual_removal_invalidates_last_confirmed_calendar(store):
     assert store.calendar_settings()["synced_fingerprint"]
     remove(store, client, False)
     assert store.calendar_settings()["synced_fingerprint"] is None
+
+
+@pytest.mark.parametrize("failure", ["unschedule", "delete"])
+def test_past_cleanup_retries_after_partial_removal(store, failure):
+    client = FakeGarmin()
+    workout = store.plan().workouts[0]
+    push(store, [workout], client, False)
+    today = workout.day + timedelta(days=1)
+    store.save_sync([], str(workout.day), str(today), today=today)
+    preview = reconcile_calendar(store, client, today)
+    original = getattr(client, failure)
+
+    def fail(remote_id):
+        if failure == "unschedule":
+            original(remote_id)
+        raise GarminError("Removal interrupted")
+
+    setattr(client, failure, fail)
+    with pytest.raises(GarminError, match="Removal interrupted"):
+        reconcile_calendar(store, client, today, apply=True, preview_id=preview["preview_id"])
+    assert not client.events
+    assert store.scheduled(workout.id)
+    setattr(client, failure, original)
+    preview = reconcile_calendar(store, client, today)
+    assert any(c["action"] == "remove" and c["workout_id"] == workout.id for c in preview["changes"])
+    reconcile_calendar(store, client, today, apply=True, preview_id=preview["preview_id"])
+    assert store.scheduled(workout.id) is None
+    assert not any(r["description"] == tag(workout) for r in client.data.values())
+    assert client.writes.count("unschedule") == 1
+
+
+@pytest.mark.parametrize("retry", ["calendar", "push"])
+def test_lost_delete_response_allows_recreation_in_window(store, retry):
+    client = FakeGarmin()
+    plan = store.plan()
+    workout = plan.workouts[8]
+    start = plan.setup.start
+    push(store, [workout], client, False)
+    preview = reconcile_calendar(store, client, start)
+    original = client.delete
+
+    def lost_response(remote_id):
+        original(remote_id)
+        raise GarminError("Delete response lost")
+
+    client.delete = lost_response
+    with pytest.raises(GarminError, match="Delete response lost"):
+        reconcile_calendar(store, client, start, apply=True, preview_id=preview["preview_id"])
+    assert not client.data and not client.events
+    assert store.scheduled(workout.id)
+    client.delete = original
+    if retry == "calendar":
+        preview = reconcile_calendar(store, client, workout.day)
+        assert store.scheduled(workout.id) is None
+        assert any(
+            c["action"] == "create" and c["workout_id"] == workout.id for c in preview["changes"]
+        )
+        reconcile_calendar(
+            store, client, workout.day, apply=True, preview_id=preview["preview_id"]
+        )
+    else:
+        push(store, [workout], client, False)
+    remote_id = store.scheduled(workout.id)["remote_id"]
+    assert client.data[remote_id]["description"] == tag(workout)
+    assert sum(str(e["workoutId"]) == remote_id for e in client.events) == 1
