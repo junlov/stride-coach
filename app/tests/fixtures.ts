@@ -74,6 +74,7 @@ export function response(data: unknown, status = 200): Response {
 export function mockServer(overrides: Record<string, unknown> = {}) {
   const routes: Record<string, unknown> = {
     "/status": status,
+    "/calendar/settings": { window_days: 14 },
     "/sync/status": {},
     "/sync/open": { skipped: true },
     "/garmin/status": {

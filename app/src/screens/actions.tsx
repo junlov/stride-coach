@@ -1,3 +1,4 @@
+import { GarminCalendar } from "../components/garmin-calendar";
 import { SyncStatus } from "../components/sync-status";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
@@ -23,7 +24,7 @@ import { useConnection } from "../state/connection";
 type Preview =
   | { kind: "adapt"; adjustment: Schema<"Adjustment">; week: number }
   | { kind: "push" | "remove"; writes: Schema<"WriteResult">[]; week?: number };
-function Writes({ results }: { results: Schema<"WriteResult">[] }) {
+export function Writes({ results }: { results: Schema<"WriteResult">[] }) {
   return (
     <>
       {results.length === 0 && <Copy>No workouts to change.</Copy>}
@@ -34,6 +35,7 @@ function Writes({ results }: { results: Schema<"WriteResult">[] }) {
             {item.date ?? "No date"}
             {item.workout_id ? ` · ${item.workout_id}` : ""}
           </Copy>
+          {item.reason && <Copy>{item.reason}</Copy>}
           {item.payload && <GarminPayload payload={item.payload} />}
           {item.remote_id && <Muted>Garmin ID: {item.remote_id}</Muted>}
           {item.ownership_tag && <Muted>{item.ownership_tag}</Muted>}
@@ -57,6 +59,7 @@ function ConnectedActions() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [calendarBusy, setCalendarBusy] = useState(false);
   const [connectGarmin, setConnectGarmin] = useState(false);
   const [unknown, setUnknown] = useState(false);
   const [inspection, setInspection] = useState<Schema<"Status"> | null>(null);
@@ -227,6 +230,10 @@ function ConnectedActions() {
     <Page title="Ready for your next run." eyebrow="Coach actions">
       <ConnectionGate>
         <SyncStatus />
+        <GarminCalendar
+          disabled={busy || unknown}
+          onBusyChange={setCalendarBusy}
+        />
         <Card>
           <Heading>Bring your training up to date</Heading>
           <Muted>
@@ -236,12 +243,12 @@ function ConnectedActions() {
           <Button
             label="Sync activities"
             onPress={() => void run("sync")}
-            disabled={busy || unknown}
+            disabled={busy || calendarBusy || unknown}
           />
         </Card>
         <Card>
           <Field
-            label="Week (blank pushes all future weeks)"
+            label="Week (optional, limited to Garmin window)"
             value={week}
             onChangeText={(value) => {
               setWeek(value);
@@ -257,12 +264,12 @@ function ConnectedActions() {
             variant="secondary"
             label="Preview adjustment"
             onPress={() => void run("adapt")}
-            disabled={busy || unknown}
+            disabled={busy || calendarBusy || unknown}
           />
           <Button
             label="Preview Garmin push"
             onPress={() => void run("push")}
-            disabled={busy || unknown}
+            disabled={busy || calendarBusy || unknown}
           />
           <Muted>
             Removal affects all workouts owned by this server, regardless of the
@@ -272,7 +279,7 @@ function ConnectedActions() {
             variant="secondary"
             label="Preview Garmin removal"
             onPress={() => void run("remove")}
-            disabled={busy || unknown}
+            disabled={busy || calendarBusy || unknown}
           />
         </Card>
         {busy && <Copy>Waiting for your server...</Copy>}
@@ -370,7 +377,8 @@ function ConnectedActions() {
             <Copy>{message}</Copy>
             {applied?.applied && (
               <Muted>
-                Garmin is unchanged. Preview Garmin changes separately.
+                Garmin is out of date. Use Preview calendar changes above to
+                review and re-push.
               </Muted>
             )}
           </Notice>
@@ -418,7 +426,7 @@ function ConnectedActions() {
                     ? "Remove all owned Garmin workouts"
                     : preview.week
                       ? `Push week ${preview.week}`
-                      : "Push all future weeks"}
+                      : "Push the Garmin window"}
                 </Copy>
                 {preview.writes.length === 0 && (
                   <Notice
@@ -485,6 +493,7 @@ function ConnectedActions() {
               onPress={() => void run("confirm")}
               disabled={
                 busy ||
+                calendarBusy ||
                 unknown ||
                 (preview.kind !== "adapt" && preview.writes.length === 0)
               }
@@ -493,7 +502,7 @@ function ConnectedActions() {
               variant="secondary"
               label="Cancel preview"
               onPress={() => setPreview(null)}
-              disabled={busy || unknown}
+              disabled={busy || calendarBusy || unknown}
             />
           </Card>
         )}

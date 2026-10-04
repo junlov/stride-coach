@@ -192,7 +192,7 @@ test.each(["push", "remove"])(
 test("an explicit adjustment rejection displays eligibility and cannot apply a stale proposal", async () => {
   await mount(<ActionsScreen />);
   await fireEvent.changeText(
-    await screen.findByLabelText("Week (blank pushes all future weeks)"),
+    await screen.findByLabelText("Week (optional, limited to Garmin window)"),
     "2",
   );
   await fireEvent.press(screen.getByText("Preview adjustment"));

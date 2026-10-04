@@ -320,3 +320,14 @@ class PairingLimitRow(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     attempts: Mapped[int]
+
+
+class GarminCalendarRow(Base):
+    __tablename__ = "garmin_calendar"
+    __table_args__ = (
+        CheckConstraint("id = 1", name="single_calendar"),
+        CheckConstraint("window_days BETWEEN 7 AND 28", name="calendar_window"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    window_days: Mapped[int] = mapped_column(default=14, server_default="14")
+    synced_fingerprint: Mapped[str | None] = mapped_column(Text)

@@ -416,7 +416,9 @@ Run one server instance using the same PostgreSQL database and session directory
 | `GET /plan` | Full typed plan |
 | `GET /weeks/{number}` | Workouts with total minutes and week metrics |
 | `GET /status`, `/compliance`, `/load` | Sync coverage, adjustments, completion, and TRIMP |
-| `POST /push` | Optional `week`/`workout`; defaults to dry run, `apply: true` writes Garmin |
+| `POST /push` | Optional `week`/`workout`, limited to the Garmin window; defaults to dry run, `apply: true` writes Garmin |
+| `GET /calendar/settings`, `POST /calendar/settings` | Read or save the Garmin window (default 14 days, range 7 to 28) |
+| `POST /calendar` | Read a combined Garmin preview; `apply: true` requires its `preview_id` |
 | `POST /sync` | Pull Garmin, or pass normalized `activities` plus date range |
 | `POST /adapt` | `{week: 2}` proposes; add `apply: true` and the reviewed `inputs.proposal_fingerprint` as `proposal_fingerprint` to save locally |
 | `POST /adjustments/propose/{number}` | Read-only preview, including incomplete-week caveat |
@@ -430,6 +432,8 @@ Run one server instance using the same PostgreSQL database and session directory
 | `GET /openapi.json` | Authenticated generated client contract |
 
 See [run data storage and import](docs/activity-data.md) for activity detail endpoints, normalized imports, and resumable backfill.
+
+For the combined preview and cleanup workflow, see [Garmin calendar window](docs/self-hosting.md#garmin-calendar-window).
 
 All command bodies are JSON. For example, `POST /push` with `{"week": 1}` previews a week.
 An explicit `apply: true` is required for writes, and conflicting `dry_run: true` is rejected.

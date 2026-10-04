@@ -109,6 +109,12 @@ export function createClient(
     }
   }
   return {
+    calendarSettings: () =>
+      request<Result<"get_calendar_settings">>("/calendar/settings"),
+    saveCalendarSettings: (body: Schema<"CalendarSettings">) =>
+      request<Result<"save_calendar_settings">>("/calendar/settings", body),
+    calendar: (body: Schema<"CalendarRequest"> = {}) =>
+      request<Result<"reconcile_calendar">>("/calendar", body, 180000),
     garminStatus: () => request<Result<"garmin_status">>("/garmin/status"),
     garminLogin: (body: Schema<"GarminLogin">) =>
       request<Result<"garmin_login">>("/garmin/login", body, 120000),

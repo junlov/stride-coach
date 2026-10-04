@@ -37,6 +37,9 @@ from .pairing import PairedToken, PairingCode, PairingExchange, PairingStore
 from .service import (
     DEFAULT_TOKENS,
     AdaptRequest,
+    CalendarRequest,
+    CalendarResult,
+    CalendarSettings,
     Coach,
     Created,
     GoalRequest,
@@ -383,6 +386,33 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
     @app.get("/load", response_model=list[Load], responses=errors, operation_id="get_load")
     def load(service: Service):
         return service.load()
+
+    @app.get(
+        "/calendar/settings",
+        response_model=CalendarSettings,
+        responses=errors,
+        operation_id="get_calendar_settings",
+    )
+    def calendar_settings(service: Service):
+        return service.calendar_settings()
+
+    @app.post(
+        "/calendar/settings",
+        response_model=CalendarSettings,
+        responses=errors,
+        operation_id="save_calendar_settings",
+    )
+    def save_calendar_settings(body: CalendarSettings, service: Service):
+        return service.save_calendar_settings(body)
+
+    @app.post(
+        "/calendar",
+        response_model=CalendarResult,
+        responses=errors,
+        operation_id="reconcile_calendar",
+    )
+    def calendar(body: CalendarRequest, service: Service):
+        return service.calendar(body)
 
     @app.post("/push", response_model=list[WriteResult], responses=errors, operation_id="push_plan")
     def push(body: PushRequest, service: Service):
