@@ -2,9 +2,10 @@ import { Tabs } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Text } from "react-native";
 import { ConnectionProvider } from "../state/connection";
-import { colors } from "../components/ui";
+import { useTheme } from "../theme";
 
 function Navigation() {
+  const { colors } = useTheme();
   return (
     <Tabs
       screenOptions={{
@@ -24,6 +25,13 @@ function Navigation() {
         }}
       />
       <Tabs.Screen
+        name="week"
+        options={{
+          title: "Week",
+          tabBarIcon: ({ color }) => <Text style={{ color }}>▦</Text>,
+        }}
+      />
+      <Tabs.Screen
         name="plan"
         options={{
           title: "Plan",
@@ -34,6 +42,7 @@ function Navigation() {
         name="goal"
         options={{
           title: "Goal",
+          href: null,
           tabBarIcon: ({ color }) => <Text style={{ color }}>◎</Text>,
         }}
       />
@@ -48,6 +57,7 @@ function Navigation() {
         name="actions"
         options={{
           title: "Actions",
+          href: null,
           tabBarIcon: ({ color }) => <Text style={{ color }}>↻</Text>,
         }}
       />
@@ -64,7 +74,7 @@ function Navigation() {
 export default function RootLayout() {
   return (
     <ConnectionProvider>
-      <StatusBar style="light" />
+      <StatusBar style="auto" />
       <Navigation />
     </ConnectionProvider>
   );

@@ -1,6 +1,1 @@
-import Screen from "../screens/actions";
-import { useConnection } from "../state/connection";
-export default function Route() {
-  const { connectionVersion } = useConnection();
-  return <Screen key={connectionVersion} />;
-}
+export { default } from "../screens/actions";

@@ -82,8 +82,8 @@ docker compose exec api python -m stride_coach.cli garmin login
 docker compose exec api python -m stride_coach.cli garmin status
 ```
 
-Create your plan in **Goal**, then use **Actions > Sync** to load Garmin runs. To include recent
-runs in the initial fitness estimate, first use `sync --since YYYY-MM-DD --until YYYY-MM-DD`
+Follow the [mobile screen guide](../app/README.md#screens-and-actions) to create a goal and sync Garmin runs.
+To include recent runs in the initial fitness estimate, first use `sync --since YYYY-MM-DD --until YYYY-MM-DD`
 from the CLI, then create the goal. Garmin push and removal remain previews until you explicitly
 confirm a live action. Never use real Garmin writes for deployment healthchecks.
 
