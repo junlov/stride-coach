@@ -25,6 +25,48 @@ TOOLS = {
 }
 
 
+class TestMCPPreflight:
+    @pytest.fixture
+    def database(self):
+        return "postgresql+psycopg://unused:synthetic-password@localhost/unused"
+
+    @pytest.mark.parametrize("allowed", [True, False])
+    def test_protocol_header(self, database, tmp_path, allowed):
+        origin = "https://coach.example.test"
+        config = ServerConfig(
+            token=TOKEN,
+            database_url=database,
+            tokens=tmp_path / "tokens",
+            cors_origins=[origin],
+        )
+        client = TestClient(create_app(config))
+        try:
+            response = client.options(
+                "/mcp/",
+                headers={
+                    "Origin": origin if allowed else "https://untrusted.example.test",
+                    "Access-Control-Request-Method": "POST",
+                    "Access-Control-Request-Headers": (
+                        "authorization,content-type,mcp-protocol-version"
+                    ),
+                },
+            )
+            if allowed:
+                assert response.status_code == 200
+                assert response.headers["access-control-allow-origin"] == origin
+                headers = {
+                    header.strip().lower()
+                    for header in response.headers["access-control-allow-headers"].split(",")
+                }
+                assert {"authorization", "content-type", "mcp-protocol-version"} <= headers
+            else:
+                assert response.status_code == 400
+                assert "access-control-allow-origin" not in response.headers
+        finally:
+            client.close()
+            client.app.state.garmin_connection.close()
+
+
 @pytest.fixture
 def api(store, tmp_path):
     config = ServerConfig(

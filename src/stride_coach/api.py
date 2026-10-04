@@ -403,7 +403,7 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
             CORSMiddleware,
             allow_origins=config.cors_origins,
             allow_methods=["GET", "POST"],
-            allow_headers=["Authorization", "Content-Type"],
+            allow_headers=["Authorization", "Content-Type", "MCP-Protocol-Version"],
             allow_credentials=False,
         )
     return app
