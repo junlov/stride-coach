@@ -72,10 +72,8 @@ it checks database access and the exact schema version and returns only `ready` 
 
 ## First run and Garmin
 
-In mobile **Settings**, save the HTTPS server URL and the configured bearer secret. Use
-**Connect Garmin**, enter your credentials, and complete MFA if requested. The server submits
-the password once, saves only session tokens, and renews expiring access tokens automatically
-when needed. Alternatively, use the same container and volume from the terminal:
+Follow the [mobile connection guide](../app/README.md#connect-your-server) to connect your phone and Garmin during first-run setup.
+For terminal sign-in, use the same container and volume:
 
 ```sh
 docker compose exec api python -m stride_coach.cli garmin login

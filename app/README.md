@@ -37,7 +37,7 @@ profile below. SDK 58 is not used while it is on npm's prerelease channel.
    for now**. The app sends credentials once over the authenticated connection and clears the
    password immediately. If requested, enter the MFA code Garmin sends. The challenge expires
    after five minutes. After a failed completion, use **Restart Garmin sign-in** for a new
-   explicit login. You can also connect later in **Settings**.
+   explicit login. After connecting, tap **Continue to goal**. You can also connect later in **Settings**.
 5. Choose your goal, Monday start, race or completion date, weekly running days, long-run day,
    and heart rates. **Review goal** shows the exact constraints before **Confirm new plan**
    creates it. Review any starting-fitness warnings, then tap **Go to Today**. If the server
@@ -56,7 +56,7 @@ server-backed import flow. The current wizard makes no import or Garmin sync req
 In **Settings**, **Manage connection** opens the server form. Test and save a changed URL or
 bearer token there. **Forget connection** opens a confirmation showing what will be removed.
 The onboarding and settings screens follow the phone’s light or dark appearance using
-`src/theme.ts` and `src/components/setup-ui.tsx`. Expo system UI enables appearance changes in
+`src/setup-theme.ts` and `src/components/setup-ui.tsx`. Expo system UI enables appearance changes in
 Android builds, as described in [Expo’s color theme guide](https://docs.expo.dev/develop/user-interface/color-themes/).
 
 **Refresh Garmin status** shows the connected account (when available) and access-token expiry.
@@ -67,17 +67,21 @@ local previews still work without a Garmin connection. Login is never automatica
 After a failed or timed-out request, refresh Garmin status before another login attempt.
 The server renews access tokens once per request when needed, without using your password.
 Connected settings show activity coverage from `/status` separately from the Garmin session.
+Without a plan, `/status` fails and the app shows coverage as unavailable, even when stored activities exist.
+After creating a plan, use **Retry activity coverage** to load coverage.
+The empty coverage message appears only after a successful response without coverage.
 The API does not expose a last-successful-sync timestamp or distinguish expired sessions from
 all other disconnections, so the app does not invent either value.
 
 See the root [Garmin guide](../README.md#garmin-authentication-and-first-live-check) for container
 storage, server configuration, MFA worker requirements, upstream login limitations, and CLI commands.
 
-Both server settings are saved together in `expo-secure-store`. **Forget connection** removes the
-saved server URL/bearer token and clears connected screen state. It does not disconnect Garmin
-on the server. Garmin email, password, and MFA code are never put in SecureStore. Tokens are never put in URLs, analytics,
-logs, source files, or build configuration.
-Saving or forgetting a connection clears pending previews, recovery inspection, acknowledgement, and the selected week.
+Both server settings are saved together in `expo-secure-store`.
+In the confirmation, **Forget server connection** removes the saved URL and bearer token, discards pending previews, and returns to onboarding.
+The server keeps its plan, activities, and Garmin connection. **Keep connection** cancels without removing credentials.
+Garmin email, password, and MFA code are never put in SecureStore. Tokens are never put in URLs, analytics,
+logs, source files, or build configuration. Changing connections invalidates pending previews.
+Saving or forgetting a connection clears recovery inspection, acknowledgement, and the selected week.
 The app ignores late responses from the previous connection.
 
 A physical phone's `localhost` is the phone itself. Use the server's HTTPS address for phones.
