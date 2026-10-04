@@ -1,0 +1,28 @@
+name: "Feature: J2 - Runner today's workout"
+description: "J2: Runner today's workout. Choose this form to apply the matching job label."
+labels: ["job:J2-today"]
+body:
+  - type: dropdown
+    id: job
+    attributes:
+      label: Which job does this serve?
+      description: Choose another job form if this does not match your request.
+      options:
+        - "J2 - Runner today's workout"
+      default: 0
+    validations:
+      required: true
+  - type: textarea
+    id: story
+    attributes:
+      label: Job story and current problem
+      description: "When ... I want ... so I can ..."
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Proposed outcome and alternatives
+      description: What would success look like? What can you do today?
+    validations:
+      required: true

@@ -1,0 +1,19 @@
+# Disposable contributor database, isolated from the self-hosted deployment.
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: synthetic-dev-password
+      POSTGRES_DB: stride_dev
+    ports:
+      - "127.0.0.1:${DEV_DATABASE_PORT:-55440}:5432"
+    volumes:
+      - dev-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d stride_dev"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+volumes:
+  dev-postgres:

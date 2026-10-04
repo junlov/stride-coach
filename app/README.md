@@ -138,27 +138,76 @@ The committed `eas.json` has these profiles:
 | `preview`     | Internal standalone app; Android APK, provisioned iOS devices            |
 | `production`  | Android app bundle and iOS store archive, remote build-number increments |
 
-Before your first build, choose your own unique `ios.bundleIdentifier` and `android.package`
-in `app.json`. The repository uses `org.stridecoach.app` as its starting identifier. Set the
-Expo owner for your account, then link your own EAS project (which adds its project ID):
+### Build your own app copy
+
+Create your own [Expo account](https://expo.dev/signup). From `app/`, install dependencies
+with `npm ci`. Cloud builds use your Expo account's build allowance; iOS device builds also
+require an Apple Developer membership. You do not need the maintainer's Expo access.
+
+Before running EAS, edit **your fork's** `app/app.json`:
+
+| Field under `expo` | Change |
+| --- | --- |
+| `owner` | Replace `junlov` with your Expo username or organization |
+| `extra.eas.projectId` | Delete this property, then let `eas init` generate your own ID |
+| `android.package` | Replace `org.stridecoach.app` with your unique reverse-domain identifier |
+| `ios.bundleIdentifier` | Replace `org.stridecoach.app` with your unique reverse-domain identifier |
+| `name`, `slug`, `scheme` | Choose names and a URL scheme for your copy |
+
+**The committed project ID `1292c8fc-a736-43a2-be85-a0fb899f9475` belongs to the maintainer.
+It must be replaced, not reused.** Keep `extra.router` and the other configuration intact.
+Then run:
 
 ```sh
 npx eas-cli@latest login
+npx eas-cli@latest whoami
 npx eas-cli@latest init
+npx eas-cli@latest project:info
 npx eas-cli@latest build:configure
-npx eas-cli@latest build --platform all --profile development
-npm start -- --dev-client
-npx eas-cli@latest build --platform all --profile preview
-npx eas-cli@latest build --platform ios --profile production
-npx eas-cli@latest build --platform android --profile production
 ```
 
-EAS handles native project generation and signing. iOS device and store builds require an Apple
-Developer account and provisioning; register test devices for internal distribution. Android
-production builds use a signing keystore managed through EAS credentials. Production builds
-can be uploaded to App Store Connect and Google Play Console by their owner. Store submission,
-listing assets, and review are outside this task; no EAS builds or store uploads are performed by
-local tests. Replace the starter app icons with your release artwork before store distribution.
+Verify that `project:info` names your account/project and that `extra.eas.projectId` now
+contains a different ID. Preserve the existing build profiles. Commit your identifiers to your
+fork, not an upstream contribution. Never embed the server bearer token or Garmin credentials.
+See Expo's [build setup guide](https://docs.expo.dev/build/setup/).
+
+Build an Android APK that runs without Metro:
+
+```sh
+npx eas-cli@latest build --platform android --profile preview
+```
+
+Open the finished EAS build's install link on Android, download the APK, and allow installation
+from that browser when prompted. Only install builds you trust. Share the build link with your
+testers. The production Android profile creates an AAB for Google Play, not a directly
+installable APK.
+
+For an iPhone build, register each test device **before** building:
+
+```sh
+npx eas-cli@latest device:create
+npx eas-cli@latest build --platform ios --profile preview
+```
+
+Follow EAS's Apple signing prompts with your own Apple Developer account. Open the finished
+build's install link in Safari on a registered iPhone. Ad hoc builds only install on devices
+included in their provisioning profile; adding devices requires rebuilding or re-signing.
+See [internal distribution](https://docs.expo.dev/build/internal-distribution/).
+
+For an iOS store archive, use:
+
+```sh
+npx eas-cli@latest build --platform ios --profile production
+```
+
+A production archive is distributed through App Store Connect/TestFlight or the App Store
+after the owner's submission and Apple's processing. Users install a TestFlight build through
+an invitation in TestFlight. An IPA is not a universal iPhone download. Store listings and
+submission are outside this guide. EAS build completion alone does not prove device installation.
+
+After installing either preview app, open **Settings**, connect your server, and follow the
+[connection steps](#connect-your-server). For a development build instead, use the
+`development` profile and start Metro with `npm start -- --dev-client`.
 
 The Expo build-properties plugin enables SDK 57's scene lifecycle support for iOS builds using
 Xcode 27. See [SDK 57 release notes](https://expo.dev/changelog/sdk-57) and the
