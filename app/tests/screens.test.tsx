@@ -448,6 +448,54 @@ test("Garmin login can connect without MFA", async () => {
   expect(screen.queryByLabelText("Garmin MFA code")).toBeNull();
 });
 
+test.each(["connected", "disconnected", "renewal failure"])(
+  "Garmin background status replaces login result on %s",
+  async (outcome) => {
+    server = mockServer({
+      "/garmin/status": { connected: false },
+      "/garmin/login": { connected: true },
+    });
+    await mount(<SettingsScreen />);
+    await screen.findByText("Garmin is not connected.");
+    await fireEvent.changeText(
+      screen.getByLabelText("Garmin email"),
+      "runner@example.test",
+    );
+    await fireEvent.changeText(
+      screen.getByLabelText("Garmin password"),
+      "synthetic-password",
+    );
+    await fireEvent.press(screen.getByText("Connect Garmin"));
+    await screen.findByText("Connected to Garmin.");
+    server.mockResolvedValueOnce(
+      outcome === "renewal failure"
+        ? response({ detail: "Reconnect Garmin in Settings." }, 502)
+        : response({
+            connected: outcome === "connected",
+            display_name: "Refreshed Runner",
+          }),
+    );
+    const onChange = jest.mocked(AppState.addEventListener).mock.calls.at(-1)![1];
+    await act(async () => {
+      onChange("background");
+      onChange("active");
+    });
+    await screen.findByText(
+      outcome === "renewal failure"
+        ? "Reconnect Garmin in Settings."
+        : outcome === "connected"
+          ? "Connected to Garmin as Refreshed Runner."
+          : "Garmin is not connected.",
+    );
+    expect(screen.queryByText("Connected to Garmin.")).toBeNull();
+    if (outcome !== "connected") {
+      expect(screen.getByLabelText("Garmin password").props.value).toBe("");
+      expect(screen.getByText("Connect Garmin")).toBeTruthy();
+    }
+    expect(bodies("/garmin/login")).toHaveLength(1);
+  },
+);
+
 test.each(["sync", "push", "remove"])(
   "disconnected Garmin prompts before %s",
   async (action) => {

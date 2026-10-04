@@ -5,9 +5,12 @@ import { useQuery } from "../state/query";
 import { Button, Card, Copy, ErrorMessage, Field, Heading, Muted } from "./ui";
 
 export function GarminSettings({ client }: { client: Client }) {
-  const load = useCallback((api: Client) => api.garminStatus(), []);
-  const query = useQuery(load);
   const [status, setStatus] = useState<Schema<"GarminStatus"> | null>(null);
+  const load = useCallback((api: Client) => {
+    setStatus(null);
+    return api.garminStatus();
+  }, []);
+  const query = useQuery(load);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -18,7 +21,6 @@ export function GarminSettings({ client }: { client: Client }) {
   const current = status ?? query.data;
   useFocusEffect(
     useCallback(() => {
-      setStatus(null);
       return () => {
         setPassword("");
         setCode("");
@@ -86,7 +88,6 @@ export function GarminSettings({ client }: { client: Client }) {
         label="Refresh Garmin status"
         disabled={busy || query.loading}
         onPress={() => {
-          setStatus(null);
           setError(null);
           query.retry();
         }}
