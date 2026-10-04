@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { GarminSettings } from "../components/garmin-settings";
 import { ApiError, createClient } from "../api/client";
 import {
   Button,
@@ -13,6 +14,8 @@ import { useConnection } from "../state/connection";
 export default function SettingsScreen() {
   const {
     connection,
+    connectionVersion,
+    client,
     loading,
     error: storageError,
     save,
@@ -103,8 +106,8 @@ export default function SettingsScreen() {
           editable={!disabled}
         />
         <Muted>
-          The URL and token stay in your device secure storage. Garmin
-          credentials stay on your server.
+          The URL and token stay in your device secure storage. Garmin session
+          tokens stay on your server. Your Garmin password is never saved.
         </Muted>
         <Button
           label="Test connection"
@@ -122,6 +125,9 @@ export default function SettingsScreen() {
           disabled={disabled}
         />
       </Card>
+      {client && connection && (
+        <GarminSettings key={connectionVersion} client={client} />
+      )}
       <ErrorMessage message={error ?? storageError} />
       {!!message && <Copy>{message}</Copy>}
       {busy && <Muted>Working...</Muted>}

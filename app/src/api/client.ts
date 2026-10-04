@@ -43,9 +43,13 @@ export function createClient(
   timeoutMs = 15000,
 ) {
   const config = normalizeConnection(connection);
-  async function request<T>(path: string, body?: unknown): Promise<T> {
+  async function request<T>(
+    path: string,
+    body?: unknown,
+    waitMs = timeoutMs,
+  ): Promise<T> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = setTimeout(() => controller.abort(), waitMs);
     try {
       const response = await fetcher(`${config.serverUrl}${path}`, {
         method: body === undefined ? "GET" : "POST",
@@ -105,6 +109,12 @@ export function createClient(
     }
   }
   return {
+    garminStatus: () => request<Result<"garmin_status">>("/garmin/status"),
+    garminLogin: (body: Schema<"GarminLogin">) =>
+      request<Result<"garmin_login">>("/garmin/login", body, 120000),
+    garminMfa: (body: Schema<"GarminMFA">) =>
+      request<Result<"garmin_mfa">>("/garmin/mfa", body, 120000),
+    garminLogout: () => request<Result<"garmin_logout">>("/garmin/logout", {}),
     status: () => request<Result<"get_status">>("/status"),
     plan: () => request<Result<"get_plan">>("/plan"),
     week: (number: number) => request<Result<"get_week">>(`/weeks/${number}`),

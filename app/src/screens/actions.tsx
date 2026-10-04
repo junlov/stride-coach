@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { Link, useFocusEffect } from "expo-router";
 import { Schema } from "../api/client";
 import {
   Button,
@@ -11,6 +11,7 @@ import {
   Heading,
   Muted,
   Page,
+  styles,
 } from "../components/ui";
 import { useConnection } from "../state/connection";
 
@@ -46,6 +47,7 @@ export default function ActionsScreen() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [connectGarmin, setConnectGarmin] = useState(false);
   const lock = useRef(false);
   const generation = useRef(0);
   useFocusEffect(
@@ -56,6 +58,7 @@ export default function ActionsScreen() {
       setResults(null);
       setMessage("");
       setError(null);
+      setConnectGarmin(false);
       return () => {
         generation.current++;
       };
@@ -73,6 +76,18 @@ export default function ActionsScreen() {
     const version = generation.current;
     const active = () => generation.current === version;
     try {
+      if (
+        action === "sync" ||
+        (action === "confirm" && pending && pending.kind !== "adapt")
+      ) {
+        const connection = await client.garminStatus();
+        if (!active()) return;
+        if (!connection.connected) {
+          setConnectGarmin(true);
+          return;
+        }
+        setConnectGarmin(false);
+      }
       if (action === "sync") {
         const result = await client.sync();
         if (active())
@@ -139,7 +154,11 @@ export default function ActionsScreen() {
         }
       }
     } catch (e) {
-      if (active()) setError((e as Error).message);
+      if (active()) {
+        setError((e as Error).message);
+        if (/connect Garmin/i.test((e as Error).message))
+          setConnectGarmin(true);
+      }
     } finally {
       lock.current = false;
       setBusy(false);
@@ -151,8 +170,8 @@ export default function ActionsScreen() {
         <Card>
           <Heading>Bring your training up to date</Heading>
           <Muted>
-            Sync reads activities from Garmin into your server. Garmin login
-            must already be configured there.
+            Sync reads your latest Garmin activities into your server. Connect
+            Garmin in Settings first.
           </Muted>
           <Button
             label="Sync activities"
@@ -195,6 +214,14 @@ export default function ActionsScreen() {
           />
         </Card>
         {busy && <Copy>Waiting for your server...</Copy>}
+        {connectGarmin && (
+          <Card>
+            <Copy>Connect Garmin in Settings to use this action.</Copy>
+            <Link href="/settings" style={styles.text}>
+              Connect Garmin
+            </Link>
+          </Card>
+        )}
         <ErrorMessage message={error} />
         {!!message && <Copy>{message}</Copy>}
         {preview && (

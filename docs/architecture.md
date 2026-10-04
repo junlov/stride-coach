@@ -26,10 +26,18 @@ flowchart LR
 
 ## Garmin boundary
 
-The pinned garth-compatible library loads the two saved token files directly. No code path
-calls its `login` method. Automatic token refresh is replaced with a clear failure, and
-HTTP retries are disabled. An expired session stops without reauthentication or token writes.
-Garmin errors are sanitized rather than printing upstream request/response bodies.
+`garmin_auth.py` owns login, MFA, private token persistence, and bounded renewal using the
+pinned garth SSO functions. A password is submitted once per explicit request, without retries.
+Pending MFA state lives in memory for five minutes; submitted request bodies are scrubbed from
+garth's retained response before keeping a challenge. Passwords are never persisted.
+The CLI and authenticated HTTP routes share this manager; MCP remains read-only and offline.
+A token-store file lock and atomic private-file replacement protect persistence. A generation
+marker prevents a pending login or an older session from restoring tokens after logout or a
+new connection. Unmarked nonempty stores and shared Garmin paths are refused.
+`StoredSession` wraps both proactive and implicit garth renewal with one attempt per request.
+HTTP retries are disabled. Upstream exceptions and request validation inputs are sanitized.
+Use one API process/worker because MFA challenges are not shared between workers. See the
+README Garmin section for volume setup, security boundaries, and upstream compatibility limits.
 
 Workout upload and activity reads use python-garminconnect public methods. The pinned release
 lacks scheduling, update, and delete helpers, so these use its garth transport with upstream
@@ -69,8 +77,9 @@ planned month may require manual inspection. `remove` is scoped to the active lo
 
 ## Data and testing
 
-Garmin's local activity date is used for matching. Original titles, locations, raw exports,
-and tokens are not stored. Generic Garmin running activities have unknown session type;
+Garmin's local activity date is used for matching. Original titles, locations, and raw exports
+are not stored in SQLite. OAuth tokens and an optional account display name live only in the
+private connection store. Generic Garmin running activities have unknown session type;
 inferred matches are labeled. Normalized imports can supply a `kind`. Best-effort status
 must be supplied explicitly; it is never guessed from an ordinary activity title.
 

@@ -10,6 +10,7 @@ import typer
 from pydantic import BaseModel
 
 from .garmin import GarminError
+from .garmin_auth import GarminConnection
 from .models import Athlete, Goal, Setup
 from .service import (
     DEFAULT_DB,
@@ -24,7 +25,13 @@ from .service import (
 )
 from .storage import Store
 
-app = typer.Typer(no_args_is_help=True, help="Local running plans and explicit Garmin commands.")
+app = typer.Typer(
+    no_args_is_help=True,
+    help="Local running plans and explicit Garmin commands.",
+    pretty_exceptions_enable=False,
+)
+garmin = typer.Typer(no_args_is_help=True, help="Manage this server's Garmin connection.")
+app.add_typer(garmin, name="garmin")
 
 
 def emit(data):
@@ -59,6 +66,53 @@ def session(ctx):
     finally:
         if store:
             store.close()
+
+
+@garmin.command("login")
+def garmin_login(ctx: typer.Context):
+    """Log in once, prompting securely for a password and MFA if needed."""
+    connection = GarminConnection(ctx.obj["tokens"])
+    email = typer.prompt("Garmin email")
+    password = typer.prompt("Garmin password", hide_input=True)
+    try:
+        try:
+            result = connection.login(email, password)
+        finally:
+            password = ""
+        if result.mfa_required:
+            code = typer.prompt("Garmin MFA code", hide_input=True)
+            try:
+                result = connection.complete(result.challenge_id, code)
+            finally:
+                code = ""
+        emit(result)
+    except (GarminError, OSError):
+        typer.echo(
+            "Garmin login failed. Check your details or connection before trying again.", err=True
+        )
+        raise typer.Exit(1) from None
+    finally:
+        connection.close()
+
+
+@garmin.command("status")
+def garmin_status(ctx: typer.Context):
+    """Show connection and expiry; renew a near-expiry access token once."""
+    try:
+        emit(GarminConnection(ctx.obj["tokens"]).status())
+    except (GarminError, OSError):
+        typer.echo("Reconnect Garmin with stride-coach garmin login.", err=True)
+        raise typer.Exit(1) from None
+
+
+@garmin.command("logout")
+def garmin_logout(ctx: typer.Context):
+    """Delete this server's saved Garmin tokens."""
+    try:
+        emit(GarminConnection(ctx.obj["tokens"]).logout())
+    except (GarminError, OSError):
+        typer.echo("Could not disconnect Garmin. Check the dedicated token directory.", err=True)
+        raise typer.Exit(1) from None
 
 
 @app.command()

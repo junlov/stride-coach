@@ -2,7 +2,7 @@
 
 - Setup and offline checks: see README.md, pyproject.toml, and .github/workflows/ci.yml.
 - Training rules and provenance: docs/training-rules.md; code lives in src/stride_coach/engine.py and adaptation.py.
-- Garmin ownership and recovery rules: docs/architecture.md and src/stride_coach/garmin.py. Never add credential login or live Garmin calls to tests/CI.
+- Garmin connection, token storage, and recovery rules: README.md, docs/architecture.md, and src/stride_coach/garmin_auth.py. Tests/CI use synthetic Garmin responses only.
 - Keep tokens, personal activity data, SQLite databases, and local demo outputs untracked. The offline demo uses synthetic data only.
 - CLI, MCP, and HTTP share src/stride_coach/service.py. MCP stays read-only; CLI/API Garmin writes require explicit apply.
 - Mobile API contract: docs/openapi.json, regenerated with uv run python examples/export_openapi.py. See README.md for bearer auth and HTTPS deployment.

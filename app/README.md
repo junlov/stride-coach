@@ -1,7 +1,7 @@
 # Stride Coach mobile
 
 An Expo SDK 57, TypeScript, and Expo Router app for iOS and Android. It connects to your own
-Stride Coach FastAPI server. The Python server and its Garmin credentials stay on your server.
+Stride Coach FastAPI server. The server stores Garmin session tokens; Garmin passwords are never saved.
 All native dependencies are Expo-compatible; no custom native code or ejecting is required.
 
 ## Local development
@@ -32,11 +32,26 @@ profile below. SDK 58 is not used while it is on npm's prerelease channel.
 3. Open **Settings**, enter the URL and token, tap **Test connection**, then **Save connection**.
    The test calls `/status` with the entered values, even before saving. A server with no plan
    will tell you to open Goal setup after saving.
-4. Open **Goal** to create the initial plan. The server supports one plan per database. For a
+4. In the **Garmin** section, tap **Connect Garmin** after entering your Garmin email and password.
+   The app sends them once over the authenticated HTTPS connection and clears the password field
+   immediately. If requested, enter the MFA code Garmin sends. The server's challenge expires after five minutes.
+   After a server restart or a failed completion, start a new explicit login.
+5. Open **Goal** to create the initial plan. The server supports one plan per database. For a
    later goal, the operator must configure a fresh database; the app cannot replace the plan.
 
-Both settings are saved together in `expo-secure-store`. **Forget connection** removes the
-saved credentials and clears connected screen state. Tokens are never put in URLs, analytics,
+**Refresh Garmin status** shows the connected account (when available) and access-token expiry.
+**Disconnect Garmin** deletes tokens from the server and cancels pending login. It does not erase
+synced runs or Garmin workouts. Sync and live Garmin actions prompt you to connect when needed;
+local previews still work without a Garmin connection. Login is never automatically retried.
+After a failed or timed-out request, refresh Garmin status before another login attempt.
+The server renews access tokens once per request when needed, without using your password.
+
+See the root [Garmin guide](../README.md#garmin-authentication-and-first-live-check) for container
+storage, server configuration, MFA worker requirements, upstream login limitations, and CLI commands.
+
+Both server settings are saved together in `expo-secure-store`. **Forget connection** removes the
+saved server URL/bearer token and clears connected screen state. It does not disconnect Garmin
+on the server. Garmin email, password, and MFA code are never put in SecureStore. Tokens are never put in URLs, analytics,
 logs, source files, or build configuration. Changing connections invalidates pending previews.
 
 A physical phone's `localhost` is the phone itself. Use the server's HTTPS address for phones.
@@ -56,7 +71,7 @@ Keep the server timezone aligned with the athlete's local timezone.
 - **Actions:** sync Garmin activities into the server; review adjustment reasons before applying;
   preview a selected week or all future workouts before pushing to Garmin. Removal previews
   **all** workouts owned by the server, independent of the week field.
-- **Settings:** secure connection storage and an explicit connection test.
+- **Settings:** secure server connection storage, an explicit server test, and Garmin login/MFA, status, and disconnect.
 
 Push and removal first send `dry_run: true, apply: false`. Only the separate **Confirm live**
 button sends `dry_run: false, apply: true`. Editing the week, cancelling, changing connections,
