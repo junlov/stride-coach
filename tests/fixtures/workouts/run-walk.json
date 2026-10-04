@@ -1,0 +1,78 @@
+{
+  "workoutName": "Run-Walk 40 min",
+  "description": "Build running time gently, alternating relaxed running with walking breaks. Aim for 138 to 154 bpm during the running efforts.\nstride-coach:v1:synthetic-run-walk",
+  "sportType": {
+    "sportTypeId": 1,
+    "sportTypeKey": "running"
+  },
+  "estimatedDurationInSecs": 2400,
+  "workoutSegments": [
+    {
+      "segmentOrder": 1,
+      "sportType": {
+        "sportTypeId": 1,
+        "sportTypeKey": "running"
+      },
+      "workoutSteps": [
+        {
+          "type": "RepeatGroupDTO",
+          "stepOrder": 1,
+          "stepType": {
+            "stepTypeId": 6,
+            "stepTypeKey": "repeat"
+          },
+          "numberOfIterations": 6,
+          "endCondition": {
+            "conditionTypeId": 7,
+            "conditionTypeKey": "iterations"
+          },
+          "endConditionValue": 6,
+          "skipLastRestStep": false,
+          "smartRepeat": false,
+          "workoutSteps": [
+            {
+              "type": "ExecutableStepDTO",
+              "stepOrder": 2,
+              "description": "2:17 min gentle run at 138 to 154 bpm. Keep it conversational.",
+              "stepType": {
+                "stepTypeId": 3,
+                "stepTypeKey": "interval"
+              },
+              "endCondition": {
+                "conditionTypeId": 2,
+                "conditionTypeKey": "time"
+              },
+              "endConditionValue": 137.36,
+              "targetType": {
+                "workoutTargetTypeId": 4,
+                "workoutTargetTypeKey": "heart.rate.zone"
+              },
+              "targetValueOne": 138,
+              "targetValueTwo": 154
+            },
+            {
+              "type": "ExecutableStepDTO",
+              "stepOrder": 3,
+              "description": "4:23 min walk at 106 to 132 bpm. Walk comfortably.",
+              "stepType": {
+                "stepTypeId": 4,
+                "stepTypeKey": "recovery"
+              },
+              "endCondition": {
+                "conditionTypeId": 2,
+                "conditionTypeKey": "time"
+              },
+              "endConditionValue": 262.64,
+              "targetType": {
+                "workoutTargetTypeId": 4,
+                "workoutTargetTypeKey": "heart.rate.zone"
+              },
+              "targetValueOne": 106,
+              "targetValueTwo": 132
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

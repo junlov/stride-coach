@@ -1,10 +1,11 @@
 """Runner-facing text shared by Garmin payloads and API views."""
 
-from .models import Kind, Step, Workout
+from .models import Kind, RepeatGroup, Step, Workout
 
 # Garmin support documents a 15-character limit on many devices. The Python
 # client's workoutName string has no length validation. See docs/garmin-workouts.md.
 WORKOUT_NAME_LIMIT = 15
+STEP_NOTE_LIMIT = 200
 
 _NAMES = {
     Kind.EASY: "Easy Run",
@@ -35,20 +36,37 @@ def duration(minutes: float) -> str:
 
 
 def main_steps(workout: Workout) -> list[Step]:
-    labels = {Kind.TEMPO: "steady tempo", Kind.INTERVALS: "controlled interval"}
+    expanded = []
+    for block in workout.steps:
+        if isinstance(block, RepeatGroup):
+            children = block.steps * block.repetitions
+            expanded.extend(children[:-1] if block.skip_last_rest else children)
+        else:
+            expanded.append(block)
+    labels = {
+        Kind.TEMPO: "steady tempo",
+        Kind.INTERVALS: "controlled interval",
+        Kind.RUN_WALK: "run gently",
+    }
     if workout.kind in labels:
-        return [s for s in workout.steps if s.label.lower() == labels[workout.kind]]
-    if workout.kind == Kind.RUN_WALK:
-        return [s for s in workout.steps if s.label.lower() == "run gently"]
-    return workout.steps
+        return [s for s in expanded if s.label.lower() == labels[workout.kind]]
+    return [s for s in expanded if s.label.lower() != "relaxed stride"]
+
+
+def step_amount(step: Step) -> str:
+    if step.end_condition == "distance":
+        return f"{step.distance_m:g} m"
+    if step.end_condition == "lap":
+        return f"press Lap ({duration(step.minutes)} estimated)"
+    return duration(step.minutes)
 
 
 def workout_name(workout: Workout) -> str:
     main = main_steps(workout)
     summary = duration(workout.minutes)
     if workout.kind in (Kind.TEMPO, Kind.INTERVALS) and main:
-        if len({round(s.minutes * 60) for s in main}) == 1:
-            summary = duration(main[0].minutes)
+        if len({step_amount(s) for s in main}) == 1:
+            summary = step_amount(main[0])
             if len(main) > 1:
                 summary = f"{len(main)} x {summary}"
         else:
@@ -65,6 +83,8 @@ def workout_name(workout: Workout) -> str:
 
 
 def target_text(step: Step) -> str:
+    if step.hr_zone is not None:
+        return f"Zone {step.hr_zone}"
     if step.pace_min is not None and step.pace_max is not None:
 
         def pace(seconds: float) -> str:
@@ -90,11 +110,36 @@ def step_description(step: Step) -> str:
         "long": "easy run",
     }.get(label, "")
     if label in ("warm up", "cool down"):
-        text = f"{instruction} for {duration(step.minutes)}"
+        joiner = "; " if step.end_condition == "lap" else " for "
+        text = f"{instruction}{joiner}{step_amount(step)}"
     else:
-        text = f"{duration(step.minutes)} {instruction}".rstrip()
+        text = f"{step_amount(step)} {instruction}".rstrip()
     target = target_text(step)
-    return f"{text} at {target}" if target else text
+    text = f"{text} at {target}" if target else text
+    if step.cadence_min is not None:
+        text += f"; {step.cadence_min} to {step.cadence_max} spm"
+    cue = {
+        "warm up": "Start gently.",
+        "cool down": "Let breathing settle.",
+        "easy recovery": "Relax your shoulders.",
+        "recovery": "Keep it gentle.",
+        "walk": "Walk comfortably.",
+        "run gently": "Keep it conversational.",
+        "easy": "Keep it conversational.",
+        "long": "Stay relaxed.",
+        "steady tempo": "Stay controlled.",
+        "controlled interval": "Finish smooth.",
+        "relaxed stride": "Quick, light steps.",
+    }.get(label, "Run smoothly.")
+    return f"{text}. {cue}"[:STEP_NOTE_LIMIT].rstrip()
+
+
+def step_summary(step: Step | RepeatGroup) -> str:
+    if isinstance(step, RepeatGroup):
+        text = f"{step.label}: {step.repetitions} x ("
+        text += "; ".join(step_description(s) for s in step.steps) + ")"
+        return text + (" Skip last recovery." if step.skip_last_rest else "")
+    return step_description(step)
 
 
 def workout_description(workout: Workout) -> str:

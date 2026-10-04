@@ -530,7 +530,7 @@ class Store:
                     select(StepRow).join(WorkoutRow).where(WorkoutRow.plan_id == plan.id)
                 )
             }
-            # Adaptation only changes durations. Keep workout identity and every remote ledger row.
+            # Scale time and distance while keeping workout identity and every remote ledger row.
             for workout in plan.workouts:
                 for position, step in enumerate(executable_steps(workout.steps)):
                     row = steps[workout.id, position]

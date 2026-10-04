@@ -209,10 +209,12 @@ def normalize_heart_rate_zones(payload) -> list[GarminHeartRateZone]:
     bounds.append(profile.get("maxHeartRateUsed"))
     if any(type(value) is not int or not 30 <= value <= 240 for value in bounds):
         return []
-    if any(a >= b for a, b in zip(bounds, bounds[1:])):
+    if any(a >= b for a, b in zip(bounds, bounds[1:], strict=False)):
         return []
-    return [GarminHeartRateZone(zone=i + 1, lower_bpm=bounds[i], upper_bpm=bounds[i + 1])
-            for i in range(5)]
+    return [
+        GarminHeartRateZone(zone=i + 1, lower_bpm=bounds[i], upper_bpm=bounds[i + 1])
+        for i in range(5)
+    ]
 
 
 def tag(workout: Workout) -> str:
@@ -228,7 +230,8 @@ def workout_payload(workout: Workout) -> dict[str, Any]:
         index = order
         if isinstance(step, RepeatGroup):
             return {
-                "type": "RepeatGroupDTO", "stepOrder": index,
+                "type": "RepeatGroupDTO",
+                "stepOrder": index,
                 "stepType": {"stepTypeId": 6, "stepTypeKey": "repeat"},
                 "numberOfIterations": step.repetitions,
                 "endCondition": {"conditionTypeId": 7, "conditionTypeKey": "iterations"},
@@ -254,7 +257,9 @@ def workout_payload(workout: Workout) -> dict[str, Any]:
             "stepType": {"stepTypeId": type_id, "stepTypeKey": type_key},
             "endCondition": {
                 "conditionTypeId": {"time": 2, "distance": 3, "lap": 1}[step.end_condition],
-                "conditionTypeKey": "lap.button" if step.end_condition == "lap" else step.end_condition,
+                "conditionTypeKey": "lap.button"
+                if step.end_condition == "lap"
+                else step.end_condition,
             },
         }
         if step.end_condition != "lap":
@@ -278,12 +283,14 @@ def workout_payload(workout: Workout) -> dict[str, Any]:
                 targetValueOne=1000 / step.pace_max,
                 targetValueTwo=1000 / step.pace_min,
             )
-        else:
+        elif step.hr_min is not None:
             record.update(
                 targetType={"workoutTargetTypeId": 4, "workoutTargetTypeKey": "heart.rate.zone"},
                 targetValueOne=step.hr_min,
                 targetValueTwo=step.hr_max,
             )
+        else:
+            record["targetType"] = {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target"}
         return record
 
     steps = [encode(step) for step in workout.steps]

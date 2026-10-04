@@ -159,7 +159,10 @@ def test_workout_payload_units(plan):
     payload = workout_payload(workout)
     step = payload["workoutSegments"][0]["workoutSteps"][0]
     assert step["endConditionValue"] == pytest.approx(workout.steps[0].minutes * 60, abs=0.001)
-    assert step["targetType"] == {"workoutTargetTypeId": 4, "workoutTargetTypeKey": "heart.rate.zone"}
+    assert step["targetType"] == {
+        "workoutTargetTypeId": 4,
+        "workoutTargetTypeKey": "heart.rate.zone",
+    }
     assert step["targetValueOne"] == workout.steps[0].hr_min
     assert step["targetValueOne"] < step["targetValueTwo"]
     workout.steps[0].hr_min = workout.steps[0].hr_max = None

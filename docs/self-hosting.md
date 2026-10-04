@@ -422,3 +422,16 @@ mode 700 and file mode 600 before resuming capture. Keep the same volume when up
 moving hosts. Stream records, metrics, laps, zones and capture checkpoints are included in
 PostgreSQL backups. Deleting Compose volumes also deletes originals. Protect these backups:
 GPS tracks reveal locations, and FIT files may contain additional personal data.
+
+
+### Structured workout storage
+
+Migration `0007` stores repeat groups and step end conditions in typed tables and columns.
+Existing timed steps remain readable with their original durations. New plans include repeat
+structure, distance efforts, Lap-ended warm-up/cool-down and strides as described in
+[training rules](training-rules.md). Current Garmin HR-zone settings are stored separately
+from historical activity zones and refreshed during ordinary Garmin sync.
+
+A downgrade past `0007` is allowed for old timed plans. Once a plan uses repeats, distance,
+Lap endings or numbered/cadence targets, downgrade refuses to discard that information;
+restore a pre-upgrade backup with the matching server release instead.

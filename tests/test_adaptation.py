@@ -68,14 +68,23 @@ def test_missing_hr_is_unknown_not_zero(plan):
     assert propose(plan, runs, 2).factor < 1
 
 
-def test_harder_and_easier_targets_hold_or_reduce(plan):
+@pytest.mark.parametrize("target", ["hr", "legacy-pace"])
+def test_harder_and_easier_targets_hold_or_reduce(plan, target):
+    if target == "legacy-pace":
+        for workout in plan.workouts:
+            step = workout.steps[0]
+            if hasattr(step, "hr_min"):
+                step.hr_min = step.hr_max = None
+                step.pace_min, step.pace_max = 400, 440
     runs = completed(plan, 1)
     for a in runs:
         a.distance_km = a.duration_min * 60 / 200
+        a.average_hr = 180
     change = propose(plan, runs, 2)
     assert change.factor <= 0.9
     for a in runs:
         a.distance_km = a.duration_min * 60 / 900
+        a.average_hr = 100
     change = propose(plan, runs, 2)
     assert change.after_minutes <= week_metrics(plan, runs, 1)["planned_minutes"] + 1e-7
 
@@ -130,7 +139,8 @@ def test_return_plan_adaptation_batches_database_calls(database, setup):
         ),
         [],
     )
-    assert sum(len(workout.steps) for workout in plan.workouts) == 432
+    assert sum(len(workout.steps[0].steps) for workout in plan.workouts) == 72
+    assert all(workout.steps[0].repetitions == 6 for workout in plan.workouts)
     calls = []
 
     def record_call(connection, cursor, statement, parameters, context, executemany):
@@ -163,13 +173,15 @@ def test_return_plan_adaptation_batches_database_calls(database, setup):
             assert new.id == old.id
             from stride_coach.models import executable_steps
 
-            for old_step, new_step in zip(executable_steps(old.steps), executable_steps(new.steps), strict=True):
+            for old_step, new_step in zip(
+                executable_steps(old.steps), executable_steps(new.steps), strict=True
+            ):
                 assert new_step.minutes == pytest.approx(old_step.minutes * factor)
                 if old_step.distance_m is not None:
                     assert new_step.distance_m == pytest.approx(old_step.distance_m * factor)
-                assert new_step.model_dump(exclude={"minutes", "distance_m"}) == old_step.model_dump(
+                assert new_step.model_dump(
                     exclude={"minutes", "distance_m"}
-                )
+                ) == old_step.model_dump(exclude={"minutes", "distance_m"})
     finally:
         store.close()
 

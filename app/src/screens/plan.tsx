@@ -56,9 +56,7 @@ export default function PlanScreen() {
                     {workouts.length} sessions ·{" "}
                     {Math.round(
                       workouts.reduce(
-                        (sum, workout) =>
-                          sum +
-                          workoutMinutes(workout),
+                        (sum, workout) => sum + workoutMinutes(workout),
                         0,
                       ),
                     )}{" "}

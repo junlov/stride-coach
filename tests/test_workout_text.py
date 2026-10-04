@@ -90,24 +90,24 @@ def test_duration(minutes, expected):
 
 
 @pytest.mark.parametrize(
-    "label,expected",
+    "label,expected,cue",
     [
-        ("Warm up", "Warm up easy for 8 min"),
-        ("Cool down", "Cool down for 8 min"),
-        ("Easy recovery", "8 min easy jog"),
-        ("Walk", "8 min walk"),
-        ("Run gently", "8 min gentle run"),
-        ("Steady tempo", "8 min"),
+        ("Warm up", "Warm up easy for 8 min", "Start gently."),
+        ("Cool down", "Cool down for 8 min", "Let breathing settle."),
+        ("Easy recovery", "8 min easy jog", "Relax your shoulders."),
+        ("Walk", "8 min walk", "Walk comfortably."),
+        ("Run gently", "8 min gentle run", "Keep it conversational."),
+        ("Steady tempo", "8 min", "Stay controlled."),
     ],
 )
-def test_step_instructions_use_existing_target(label, expected):
+def test_step_instructions_use_existing_target(label, expected, cue):
     step = Step(label=label, minutes=8, pace_min=305, pace_max=315)
-    assert step_description(step) == expected + " at 5:05 to 5:15 /km"
+    assert step_description(step) == expected + " at 5:05 to 5:15 /km. " + cue
     step.pace_min = step.pace_max = None
     step.hr_min, step.hr_max = 130, 145
-    assert step_description(step) == expected + " at 130 to 145 bpm"
+    assert step_description(step) == expected + " at 130 to 145 bpm. " + cue
     step.hr_min = step.hr_max = None
-    assert step_description(step) == expected
+    assert step_description(step) == expected + ". " + cue
 
 
 def test_payload_snapshot():
@@ -127,7 +127,7 @@ def test_payload_snapshot():
                     {
                         "type": "ExecutableStepDTO",
                         "stepOrder": 1,
-                        "description": "40 min easy run at 130 to 145 bpm",
+                        "description": "40 min easy run at 130 to 145 bpm. Keep it conversational.",
                         "stepType": {"stepTypeId": 3, "stepTypeKey": "interval"},
                         "endCondition": {"conditionTypeId": 2, "conditionTypeKey": "time"},
                         "endConditionValue": 2400,
