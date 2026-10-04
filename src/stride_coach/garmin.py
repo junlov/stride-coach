@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .garmin_auth import AUTH_ERROR, GarminError, StoredSession, TokenVault
-from .models import Activity, Workout
+from .models import Activity, GarminHeartRateZone, RepeatGroup, Step, Workout
 from .storage import Store
 from .workout_text import step_description, workout_description, workout_name
 
@@ -103,6 +103,11 @@ class GarminClient:
             pass
         return parse_readiness(day, training, hrv, sleep)
 
+    def heart_rate_zones(self) -> list[GarminHeartRateZone]:
+        # The pinned library lacks the convenience method, but exposes connectapi.
+        payload = self._call(self.api.connectapi, "/biometric-service/heartRateZones/")
+        return normalize_heart_rate_zones(payload)
+
     def workouts(self) -> list[dict]:
         result = []
         for start in range(0, 10000, 100):
@@ -192,13 +197,46 @@ def normalize_activity(row: dict) -> Activity:
     )
 
 
+def normalize_heart_rate_zones(payload) -> list[GarminHeartRateZone]:
+    """Use current running settings, or account defaults when running is absent."""
+    if not isinstance(payload, list):
+        return []
+    profiles = {row.get("sport"): row for row in payload if isinstance(row, dict)}
+    profile = profiles.get("RUNNING", profiles.get("DEFAULT"))
+    if profile is None:
+        return []
+    bounds = [profile.get(f"zone{i}Floor") for i in range(1, 6)]
+    bounds.append(profile.get("maxHeartRateUsed"))
+    if any(type(value) is not int or not 30 <= value <= 240 for value in bounds):
+        return []
+    if any(a >= b for a, b in zip(bounds, bounds[1:])):
+        return []
+    return [GarminHeartRateZone(zone=i + 1, lower_bpm=bounds[i], upper_bpm=bounds[i + 1])
+            for i in range(5)]
+
+
 def tag(workout: Workout) -> str:
     return f"stride-coach:v1:{workout.id}"
 
 
 def workout_payload(workout: Workout) -> dict[str, Any]:
-    steps = []
-    for index, step in enumerate(workout.steps, 1):
+    order = 0
+
+    def encode(step: Step | RepeatGroup) -> dict:
+        nonlocal order
+        order += 1
+        index = order
+        if isinstance(step, RepeatGroup):
+            return {
+                "type": "RepeatGroupDTO", "stepOrder": index,
+                "stepType": {"stepTypeId": 6, "stepTypeKey": "repeat"},
+                "numberOfIterations": step.repetitions,
+                "endCondition": {"conditionTypeId": 7, "conditionTypeKey": "iterations"},
+                "endConditionValue": step.repetitions,
+                "skipLastRestStep": step.skip_last_rest,
+                "smartRepeat": False,
+                "workoutSteps": [encode(child) for child in step.steps],
+            }
         label = step.label.lower()
         type_id, type_key = (
             (1, "warmup")
@@ -214,10 +252,27 @@ def workout_payload(workout: Workout) -> dict[str, Any]:
             "stepOrder": index,
             "description": step_description(step),
             "stepType": {"stepTypeId": type_id, "stepTypeKey": type_key},
-            "endCondition": {"conditionTypeId": 2, "conditionTypeKey": "time"},
-            "endConditionValue": round(step.minutes * 60, 3),
+            "endCondition": {
+                "conditionTypeId": {"time": 2, "distance": 3, "lap": 1}[step.end_condition],
+                "conditionTypeKey": "lap.button" if step.end_condition == "lap" else step.end_condition,
+            },
         }
-        if step.pace_min is not None:
+        if step.end_condition != "lap":
+            record["endConditionValue"] = round(
+                step.distance_m if step.end_condition == "distance" else step.minutes * 60, 3
+            )
+        if step.cadence_min is not None:
+            record.update(
+                secondaryTargetType={"workoutTargetTypeId": 3, "workoutTargetTypeKey": "cadence"},
+                secondaryTargetValueOne=step.cadence_min,
+                secondaryTargetValueTwo=step.cadence_max,
+            )
+        if step.hr_zone is not None:
+            record.update(
+                targetType={"workoutTargetTypeId": 4, "workoutTargetTypeKey": "heart.rate.zone"},
+                zoneNumber=step.hr_zone,
+            )
+        elif step.pace_min is not None:
             record.update(
                 targetType={"workoutTargetTypeId": 6, "workoutTargetTypeKey": "pace.zone"},
                 targetValueOne=1000 / step.pace_max,
@@ -229,7 +284,9 @@ def workout_payload(workout: Workout) -> dict[str, Any]:
                 targetValueOne=step.hr_min,
                 targetValueTwo=step.hr_max,
             )
-        steps.append(record)
+        return record
+
+    steps = [encode(step) for step in workout.steps]
     return {
         "workoutName": workout_name(workout),
         "description": f"{workout_description(workout)}\n{tag(workout)}",

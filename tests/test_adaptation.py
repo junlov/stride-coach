@@ -161,10 +161,14 @@ def test_return_plan_adaptation_batches_database_calls(database, setup):
         for old, new in zip(plan.workouts, updated.workouts, strict=True):
             factor = 0.75 if old.week >= 2 else 1
             assert new.id == old.id
-            for old_step, new_step in zip(old.steps, new.steps, strict=True):
+            from stride_coach.models import executable_steps
+
+            for old_step, new_step in zip(executable_steps(old.steps), executable_steps(new.steps), strict=True):
                 assert new_step.minutes == pytest.approx(old_step.minutes * factor)
-                assert new_step.model_dump(exclude={"minutes"}) == old_step.model_dump(
-                    exclude={"minutes"}
+                if old_step.distance_m is not None:
+                    assert new_step.distance_m == pytest.approx(old_step.distance_m * factor)
+                assert new_step.model_dump(exclude={"minutes", "distance_m"}) == old_step.model_dump(
+                    exclude={"minutes", "distance_m"}
                 )
     finally:
         store.close()

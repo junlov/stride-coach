@@ -14,10 +14,12 @@ from .db_models import (
     ActivityRow,
     AdjustmentRow,
     DailyAdjustmentRow,
+    GarminZoneRow,
     MatchRow,
     MetadataRow,
     PlanRow,
     ReadinessRow,
+    RepeatRow,
     ScheduledRow,
     StepComplianceRow,
     StepKind,
@@ -28,7 +30,20 @@ from .db_models import (
     WriteIntentRow,
     WriteOperation,
 )
-from .models import Activity, ActivityCore, Adjustment, Athlete, Fitness, Plan, Setup, Step, Workout
+from .models import (
+    Activity,
+    ActivityCore,
+    Adjustment,
+    Athlete,
+    Fitness,
+    GarminHeartRateZone,
+    Plan,
+    RepeatGroup,
+    Setup,
+    Step,
+    Workout,
+    executable_steps,
+)
 from .recovery_models import DailyProposal, DailyReadiness
 from .sync_models import SyncAttempt, SyncStatus
 
@@ -146,8 +161,44 @@ class Store:
         if row is None:
             raise ValueError("No plan. Run stride-coach init first.")
         steps = {}
-        for step in session.scalars(select(StepRow).order_by(StepRow.position)):
-            steps.setdefault(step.workout_id, []).append(Step(**fields(step, Step)))
+        groups = {
+            (group.workout_id, group.position): group
+            for group in session.scalars(select(RepeatRow))
+        }
+        zones = {
+            zone.zone: zone
+            for zone in session.scalars(
+                select(GarminZoneRow).where(
+                    GarminZoneRow.fetched_at >= datetime.now(UTC) - timedelta(days=7)
+                )
+            )
+        }
+        children = {}
+        for leaf in session.scalars(select(StepRow).order_by(StepRow.position)):
+            step = Step(**fields(leaf, Step))
+            zone = zones.get(step.preferred_hr_zone)
+            if zone is not None:
+                step.hr_zone = zone.zone
+                step.hr_min, step.hr_max = zone.lower_bpm, zone.upper_bpm
+            target = steps.setdefault(leaf.workout_id, [])
+            if leaf.group_position is None:
+                target.append(step)
+            else:
+                key = (leaf.workout_id, leaf.group_position)
+                if key not in children:
+                    children[key] = []
+                    target.append(key)
+                children[key].append(step)
+        for target in steps.values():
+            for index, entry in enumerate(target):
+                if isinstance(entry, tuple):
+                    group = groups[entry]
+                    target[index] = RepeatGroup(
+                        label=group.label,
+                        repetitions=group.repetitions,
+                        skip_last_rest=group.skip_last_rest,
+                        steps=children[entry],
+                    )
         workouts = [
             Workout(
                 **{key: getattr(w, key) for key in Workout.model_fields if key != "steps"},
@@ -175,6 +226,13 @@ class Store:
             warnings=row.warnings,
         )
 
+    def save_garmin_zones(self, zones: list[GarminHeartRateZone]):
+        with self.lock(), self.transaction() as session:
+            session.execute(delete(GarminZoneRow))
+            session.add_all(
+                GarminZoneRow(**zone.model_dump(), fetched_at=datetime.now(UTC)) for zone in zones
+            )
+
     def plan(self) -> Plan:
         with self.transaction() as session:
             return self._plan(session)
@@ -200,11 +258,29 @@ class Store:
             for position, w in enumerate(plan.workouts)
         )
         session.flush()
-        session.add_all(
-            StepRow(**step.model_dump(), workout_id=w.id, position=i, kind=step_kind(step.label))
-            for w in plan.workouts
-            for i, step in enumerate(w.steps)
-        )
+        for workout in plan.workouts:
+            position = 0
+            for block in workout.steps:
+                group_position = position if isinstance(block, RepeatGroup) else None
+                if group_position is not None:
+                    session.add(
+                        RepeatRow(
+                            workout_id=workout.id,
+                            position=position,
+                            **block.model_dump(exclude={"steps"}),
+                        )
+                    )
+                for step in executable_steps([block]):
+                    session.add(
+                        StepRow(
+                            **step.model_dump(),
+                            workout_id=workout.id,
+                            position=position,
+                            group_position=group_position,
+                            kind=step_kind(step.label),
+                        )
+                    )
+                    position += 1
         session.flush()
 
     def _refresh_matches(self, session):
@@ -456,9 +532,10 @@ class Store:
             }
             # Adaptation only changes durations. Keep workout identity and every remote ledger row.
             for workout in plan.workouts:
-                for position, step in enumerate(workout.steps):
+                for position, step in enumerate(executable_steps(workout.steps)):
                     row = steps[workout.id, position]
                     row.minutes = step.minutes
+                    row.distance_m = step.distance_m
             session.add(
                 AdjustmentRow(
                     plan_id=plan.id, **adjustment.model_dump(exclude={"applied"}), applied=True

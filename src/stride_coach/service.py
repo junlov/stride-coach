@@ -14,7 +14,7 @@ from .activity_storage import read_detail, read_streams
 from .adaptation import adapt as adapt_week
 from .adaptation import propose, week_metrics
 from .engine import generate_plan
-from .garmin import GarminClient
+from .garmin import GarminError, GarminClient
 from .garmin import push as push_workouts
 from .garmin import remove as remove_workouts
 from .garmin_auth import DEFAULT_TOKENS as DEFAULT_TOKENS
@@ -316,6 +316,13 @@ class Coach:
                         # Optional recovery endpoints cannot fail an otherwise successful sync.
                         readiness = DailyReadiness(day=today, fetched_at=datetime.now(UTC))
                     self.store.save_readiness(readiness)
+
+                if client and hasattr(client, "heart_rate_zones"):
+                    try:
+                        zones = client.heart_rate_zones()
+                    except GarminError:
+                        zones = []
+                    self.store.save_garmin_zones(zones)
                 attempt.result = "success"
                 attempt.activity_count = len(runs)
             except Exception:
