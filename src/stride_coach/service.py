@@ -16,8 +16,6 @@ from .garmin_auth import DEFAULT_TOKENS as DEFAULT_TOKENS
 from .models import Activity, Adjustment, Fitness, Plan, Record, Setup, Workout
 from .storage import Store
 
-DEFAULT_DB = Path("~/.local/share/stride-coach/coach.db")
-
 
 class Match(Record):
     workout_id: str
@@ -180,12 +178,9 @@ class Coach:
         return Status(
             plan_id=self.plan().id,
             sync=SyncWindow(**window) if window else None,
-            scheduled_workouts=store.db.execute("SELECT count(*) FROM scheduled").fetchone()[0],
+            scheduled_workouts=store.scheduled_count(),
             weeks=self.compliance(),
-            adjustments=[
-                Adjustment.model_validate_json(r[0])
-                for r in store.db.execute("SELECT data FROM adjustments ORDER BY week")
-            ],
+            adjustments=store.adjustments(),
         )
 
     def push(self, request: PushRequest, today: date | None = None) -> list[WriteResult]:

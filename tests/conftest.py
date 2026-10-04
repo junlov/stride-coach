@@ -1,9 +1,14 @@
+import os
 import socket
+import uuid
 from datetime import date, timedelta
 
 import pytest
 import requests
+from sqlalchemy import text
+from sqlalchemy.engine import make_url
 
+from stride_coach.database import make_engine, upgrade
 from stride_coach.engine import generate_plan
 from stride_coach.models import Activity, Goal, Setup
 from stride_coach.storage import Store
@@ -17,6 +22,29 @@ def no_network(monkeypatch):
     monkeypatch.setattr(socket.socket, "connect", forbidden)
     monkeypatch.setattr(socket, "create_connection", forbidden)
     monkeypatch.setattr(requests.Session, "request", forbidden)
+
+
+@pytest.fixture(autouse=True)
+def database(monkeypatch):
+    url = os.getenv("TEST_DATABASE_URL")
+    if not url:
+        pytest.fail(
+            "Set TEST_DATABASE_URL to a disposable PostgreSQL database. See docs/self-hosting.md."
+        )
+    engine = make_engine(url)
+    schema = "test_" + uuid.uuid4().hex
+    with engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema}"'))
+    scoped = make_url(url).update_query_dict({"options": f"-csearch_path={schema}"})
+    url = scoped.render_as_string(hide_password=False)
+    monkeypatch.setenv("DATABASE_URL", url)
+    upgrade(url)
+    try:
+        yield url
+    finally:
+        with engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
+        engine.dispose()
 
 
 @pytest.fixture
@@ -51,8 +79,8 @@ def plan(setup, runs):
 
 
 @pytest.fixture
-def store(tmp_path, plan):
-    db = Store(tmp_path / "coach.db")
+def store(database, plan):
+    db = Store(database)
     db.initialize(plan)
     yield db
     db.close()

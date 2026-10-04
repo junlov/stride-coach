@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Security
 from fastapi.exception_handlers import request_validation_exception_handler
@@ -15,7 +16,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import Field, SecretStr, field_validator
+from sqlalchemy import text
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import SQLAlchemyError
 
+from .database import check_schema, database_url, make_engine, upgrade
 from .garmin import GarminClient, GarminError
 from .garmin_auth import (
     GarminConnection,
@@ -26,7 +31,6 @@ from .garmin_auth import (
 )
 from .models import Adjustment, Plan, Record
 from .service import (
-    DEFAULT_DB,
     DEFAULT_TOKENS,
     AdaptRequest,
     Coach,
@@ -48,9 +52,46 @@ from .storage import Store
 
 class ServerConfig(Record):
     token: SecretStr = Field(min_length=32)
-    db: Path = DEFAULT_DB
+    database_url: SecretStr = Field(
+        default_factory=lambda: SecretStr(database_url()), validate_default=True
+    )
     tokens: Path = DEFAULT_TOKENS
+    timezone: str = "UTC"
     cors_origins: list[str] = Field(default_factory=list)
+
+    @field_validator("token")
+    @classmethod
+    def strong_token(cls, value):
+        token = value.get_secret_value()
+        if len(set(token)) < 8 or any(
+            marker in token.lower() for marker in ("change-me", "changeme", "replace-me")
+        ):
+            raise ValueError("STRIDE_COACH_API_TOKEN must be a generated secret (32+ characters)")
+        return value
+
+    @field_validator("database_url")
+    @classmethod
+    def postgres_url(cls, value):
+        url = database_url(value.get_secret_value())
+        password = make_url(url).password or ""
+        if (
+            len(password) < 16
+            or len(set(password)) < 8
+            or any(marker in password.lower() for marker in ("replace-me", "change-me", "changeme"))
+        ):
+            raise ValueError("DATABASE_URL requires a database password of at least 16 characters")
+        return SecretStr(url)
+
+    @field_validator("timezone")
+    @classmethod
+    def valid_timezone(cls, value):
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError):
+            raise ValueError(
+                "TZ must be an IANA timezone such as UTC or America/Sao_Paulo"
+            ) from None
+        return value
 
     @field_validator("cors_origins")
     @classmethod
@@ -73,8 +114,9 @@ class ServerConfig(Record):
     def from_env(cls, **overrides):
         values = {
             "token": os.getenv("STRIDE_COACH_API_TOKEN", ""),
-            "db": os.getenv("STRIDE_COACH_DB", str(DEFAULT_DB)),
+            "database_url": os.getenv("DATABASE_URL", ""),
             "tokens": os.getenv("STRIDE_COACH_TOKENS", str(DEFAULT_TOKENS)),
+            "timezone": os.getenv("TZ", "UTC"),
             "cors_origins": [
                 v.strip()
                 for v in os.getenv("STRIDE_COACH_CORS_ORIGINS", "").split(",")
@@ -89,12 +131,25 @@ class Error(Record):
 
 
 def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
-    connection = GarminConnection(config.tokens)
+    url = config.database_url.get_secret_value()
+    connection = GarminConnection(config.tokens, database_url=url)
+    if client_factory is GarminClient:
+        from functools import partial
+
+        client_factory = partial(GarminClient, database_url=url)
 
     @asynccontextmanager
     async def lifespan(app):
         try:
+            upgrade(url)
+            # Validate the dedicated session directory before serving traffic.
+            with connection.vault.locked():
+                pass
             yield
+        except SQLAlchemyError:
+            raise RuntimeError(
+                "Database startup failed. Check DATABASE_URL and PostgreSQL."
+            ) from None
         finally:
             connection.close()
 
@@ -126,7 +181,7 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
             )
 
     def coach(_: Annotated[None, Depends(authenticate)]) -> Iterator[Coach]:
-        store = Store(config.db)
+        store = Store(url, migrate=False)
         try:
             yield Coach(store, config.tokens, client_factory)
         finally:
@@ -134,6 +189,23 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
 
     Service = Annotated[Coach, Depends(coach)]
     errors = {400: {"model": Error}, 401: {"model": Error}, 502: {"model": Error}}
+
+    @app.exception_handler(SQLAlchemyError)
+    async def database_failed(request: Request, exc: SQLAlchemyError):
+        return JSONResponse(status_code=503, content={"detail": "Database unavailable"})
+
+    @app.get("/health", include_in_schema=False)
+    def health():
+        engine = make_engine(url)
+        try:
+            with engine.connect() as db:
+                db.execute(text("SELECT 1"))
+                check_schema(db)
+            return {"status": "ready"}
+        except (SQLAlchemyError, ValueError):
+            return JSONResponse(status_code=503, content={"status": "unavailable"})
+        finally:
+            engine.dispose()
 
     @app.exception_handler(ValueError)
     async def invalid_request(request: Request, exc: ValueError):

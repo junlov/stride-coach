@@ -1,0 +1,41 @@
+services:
+  api:
+    build: .
+    image: stride-coach:local
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-stride}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-stride}}
+      STRIDE_COACH_API_TOKEN: ${STRIDE_COACH_API_TOKEN:?Set STRIDE_COACH_API_TOKEN in .env}
+      STRIDE_COACH_TOKENS: ${STRIDE_COACH_TOKENS:-/data/garmin}
+      STRIDE_COACH_CORS_ORIGINS: ${STRIDE_COACH_CORS_ORIGINS:-}
+      TZ: ${TZ:-UTC}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-8000}:8000"
+    volumes:
+      - garmin-session:${STRIDE_COACH_TOKENS:-/data/garmin}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+  postgres:
+    image: postgres:17.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-stride}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-stride}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  postgres-data:
+  garmin-session:

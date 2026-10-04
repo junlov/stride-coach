@@ -1,6 +1,5 @@
 """Single-account Garmin connection. Passwords never enter persisted state."""
 
-import fcntl
 import json
 import os
 import secrets
@@ -13,6 +12,7 @@ from pathlib import Path
 from garth.http import Client
 from pydantic import Field, SecretStr
 
+from .database import TOKEN_LOCK, advisory_lock
 from .models import Record
 
 DEFAULT_TOKENS = Path("~/.local/share/stride-coach/garmin")
@@ -48,11 +48,18 @@ class GarminLoginResult(GarminStatus):
 class TokenVault:
     """Claim only empty directories; never adopt another tool's token store."""
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, database_url: str | None = None):
         self.path = path.expanduser()
+        self.database_url = database_url
 
     @contextmanager
     def locked(self):
+        with advisory_lock(TOKEN_LOCK, self.database_url):
+            with self._directory():
+                yield self
+
+    @contextmanager
+    def _directory(self):
         path = self.path
         if path.is_symlink() or path.resolve() in {
             Path("~/.garminconnect").expanduser().resolve(),
@@ -71,13 +78,7 @@ class TokenVault:
         path.chmod(0o700)
         fd = os.open(marker, os.O_WRONLY | os.O_CREAT, 0o600)
         os.close(fd)
-        fd = os.open(path / ".lock", os.O_RDWR | os.O_CREAT, 0o600)
-        with os.fdopen(fd, "w") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
-            try:
-                yield self
-            finally:
-                fcntl.flock(lock, fcntl.LOCK_UN)
+        yield self
 
     def read(self):
         file = self.path / "connection.tokens.json"
@@ -108,8 +109,8 @@ def scrub_requests(client):
 class GarminConnection:
     """One pending MFA challenge per server process, expiring after five minutes."""
 
-    def __init__(self, token_dir: Path):
-        self.vault = TokenVault(token_dir)
+    def __init__(self, token_dir: Path, database_url: str | None = None):
+        self.vault = TokenVault(token_dir, database_url)
         self.lock = threading.Lock()
         self.pending = None
         self.timer = None

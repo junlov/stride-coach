@@ -61,7 +61,7 @@ def main():
         return synthetic_tokens()[1]
 
     bearer = secrets.token_urlsafe(32)
-    config = ServerConfig(token=bearer, db=directory / "demo.db", tokens=directory / "garmin")
+    config = ServerConfig(token=bearer, tokens=directory / "garmin")
     application = create_app(config)
     server = uvicorn.Server(uvicorn.Config(application, log_level="error", access_log=False))
     with (
@@ -138,4 +138,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    from synthetic_database import synthetic_database
+
+    with synthetic_database():
+        main()

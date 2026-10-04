@@ -29,9 +29,10 @@ async function main() {
     "uv",
     [
       "run",
-      "stride-coach",
-      "--db",
-      resolve(directory, "coach.db"),
+      "python",
+      "examples/proof_server.py",
+      "--tokens",
+      resolve(directory, "garmin"),
       "serve",
       "--host",
       "127.0.0.1",

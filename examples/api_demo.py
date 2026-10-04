@@ -18,9 +18,6 @@ def main():
     parser.add_argument("--directory", type=Path, required=True)
     directory = parser.parse_args().directory.resolve()
     directory.mkdir(parents=True, exist_ok=True)
-    db = directory / "api-demo.db"
-    if db.exists():
-        raise SystemExit("Choose a fresh demo directory; this database already exists.")
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
@@ -30,8 +27,8 @@ def main():
         sys.executable,
         "-m",
         "stride_coach.cli",
-        "--db",
-        str(db),
+        "--tokens",
+        str(directory / "garmin"),
         "serve",
         "--host",
         "127.0.0.1",
@@ -98,4 +95,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    from synthetic_database import synthetic_database
+
+    with synthetic_database():
+        main()
