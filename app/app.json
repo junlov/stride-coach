@@ -2,6 +2,7 @@
   "expo": {
     "name": "Stride Coach",
     "slug": "stride-coach",
+    "owner": "junlov",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -33,6 +34,15 @@
       ]
     ],
     "scheme": "stride-coach",
-    "platforms": ["ios", "android"]
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1292c8fc-a736-43a2-be85-a0fb899f9475"
+      }
+    }
   }
 }
