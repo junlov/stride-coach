@@ -294,8 +294,10 @@ For **Claude Code**, use this remote entry in your MCP configuration. Set
 ```
 
 See [Claude Code's MCP configuration](https://code.claude.com/docs/en/mcp) for setup.
-Every MCP request requires the bearer header; tokens in URLs or cookies are rejected.
+Every remote MCP request requires the bearer header except browser CORS preflight requests.
+Tokens in URLs or cookies do not authenticate requests.
 Browser clients also need their exact Origin in `STRIDE_COACH_CORS_ORIGINS`.
+Preflight permits the `Authorization`, `Content-Type`, and `MCP-Protocol-Version` headers.
 
 The **local stdio option** still works on a host with database access. Register it using
 the absolute repository path and supply `DATABASE_URL` in the MCP process environment
