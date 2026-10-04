@@ -186,38 +186,10 @@ def test_missing_tokens_never_login(tmp_path, monkeypatch):
     import garminconnect
 
     monkeypatch.setattr(
-        garminconnect.Garmin, "login", lambda *a, **k: pytest.fail("login must never be called")
+        garminconnect.Garmin, "login", lambda *a, **k: pytest.fail("implicit login forbidden")
     )
-    with pytest.raises(GarminError, match="never performs SSO"):
+    with pytest.raises(GarminError, match="Connect Garmin"):
         GarminClient(tmp_path / "missing")
-
-
-def test_expired_tokens_fail_without_network(tmp_path, monkeypatch):
-    from garth.http import Client
-
-    def load(self, path):
-        self.oauth1_token = object()
-        self.oauth2_token = SimpleNamespace(expired=True)
-
-    monkeypatch.setattr(Client, "load", load)
-    with pytest.raises(GarminError, match="expired"):
-        GarminClient(tmp_path)
-
-
-def test_valid_token_load_disables_refresh_and_retry(tmp_path, monkeypatch):
-    from garth.http import Client
-
-    def load(self, path):
-        self.oauth1_token = object()
-        self.oauth2_token = SimpleNamespace(expired=False)
-
-    monkeypatch.setattr(Client, "load", load)
-    client = GarminClient(tmp_path)
-    assert client.api.garth.retries == 0
-    with pytest.raises(GarminError, match="SSO"):
-        client.api.garth.refresh_oauth2()
-    with pytest.raises(GarminError, match="No login or write retry"):
-        client._call(lambda: (_ for _ in ()).throw(RuntimeError("secret token")))
 
 
 def test_adapter_endpoints_and_response_parsing(monkeypatch):

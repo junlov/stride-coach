@@ -343,3 +343,133 @@ test("today refreshes at midnight while the app stays open", async () => {
     jest.useRealTimers();
   }
 });
+
+test("Garmin login clears password immediately and completes MFA without persisting it", async () => {
+  server = mockServer({
+    "/garmin/status": { connected: false },
+    "/garmin/login": {
+      connected: false,
+      mfa_required: true,
+      challenge_id: "synthetic-challenge",
+    },
+    "/garmin/mfa": {
+      connected: true,
+      display_name: "Synthetic Runner",
+      expires_at: null,
+    },
+    "/garmin/logout": { connected: false },
+  });
+  await mount(<SettingsScreen />);
+  await screen.findByText("Garmin is not connected.");
+  await fireEvent.changeText(
+    screen.getByLabelText("Garmin email"),
+    "runner@example.test",
+  );
+  await fireEvent.changeText(
+    screen.getByLabelText("Garmin password"),
+    "synthetic-secret-password",
+  );
+  let finish!: (value: Response) => void;
+  server.mockImplementationOnce(
+    () =>
+      new Promise<Response>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  await fireEvent.press(screen.getByText("Connect Garmin"));
+  expect(screen.getByLabelText("Garmin password").props.value).toBe("");
+  expect(bodies("/garmin/login")).toEqual([
+    { email: "runner@example.test", password: "synthetic-secret-password" },
+  ]);
+  await act(async () =>
+    finish(
+      response({
+        connected: false,
+        mfa_required: true,
+        challenge_id: "synthetic-challenge",
+      }),
+    ),
+  );
+  await fireEvent.changeText(
+    await screen.findByLabelText("Garmin MFA code"),
+    "123456",
+  );
+  await fireEvent.press(screen.getByText("Complete Garmin connection"));
+  await screen.findByText("Connected to Garmin as Synthetic Runner.");
+  expect(bodies("/garmin/mfa")).toEqual([
+    { challenge_id: "synthetic-challenge", code: "123456" },
+  ]);
+  expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByText("Disconnect Garmin"));
+  await screen.findByText("Garmin is not connected.");
+  expect(bodies("/garmin/logout")).toEqual([{}]);
+});
+
+test("Garmin wrong password is not echoed and login never retries automatically", async () => {
+  server = mockServer({ "/garmin/status": { connected: false } });
+  await mount(<SettingsScreen />);
+  await screen.findByText("Garmin is not connected.");
+  await fireEvent.changeText(
+    screen.getByLabelText("Garmin email"),
+    "runner@example.test",
+  );
+  await fireEvent.changeText(
+    screen.getByLabelText("Garmin password"),
+    "synthetic-secret-password",
+  );
+  server.mockResolvedValueOnce(
+    response({ detail: "synthetic-secret-password" }, 502),
+  );
+  await fireEvent.press(screen.getByText("Connect Garmin"));
+  await screen.findByText(/Garmin connection failed/);
+  expect(screen.getByLabelText("Garmin password").props.value).toBe("");
+  expect(screen.queryByText("synthetic-secret-password")).toBeNull();
+  expect(bodies("/garmin/login")).toHaveLength(1);
+  expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+});
+
+test("Garmin login can connect without MFA", async () => {
+  server = mockServer({
+    "/garmin/status": { connected: false },
+    "/garmin/login": { connected: true, display_name: null, expires_at: null },
+  });
+  await mount(<SettingsScreen />);
+  await screen.findByText("Garmin is not connected.");
+  await fireEvent.changeText(
+    screen.getByLabelText("Garmin email"),
+    "runner@example.test",
+  );
+  await fireEvent.changeText(
+    screen.getByLabelText("Garmin password"),
+    "synthetic-password",
+  );
+  await fireEvent.press(screen.getByText("Connect Garmin"));
+  await screen.findByText("Connected to Garmin.");
+  expect(screen.queryByLabelText("Garmin MFA code")).toBeNull();
+});
+
+test.each(["sync", "push", "remove"])(
+  "disconnected Garmin prompts before %s",
+  async (action) => {
+    server = mockServer({ "/garmin/status": { connected: false } });
+    await mount(<ActionsScreen />);
+    if (action === "sync") {
+      await fireEvent.press(await screen.findByText("Sync activities"));
+    } else {
+      await fireEvent.press(
+        await screen.findByText(
+          `Preview Garmin ${action === "push" ? "push" : "removal"}`,
+        ),
+      );
+      await fireEvent.press(
+        await screen.findByText(
+          `Confirm live Garmin ${action === "push" ? "push" : "removal"}`,
+        ),
+      );
+    }
+    await screen.findByText("Connect Garmin in Settings to use this action.");
+    expect(
+      bodies(`/${action}`).filter((body) => body.apply || action === "sync"),
+    ).toEqual([]);
+  },
+);

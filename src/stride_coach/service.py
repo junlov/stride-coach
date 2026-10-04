@@ -12,11 +12,11 @@ from .engine import generate_plan
 from .garmin import GarminClient
 from .garmin import push as push_workouts
 from .garmin import remove as remove_workouts
+from .garmin_auth import DEFAULT_TOKENS as DEFAULT_TOKENS
 from .models import Activity, Adjustment, Fitness, Plan, Record, Setup, Workout
 from .storage import Store
 
 DEFAULT_DB = Path("~/.local/share/stride-coach/coach.db")
-DEFAULT_TOKENS = Path("~/.garminconnect")
 
 
 class Match(Record):

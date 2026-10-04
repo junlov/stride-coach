@@ -72,6 +72,11 @@ export function response(data: unknown, status = 200): Response {
 export function mockServer(overrides: Record<string, unknown> = {}) {
   const routes: Record<string, unknown> = {
     "/status": status,
+    "/garmin/status": {
+      connected: true,
+      display_name: "Synthetic Runner",
+      expires_at: null,
+    },
     "/plan": plan,
     "/weeks/1": { workouts: [{ workout, minutes: 30 }], metrics },
     "/load": [{ week: 1, completed_minutes: 30, trimp: 24, missing_hr: 1 }],

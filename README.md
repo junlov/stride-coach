@@ -76,15 +76,53 @@ An empty list clears that range.
 
 ## Garmin authentication and first live check
 
-The adapter uses `python-garminconnect` **0.2.38**, pinned for existing **garth** token support.
-It loads `oauth1_token.json` and `oauth2_token.json` from `~/.garminconnect`, or the global
-`--tokens PATH` / `STRIDE_COACH_TOKENS` setting. Newer Garmin library authentication formats
-are not interchangeable with these files.
+The server owns the Garmin connection. In the mobile app, save your server URL and bearer
+token in **Settings**, then use **Connect Garmin** with your email and password. If Garmin
+asks for MFA, enter its code in the next step. No separate token-export tool is needed.
+Use **Refresh Garmin status** to see the account name (when available) and access-token expiry.
+**Disconnect Garmin** deletes the server's saved tokens and cancels pending login state;
+it does not revoke other Garmin sessions or erase already synced runs and workouts.
 
-stride-coach never accepts credentials, calls SSO login, refreshes expired tokens, or writes
-the shared token directory. Missing, malformed, or expired access tokens stop the command.
-Refresh tokens once through your existing Garmin setup and then retry. Do not run repeated
-login attempts. Every request disables HTTP retries; uncertain writes require reconciliation.
+Operators can use the same connection from the CLI, with hidden password/MFA prompts:
+
+```sh
+uv run stride-coach garmin login
+uv run stride-coach garmin status
+uv run stride-coach garmin logout
+```
+
+Each explicit login submits the password once, without transport retries or automatic login
+fallbacks. The password and MFA code are never saved to disk, SQLite, logs, or API responses.
+The app clears its password field immediately on submit. A pending MFA challenge stays only in
+server memory for five minutes, and is consumed by one completion attempt. A new login replaces
+it; a restart loses it. Run **one server process/worker** so both requests reach the same memory.
+The server uses the stored long-lived OAuth1 token to renew an expired or near-expiry access token
+(within 60 seconds), at most once per request. Renewal failure asks you to reconnect Garmin;
+it never submits a password again. Sync, push, and removal share that connection.
+
+Tokens are secrets. The dedicated directory defaults to `~/.local/share/stride-coach/garmin`;
+set `STRIDE_COACH_TOKENS` (or global `--tokens PATH`) to override it. The server creates it with
+owner-only permissions and atomically saves tokens plus the account display name in a private
+`connection.tokens.json`. These tokens are not encrypted at rest; protect the volume and backups.
+It refuses shared stores such as `~/.garminconnect` and nonempty directories
+without its ownership marker. Choose a fresh directory, then connect again; do not point it at
+another tool's tokens. Disconnect removes token contents and leaves a non-secret generation marker
+to invalidate outstanding logins.
+
+**Container deployment:** mount a persistent, writable volume at the chosen token directory,
+for example `/data/garmin`, and persist the SQLite directory too. Set `STRIDE_COACH_TOKENS=/data/garmin`,
+`STRIDE_COACH_DB=/data/coach.db`, a stable 32+ character `STRIDE_COACH_API_TOKEN`, and `TZ` to the
+athlete's timezone. Set `STRIDE_COACH_CORS_ORIGINS` only for browser clients. Start with
+`uv run stride-coach serve --host 0.0.0.0 --port 8000` behind an HTTPS reverse proxy on a private
+container network. Use one replica/worker and ensure its user owns the volume. Keep proxy and
+application request-body logging disabled, including error monitoring that captures login bodies.
+TLS, secret injection, backups, and platform-specific image/volume setup remain deployment work.
+
+The adapter retains pinned `python-garminconnect` **0.2.38** and garth **0.5.21**. Garmin's API is
+unofficial. [Garth's maintainer reports broken newer login flows and deprecation](https://github.com/matin/garth/discussions/222).
+This pin uses the older SSO flow; synthetic tests do not establish that Garmin will accept it
+from a deployed host. Real login/MFA and renewal still need an operator check after deployment.
+Do not repeatedly retry rejected logins; check status and investigate the failure first.
 
 **First live verification, after reviewing the plan:**
 
@@ -198,7 +236,7 @@ Replace the domain with your own and follow [Caddy's reverse proxy setup](
 https://caddyserver.com/docs/quick-starts/reverse-proxy) for HTTPS certificates and network
 requirements. The phone uses `https://your-domain` as its API base URL. Do not send the bearer
 token over public plaintext HTTP. FastAPI documents this [TLS termination arrangement](
-https://fastapi.tiangolo.com/deployment/https/). Avoid logging Authorization headers in the proxy.
+https://fastapi.tiangolo.com/deployment/https/). Avoid logging Authorization headers or request bodies in the proxy.
 Set the server's timezone to the athlete's local timezone, since plan/adaptation dates use it.
 Run one server instance with its local SQLite file, with the same data/token paths as the CLI.
 
@@ -213,6 +251,10 @@ Run one server instance with its local SQLite file, with the same data/token pat
 | `POST /adapt` | `{week: 2}` proposes; add `apply: true` to save locally |
 | `POST /adjustments/propose/{number}` | Read-only preview, including incomplete-week caveat |
 | `POST /remove` | Preview owned removal; `apply: true` removes from Garmin |
+| `POST /garmin/login` | Submit `email` and `password` once; may return `challenge_id` and `mfa_required` |
+| `POST /garmin/mfa` | Complete pending login with `challenge_id` and `code` |
+| `GET /garmin/status` | Connection state, optional display name, access-token expiry (Unix seconds); may renew once |
+| `POST /garmin/logout` | Delete stored Garmin tokens and cancel pending MFA |
 | `GET /openapi.json` | Authenticated generated client contract |
 
 All command bodies are JSON. For example, `POST /push` with `{"week": 1}` previews a week.
@@ -247,6 +289,9 @@ The CLI demo exercises initialization, plan inspection, dry-run push, synthetic 
 and adaptation with a simulated Monday. It uses no Garmin account or network. The API demo starts the real server on loopback,
 checks auth, creates a synthetic goal, and previews one workout. It sends no Garmin requests.
 Tests block network access and use fake Garmin responses, including lost-response cases.
+Run `uv run python examples/garmin_demo.py --directory .local/garmin-proof` with a fresh directory
+for real loopback HTTP login, MFA, renewal, and disconnect backed by synthetic Garmin replies.
+Outbound Garmin requests are blocked in this proof; it does not establish live SSO compatibility.
 GitHub Actions runs lint and tests on Python 3.11, 3.12, and 3.13 without secrets.
 Garmin payloads follow upstream API shapes but **have not been verified with live writes**;
 the single-workout check above is required before relying on device delivery.

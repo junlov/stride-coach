@@ -1,4 +1,4 @@
-"""Saved-token Garmin adapter and recoverable, explicitly requested writes."""
+"""Server-owned Garmin adapter and recoverable, explicitly requested writes."""
 
 import hashlib
 import json
@@ -6,18 +6,11 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from .garmin_auth import AUTH_ERROR, GarminError, StoredSession, TokenVault
 from .models import Activity, Workout
 from .storage import Store
 
-AUTH_ERROR = (
-    "Saved Garmin tokens are missing, invalid, or expired. Refresh them once using your "
-    "existing Garmin setup, then retry. stride-coach never performs SSO login."
-)
 SPORT = {"sportTypeId": 1, "sportTypeKey": "running"}
-
-
-class GarminError(RuntimeError):
-    pass
 
 
 class GarminClient:
@@ -26,23 +19,18 @@ class GarminClient:
 
         self.api = Garmin()
         try:
-            # Do not call Garmin.login: even its token path contains credential fallbacks.
-            self.api.garth.load(str(token_dir.expanduser()))
-            self._valid_token()
-            self.api.garth.configure(retries=0)
-            # Prohibit automatic refresh if expiry occurs partway through a request.
-            self.api.garth.refresh_oauth2 = self._no_refresh
+            self.api.garth = StoredSession(TokenVault(token_dir))
+        except GarminError:
+            raise
         except Exception:
             raise GarminError(AUTH_ERROR) from None
 
-    @staticmethod
-    def _no_refresh():
-        raise GarminError(AUTH_ERROR)
-
     def _valid_token(self):
         token = self.api.garth.oauth2_token
-        if not self.api.garth.oauth1_token or not token or token.expired:
+        if not self.api.garth.oauth1_token or not token:
             raise GarminError(AUTH_ERROR)
+        if token.expired:
+            self.api.garth.refresh_oauth2()
 
     def _call(self, fn, *args, **kwargs):
         self._valid_token()
@@ -54,7 +42,7 @@ class GarminClient:
             # Never emit upstream exception bodies, which can contain token material.
             raise GarminError(
                 "Garmin request failed. No login or write retry was attempted. "
-                "Check connectivity and saved-token validity before retrying."
+                "Check connectivity or reconnect Garmin before retrying."
             ) from None
 
     def activities(self, since: date, until: date) -> list[Activity]:
