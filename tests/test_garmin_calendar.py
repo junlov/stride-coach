@@ -286,3 +286,56 @@ def test_lost_delete_response_allows_recreation_in_window(store, retry):
     remote_id = store.scheduled(workout.id)["remote_id"]
     assert client.data[remote_id]["description"] == tag(workout)
     assert sum(str(e["workoutId"]) == remote_id for e in client.events) == 1
+
+
+@pytest.mark.parametrize("retry", ["calendar", "push"])
+@pytest.mark.parametrize("lost_schedule_response", [False, True])
+def test_window_advance_recovers_after_unschedule_and_failed_delete(
+    store, retry, lost_schedule_response
+):
+    client = FakeGarmin()
+    plan = store.plan()
+    workout = plan.workouts[8]
+    start = workout.day - timedelta(days=store.calendar_settings()["window_days"])
+    client.fail_schedule = lost_schedule_response
+    if lost_schedule_response:
+        with pytest.raises(GarminError, match="Response lost after schedule"):
+            push(store, [workout], client, False)
+    else:
+        push(store, [workout], client, False)
+    client.fail_schedule = False
+    cached = store.scheduled(workout.id)
+    remote_id = cached["remote_id"]
+    preview = reconcile_calendar(store, client, start)
+    assert any(
+        c["action"] == "remove" and c["workout_id"] == workout.id for c in preview["changes"]
+    )
+
+    def fail_delete(remote_id):
+        raise GarminError("Deletion failed")
+
+    client.delete = fail_delete
+    with pytest.raises(GarminError, match="Deletion failed"):
+        reconcile_calendar(store, client, start, apply=True, preview_id=preview["preview_id"])
+    assert remote_id in client.data
+    assert not client.events
+    assert store.scheduled(workout.id) == {**cached, "scheduled": False}
+    assert not store.pending(f"schedule:{workout.id}")
+    client.writes.clear()
+    tomorrow = start + timedelta(days=1)
+    if retry == "calendar":
+        preview = reconcile_calendar(store, client, tomorrow)
+        assert any(
+            c["action"] == "schedule" and c["workout_id"] == workout.id
+            for c in preview["changes"]
+        )
+        assert not client.writes
+        reconcile_calendar(store, client, tomorrow, apply=True, preview_id=preview["preview_id"])
+    else:
+        push(store, [workout], client, False)
+    assert store.scheduled(workout.id) == {**cached, "scheduled": True}
+    assert sum(r["description"] == tag(workout) for r in client.data.values()) == 1
+    assert sum(
+        str(e["workoutId"]) == remote_id and e["date"] == workout.day.isoformat()
+        for e in client.events
+    ) == 1

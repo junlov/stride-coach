@@ -403,6 +403,10 @@ def delete_owned(store: Store, client, remote: dict, workout_id: str, events: li
     for item in events:
         if item.get("itemType") == "workout" and str(item.get("workoutId")) == remote_id:
             client.unschedule(str(item["id"]))
+    cached = store.scheduled(workout_id)
+    if cached and cached["remote_id"] == remote_id:
+        store.save_remote(workout_id, remote_id, cached["fingerprint"], False)
+    pending(store, f"schedule:{workout_id}", False)
     client.delete(remote_id)
     store.forget_remote(workout_id)
     pending(store, f"create:{workout_id}", False)
