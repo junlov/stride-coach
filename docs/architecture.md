@@ -77,7 +77,7 @@ planned month may require manual inspection. `remove` is scoped to the active lo
 
 ## Data and testing
 
-Garmin's local activity date is used for matching. Original titles, locations, raw exports,
+Garmin's local activity date is used for matching. Original titles, locations, and raw exports
 are not stored in SQLite. OAuth tokens and an optional account display name live only in the
 private connection store. Generic Garmin running activities have unknown session type;
 inferred matches are labeled. Normalized imports can supply a `kind`. Best-effort status

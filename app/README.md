@@ -34,8 +34,8 @@ profile below. SDK 58 is not used while it is on npm's prerelease channel.
    will tell you to open Goal setup after saving.
 4. In the **Garmin** section, tap **Connect Garmin** after entering your Garmin email and password.
    The app sends them once over the authenticated HTTPS connection and clears the password field
-   immediately. If requested, enter the MFA code Garmin sends. It expires after five minutes;
-   a server restart or a failed completion requires starting a new explicit login.
+   immediately. If requested, enter the MFA code Garmin sends. The server's challenge expires after five minutes.
+   After a server restart or a failed completion, start a new explicit login.
 5. Open **Goal** to create the initial plan. The server supports one plan per database. For a
    later goal, the operator must configure a fresh database; the app cannot replace the plan.
 
@@ -43,14 +43,11 @@ profile below. SDK 58 is not used while it is on npm's prerelease channel.
 **Disconnect Garmin** deletes tokens from the server and cancels pending login. It does not erase
 synced runs or Garmin workouts. Sync and live Garmin actions prompt you to connect when needed;
 local previews still work without a Garmin connection. Login is never automatically retried.
-A failed or timed-out request should be followed by a status check before another login attempt.
+After a failed or timed-out request, refresh Garmin status before another login attempt.
 The server renews access tokens once per request when needed, without using your password.
 
-The server needs a dedicated persistent token volume (`STRIDE_COACH_TOKENS`, default
-`~/.local/share/stride-coach/garmin`) and a persistent SQLite path (`STRIDE_COACH_DB`), plus
-`STRIDE_COACH_API_TOKEN` and the athlete's `TZ`. Use one server process/worker for in-memory MFA.
 See the root [Garmin guide](../README.md#garmin-authentication-and-first-live-check) for container
-setup, upstream login limitations, and the operator's `stride-coach garmin login|status|logout` flow.
+storage, server configuration, MFA worker requirements, upstream login limitations, and CLI commands.
 
 Both server settings are saved together in `expo-secure-store`. **Forget connection** removes the
 saved server URL/bearer token and clears connected screen state. It does not disconnect Garmin
