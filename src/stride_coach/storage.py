@@ -253,10 +253,16 @@ class Store:
         with self.lock(), self.transaction() as session:
             if session.get(AdjustmentRow, (plan.id, adjustment.week)):
                 raise ValueError("This week was already adapted; repeated reductions are blocked.")
+            steps = {
+                (row.workout_id, row.position): row
+                for row in session.scalars(
+                    select(StepRow).join(WorkoutRow).where(WorkoutRow.plan_id == plan.id)
+                )
+            }
             # Adaptation only changes durations. Keep workout identity and every remote ledger row.
             for workout in plan.workouts:
                 for position, step in enumerate(workout.steps):
-                    row = session.get(StepRow, (workout.id, position))
+                    row = steps[workout.id, position]
                     row.minutes = step.minutes
             session.add(
                 AdjustmentRow(
