@@ -347,8 +347,8 @@ Ask Claude: "What is today's workout, how did this week go, and why did my plan 
 `today_workout` distinguishes a workout, a rest day, and a date outside the plan.
 `current_week` returns workouts and measured completion, or a null week outside the plan.
 Both use the server's `TZ` (UTC by default). `status` includes stored sync coverage and
-applied adjustments with reasons and before/after minutes. Empty adjustments mean no saved
-changes; null sync means no stored coverage. Coverage is not the time of the last sync attempt.
+applied adjustments with reasons and before/after minutes. Empty `adjustments` and `daily_adjustments` lists mean no saved changes.
+Null sync means no stored coverage. Coverage is not the time of the last sync attempt.
 The `sync_status` field returns stored sync-attempt details and history import progress.
 See [automatic sync and import recovery](docs/self-hosting.md#automatic-sync-and-import-recovery)
 for their meaning.
@@ -483,7 +483,8 @@ a goal, use **Import past runs** after Connect Garmin (also in Settings): choose
 Imports continue on the server, survive restarts, and offer Resume after a connection error.
 Reconnect Garmin if token renewal fails; no password login is retried automatically.
 
-Sync reads runs only. Applying a proposed adjustment still requires explicit confirmation;
+See [daily recovery](#daily-recovery-and-step-feedback) for the additional observations that sync reads.
+Applying a proposed adjustment still requires explicit confirmation;
 **Progress** shows the saved reasons for every applied adjustment. See [saved adjustment evidence](docs/self-hosting.md#automatic-sync-and-import-recovery)
 for the retained inputs and reasons.
 

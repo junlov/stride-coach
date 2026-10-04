@@ -397,10 +397,11 @@ provide a snapshot cursor, so avoid editing/deleting old activities during an im
 shift offsets. Imported history never grants complete-week coverage for automatic adaptation.
 Run a regular sync before applying any adjustment.
 
-Applied adjustments retain reason text and an input snapshot (weekly completion/load, athlete
+Applied weekly adjustments retain reason text and an input snapshot (weekly completion/load, athlete
 parameters, target effort counts, rule version, and complete sync coverage). `/status` returns
 this evidence; **Progress** shows why each applied week changed. Older adjustments retain their
 existing reasons with an empty input snapshot because their original inputs cannot be recovered.
+For daily changes and their stored evidence, see the [daily recovery contract](training-rules.md#daily-recovery-proposal).
 
 ## Run detail archive
 
