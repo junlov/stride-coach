@@ -247,7 +247,30 @@ def owned_remote(client, inventory: list[dict], workout: Workout) -> dict | None
     return owned[0] if owned else None
 
 
-def reconcile_cached_remote(store: Store, workout_id: str, inventory: list[dict], events: list[dict]):
+def reconcile_unschedule(store: Store, workout_id: str, remote: dict | None, events: list[dict]):
+    if not pending(store, f"unschedule:{workout_id}"):
+        return
+    cached = store.scheduled(workout_id)
+    if (
+        not cached
+        or not remote
+        or str(remote["workoutId"]) != cached["remote_id"]
+        or remote.get("description") != f"stride-coach:v1:{workout_id}"
+    ):
+        return
+    if any(
+        item.get("itemType") == "workout" and str(item.get("workoutId")) == cached["remote_id"]
+        for item in events
+    ):
+        return
+    store.save_remote(workout_id, cached["remote_id"], cached["fingerprint"], False)
+    pending(store, f"schedule:{workout_id}", False)
+    pending(store, f"unschedule:{workout_id}", False)
+
+
+def reconcile_cached_remote(
+    store: Store, workout_id: str, inventory: list[dict], events: list[dict]
+):
     cached = store.scheduled(workout_id)
     if not cached or pending(store, f"create:{workout_id}"):
         return cached
@@ -259,6 +282,7 @@ def reconcile_cached_remote(store: Store, workout_id: str, inventory: list[dict]
         return cached
     store.forget_remote(workout_id)
     pending(store, f"schedule:{workout_id}", False)
+    pending(store, f"unschedule:{workout_id}", False)
     return None
 
 
@@ -288,6 +312,7 @@ def push(
             digest = fingerprint(payload)
             remote = owned_remote(client, inventory, workout)
             calendar = client.calendar(workout.day)
+            reconcile_unschedule(store, workout.id, remote, calendar)
             cached = reconcile_cached_remote(store, workout.id, inventory, calendar)
             create_key, schedule_key = f"create:{workout.id}", f"schedule:{workout.id}"
             action = "skipped"
@@ -326,6 +351,7 @@ def push(
                 action += "+scheduled"
             store.save_remote(workout.id, remote_id, digest, True)
             pending(store, schedule_key, False)
+            pending(store, f"unschedule:{workout.id}", False)
             output.append({"workout_id": workout.id, "remote_id": remote_id, "action": action})
     return output
 
@@ -355,6 +381,7 @@ def remove(store: Store, client=None, dry_run: bool = True) -> list[dict]:
             store.forget_remote(workout.id)
             pending(store, f"create:{workout.id}", False)
             pending(store, f"schedule:{workout.id}", False)
+            pending(store, f"unschedule:{workout.id}", False)
     return output
 
 
@@ -374,13 +401,26 @@ def delete_owned(store: Store, client, remote: dict, workout_id: str, events: li
     detail = client.workout(remote_id)
     if detail.get("description") != f"stride-coach:v1:{workout_id}":
         raise GarminError("Workout ownership changed. Preview Garmin changes again.")
-    for item in events:
-        if item.get("itemType") == "workout" and str(item.get("workoutId")) == remote_id:
-            client.unschedule(str(item["id"]))
     cached = store.scheduled(workout_id)
     if cached and cached["remote_id"] == remote_id:
-        store.save_remote(workout_id, remote_id, cached["fingerprint"], False)
-    pending(store, f"schedule:{workout_id}", False)
+        pending(store, f"unschedule:{workout_id}", True)
+    scheduled_events = [
+        item
+        for item in events
+        if item.get("itemType") == "workout" and str(item.get("workoutId")) == remote_id
+    ]
+    try:
+        for item in scheduled_events:
+            client.unschedule(str(item["id"]))
+    except GarminError:
+        try:
+            months = {date.fromisoformat(item["date"]).replace(day=1) for item in scheduled_events}
+            fresh_events = [item for month in sorted(months) for item in client.calendar(month)]
+            reconcile_unschedule(store, workout_id, client.workout(remote_id), fresh_events)
+        except GarminError:
+            pass
+        raise
+    reconcile_unschedule(store, workout_id, detail, [])
     client.delete(remote_id)
     store.forget_remote(workout_id)
     pending(store, f"create:{workout_id}", False)
@@ -428,6 +468,7 @@ def reconcile_calendar(store: Store, client, today: date, *, apply=False, previe
                 if item.get("itemType") == "workout":
                     events[str(item["id"])] = item
         for workout in plan.workouts:
+            reconcile_unschedule(store, workout.id, owned.get(workout.id), list(events.values()))
             reconcile_cached_remote(store, workout.id, inventory, list(events.values()))
         changes = []
         for workout in desired:

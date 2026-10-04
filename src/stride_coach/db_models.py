@@ -35,6 +35,7 @@ class StepKind(StrEnum):
 class WriteOperation(StrEnum):
     CREATE = "create"
     SCHEDULE = "schedule"
+    UNSCHEDULE = "unschedule"
 
 
 def enum_type(kind, name):
