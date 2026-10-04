@@ -139,7 +139,8 @@ Today, Week and Plan link to Actions. A missing-plan error links to Goal setup.
 - Week: seven days of rest, planned sessions and inferred matches, with previous/next navigation.
   The view starts at the current week, or the first available week when the current week is absent.
   An unavailable selection uses the same fallback.
-- **Plan:** weeks with workouts, expandable into workout steps, target pace, and heart-rate ranges.
+- **Plan:** weeks with expandable workouts and a sequence graph whose widths show estimated step time.
+  Step descriptions follow the [shared workout text rules](../docs/garmin-workouts.md#structured-steps-and-coaching-notes).
 - **Goal:** distance, Monday start, completion date, weekly frequency, long-run day, and heart rates.
   The server remains authoritative for validation and uses activities already stored there.
 - **Progress:** `/load` and `/compliance`, including missing-heart-rate notices.
@@ -325,7 +326,7 @@ The API still lacks an unmatched activity list, distance history, and heart-rate
 For daily changes, the API provides the before and after workouts described in the
 [daily recovery contract](../docs/training-rules.md#daily-recovery-proposal).
 It still lacks personalized workout explanations, weekly per-workout adjustment diffs, downstream adjustment diffs, and adjustment timestamps.
-The repeated-interval design, imports, exports and offline cache are outside this implementation.
+Imports, exports and offline cache are outside this implementation.
 
 After a write fails with an uncertain result, Actions disables further operations. **Inspect
 current state** reads `/status`; failed inspection keeps the controls disabled. The runner
