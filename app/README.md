@@ -144,7 +144,8 @@ Today, Week and Plan link to Actions. A missing-plan error links to Goal setup.
   The server remains authoritative for validation and uses activities already stored there.
 - **Progress:** `/load` and `/compliance`, including missing-heart-rate notices.
 - **Actions:** sync Garmin activities into the server; review adjustment reasons before applying;
-  preview a selected week or all future workouts before pushing to Garmin.
+  preview a Garmin push, optionally filtered by week.
+  See the [calendar workflow](../docs/self-hosting.md#garmin-calendar-window) for window limits, combined previews, and cleanup.
   Push previews show workout names, dates, step durations or distances, and targets.
   Show payload details reveals the raw payload.
   Removal previews list ownership candidates across all weeks, including workouts never uploaded.
@@ -159,7 +160,7 @@ two complete weeks. Reductions can also affect later weeks; the server checks th
 
 Adjustment confirmation follows the [reviewed proposal contract](../README.md#weekly-loop).
 If the server rejects a stale proposal, tap **Preview adjustment** and review it again.
-Garmin push and removal recalculate operations on confirmation without an immutable preview identifier.
+The separate Garmin push and manual removal actions recalculate operations on confirmation without an immutable preview identifier.
 Avoid concurrent changes from another client while reviewing those operations.
 For failed writes, follow the [recovery guidance](#runner-design-and-api-limits) before another attempt.
 The app shows errors, including 401 and timeouts, on screen. Read screens offer Retry and reload on focus or app resume.
