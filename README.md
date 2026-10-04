@@ -215,13 +215,15 @@ upload; inspect Garmin first. An unresolved, invisible upload intentionally bloc
 
 ## Weekly loop
 
-On Monday, sync through the completed Sunday, review the proposal, then apply it locally:
+On Monday, sync through the completed Sunday, review the proposal, then apply it locally.
+Replace `FINGERPRINT` with `inputs.proposal_fingerprint` from the reviewed proposal.
+If the server rejects a stale preview, request and review a new proposal.
 
 ```sh
 uv run stride-coach sync
 uv run stride-coach status
 uv run stride-coach adapt 2
-uv run stride-coach adapt 2 --apply
+uv run stride-coach adapt 2 --apply --proposal-fingerprint FINGERPRINT
 uv run stride-coach push --week 2 --dry-run
 uv run stride-coach push --week 2 --apply
 ```
@@ -307,7 +309,7 @@ Run one server instance using the same PostgreSQL database and session directory
 | `GET /status`, `/compliance`, `/load` | Sync coverage, adjustments, completion, and TRIMP |
 | `POST /push` | Optional `week`/`workout`; defaults to dry run, `apply: true` writes Garmin |
 | `POST /sync` | Pull Garmin, or pass normalized `activities` plus date range |
-| `POST /adapt` | `{week: 2}` proposes; add `apply: true` to save locally |
+| `POST /adapt` | `{week: 2}` proposes; add `apply: true` and the reviewed `inputs.proposal_fingerprint` as `proposal_fingerprint` to save locally |
 | `POST /adjustments/propose/{number}` | Read-only preview, including incomplete-week caveat |
 | `POST /remove` | Preview owned removal; `apply: true` removes from Garmin |
 | `POST /garmin/login` | Submit `email` and `password` once; may return `challenge_id` and `mfa_required` |

@@ -28,7 +28,10 @@ function HistoryImportSession({ onComplete }: { onComplete?: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lock = useRef(false);
-  const current = job ?? query.data;
+  useEffect(() => {
+    if (query.data) setJob(query.data);
+  }, [query.data]);
+  const current = job;
   const done = useRef<string | null>(null);
   useEffect(() => {
     if (current?.result === "success" && done.current !== current.id) {

@@ -118,6 +118,7 @@ class SyncRequest(Record):
 class AdaptRequest(Record):
     week: int = Field(ge=2)
     apply: bool = False
+    proposal_fingerprint: str | None = None
 
 
 class RemoveRequest(Record):
@@ -257,10 +258,17 @@ class Coach:
         )
 
     def adapt(self, request: AdaptRequest, today: date | None = None) -> Adjustment:
-        return adapt_week(self.store, request.week, today or date.today(), request.apply)
+        return adapt_week(
+            self.store,
+            request.week,
+            today or date.today(),
+            request.apply,
+            request.proposal_fingerprint,
+        )
 
     def propose_adjustment(self, number: int) -> Proposal:
-        return Proposal(adjustment=propose(self.plan(), self.store.activities(), number))
+        with self.store.lock():
+            return Proposal(adjustment=propose(self.plan(), self.store.activities(), number))
 
 
 def read_activities(path: Path) -> list[Activity]:

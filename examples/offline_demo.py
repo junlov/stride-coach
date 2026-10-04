@@ -64,8 +64,20 @@ def main():
     store = Store()
     try:
         proposal = adapt(store, 3, monday)
-        applied = adapt(store, 3, monday, apply=True)
-        repeated = adapt(store, 3, monday, apply=True)
+        applied = adapt(
+            store,
+            3,
+            monday,
+            apply=True,
+            proposal_fingerprint=proposal.inputs["proposal_fingerprint"],
+        )
+        repeated = adapt(
+            store,
+            3,
+            monday,
+            apply=True,
+            proposal_fingerprint=proposal.inputs["proposal_fingerprint"],
+        )
         assert applied == repeated
         assert proposal.factor == 0.75
         assert len(week["workouts"]) == 3

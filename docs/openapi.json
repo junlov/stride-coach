@@ -76,6 +76,17 @@
             "title": "Apply",
             "type": "boolean"
           },
+          "proposal_fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal Fingerprint"
+          },
           "week": {
             "minimum": 2.0,
             "title": "Week",

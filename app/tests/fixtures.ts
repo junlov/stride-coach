@@ -47,6 +47,7 @@ export const status: Schema<"Status"> = {
   adjustments: [],
 };
 export const adjustment: Schema<"Adjustment"> = {
+  inputs: { proposal_fingerprint: "reviewed-proposal" },
   week: 2,
   before_minutes: 60,
   after_minutes: 45,

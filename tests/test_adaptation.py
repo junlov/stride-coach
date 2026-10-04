@@ -87,9 +87,24 @@ def test_apply_is_atomic_repeatable_and_scales_future(store):
     preview = adapt(store, 2, today)
     assert not preview.applied
     assert store.plan() == plan
-    applied = adapt(store, 2, today, apply=True)
+    applied = adapt(
+        store,
+        2,
+        today,
+        apply=True,
+        proposal_fingerprint=preview.inputs["proposal_fingerprint"],
+    )
     assert applied.applied
-    assert adapt(store, 2, today, apply=True) == applied
+    assert (
+        adapt(
+            store,
+            2,
+            today,
+            apply=True,
+            proposal_fingerprint=preview.inputs["proposal_fingerprint"],
+        )
+        == applied
+    )
     updated = store.plan()
     for old, new in zip(plan.workouts, updated.workouts, strict=True):
         assert new.minutes == pytest.approx(old.minutes * (0.75 if old.week >= 2 else 1))
@@ -126,9 +141,16 @@ def test_return_plan_adaptation_batches_database_calls(database, setup):
         store.initialize(plan)
         monday = plan.setup.start + timedelta(weeks=1)
         store.save_sync([], str(monday - timedelta(days=14)), str(monday), today=monday)
+        preview = adapt(store, 2, monday)
         event.listen(store.engine, "before_cursor_execute", record_call)
         try:
-            applied = adapt(store, 2, monday, apply=True)
+            applied = adapt(
+                store,
+                2,
+                monday,
+                apply=True,
+                proposal_fingerprint=preview.inputs["proposal_fingerprint"],
+            )
         finally:
             event.remove(store.engine, "before_cursor_execute", record_call)
         assert len(calls) <= 25
@@ -146,3 +168,20 @@ def test_return_plan_adaptation_batches_database_calls(database, setup):
                 )
     finally:
         store.close()
+
+
+def test_apply_requires_preview_and_rejects_changed_plan(store):
+    plan = store.plan()
+    monday = plan.setup.start + timedelta(weeks=1)
+    store.save_sync([], str(monday - timedelta(days=14)), str(monday), today=monday)
+    with pytest.raises(ValueError, match="preview is missing or stale"):
+        adapt(store, 2, monday, apply=True)
+    preview = propose(plan, [], 2)
+    changed = plan.model_copy(deep=True)
+    changed.workouts[-1].steps[0].minutes += 1
+    assert (
+        propose(changed, [], 2).inputs["proposal_fingerprint"]
+        != preview.inputs["proposal_fingerprint"]
+    )
+    assert store.plan() == plan
+    assert store.adjustment(2) is None

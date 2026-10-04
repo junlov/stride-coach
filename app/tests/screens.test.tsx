@@ -162,7 +162,9 @@ test("adapt shows reasons before applying and sync reports results", async () =>
   expect(bodies("/adapt")).toEqual([]);
   await fireEvent.press(screen.getByText("Confirm adjustment"));
   await waitFor(() =>
-    expect(bodies("/adapt")).toEqual([{ week: 2, apply: true }]),
+    expect(bodies("/adapt")).toEqual([
+      { week: 2, apply: true, proposal_fingerprint: "reviewed-proposal" },
+    ]),
   );
   await screen.findByText(/Week 2 adjustment applied/);
   await fireEvent.press(screen.getByText("Sync activities"));
@@ -698,4 +700,82 @@ test("progress shows persisted reasons for applied adjustments", async () => {
       "Less than half of last week's sessions completed: reduce 25%.",
     ),
   ).toBeTruthy();
+});
+
+test("a stale adjustment asks for a new review without applying or retrying", async () => {
+  const original = server.getMockImplementation()!;
+  server.mockImplementation(async (input) =>
+    String(input).endsWith("/adapt")
+      ? response(
+          {
+            detail:
+              "The adjustment preview is missing or stale. Preview adjustment again and review the new proposal before confirming.",
+          },
+          400,
+        )
+      : original(input),
+  );
+  await mount(<ActionsScreen />);
+  await fireEvent.changeText(
+    await screen.findByLabelText("Week (blank pushes all future weeks)"),
+    "2",
+  );
+  await fireEvent.press(screen.getByText("Preview adjustment"));
+  await fireEvent.press(await screen.findByText("Confirm adjustment"));
+  expect(
+    await screen.findByText(/Preview adjustment again and review/),
+  ).toBeTruthy();
+  expect(screen.queryByText("Confirm adjustment")).toBeNull();
+  expect(screen.queryByText("The result is unknown.")).toBeNull();
+  expect(bodies("/adapt")).toHaveLength(1);
+  await fireEvent.press(screen.getByText("Preview adjustment"));
+  expect(await screen.findByText("Confirm adjustment")).toBeTruthy();
+  expect(bodies("/adapt")).toHaveLength(1);
+});
+
+test("resuming replaces a completed local import with another device's job and polls", async () => {
+  jest.useFakeTimers();
+  try {
+    server = mockServer({
+      "/sync/history": {
+        ...historyJob,
+        result: "success",
+        finished_at: "2026-10-04T07:00:00Z",
+      },
+    });
+    await mount(<HistoryImport />);
+    await fireEvent.press(await screen.findByText("Import 12 weeks"));
+    expect(
+      await screen.findByText("100 runs imported · Complete"),
+    ).toBeTruthy();
+    const original = server.getMockImplementation()!;
+    let latest = {
+      ...historyJob,
+      id: "second-device",
+      started_at: "2026-10-05T06:00:00Z",
+      activity_count: 0,
+    };
+    server.mockImplementation(async (input) =>
+      String(input).endsWith("/sync/status")
+        ? response({ history: latest })
+        : original(input),
+    );
+    const listeners = jest
+      .mocked(AppState.addEventListener)
+      .mock.calls.map((call) => call[1]);
+    await act(async () => listeners.forEach((listener) => listener("active")));
+    expect(
+      await screen.findByText("0 runs imported · Importing..."),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Import 12 weeks" }),
+    ).toBeDisabled();
+    latest = { ...latest, result: "success", activity_count: 12 };
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(2000);
+    });
+    expect(await screen.findByText("12 runs imported · Complete")).toBeTruthy();
+  } finally {
+    jest.useRealTimers();
+  }
 });

@@ -13,7 +13,7 @@ from stride_coach.db_models import SyncAttemptRow
 from stride_coach.garmin import GarminClient, GarminError
 from stride_coach.garmin_auth import GarminConnection
 from stride_coach.models import Activity
-from stride_coach.service import Coach, SyncRequest
+from stride_coach.service import AdaptRequest, Coach, SyncRequest
 from stride_coach.storage import Store
 from stride_coach.sync_models import HistoryRequest, SyncAttempt
 from stride_coach.sync_worker import SyncWorker, history_start
@@ -204,7 +204,13 @@ def test_ranges():
 def test_reasons_and_inputs_survive_activity_replacement(store):
     monday = store.plan().setup.start + timedelta(weeks=1)
     store.save_sync([], str(monday - timedelta(days=14)), str(monday), today=monday)
-    applied = adapt(store, 2, monday, apply=True)
+    applied = adapt(
+        store,
+        2,
+        monday,
+        apply=True,
+        proposal_fingerprint=adapt(store, 2, monday).inputs["proposal_fingerprint"],
+    )
     store.save_sync([run(1, monday)], str(monday), str(monday), today=monday)
     recovered = store.adjustment(2)
     assert recovered.reasons == applied.reasons
@@ -308,3 +314,40 @@ def test_start_is_single_instance_and_shutdown_interrupts_wait(worker, monkeypat
     worker.close()
     assert worker.stop.is_set()
     factory.return_value.join.assert_called_once()
+
+
+def test_daily_sync_invalidates_reviewed_adjustment(worker, store):
+    monday = NOW.date()
+    plan = store.plan()
+    store.save_sync([], str(monday - timedelta(days=14)), str(monday), today=monday)
+    coach = Coach(store)
+    preview = coach.propose_adjustment(2).adjustment
+    assert preview.factor == 0.75
+    request = AdaptRequest(
+        week=2, apply=True, proposal_fingerprint=preview.inputs["proposal_fingerprint"]
+    )
+    worker.client_factory.return_value.activities.return_value = [
+        Activity(
+            id=w.id,
+            day=w.day,
+            duration_min=w.minutes,
+            distance_km=w.minutes / 8,
+            average_hr=140,
+            kind=w.kind,
+        )
+        for w in plan.workouts
+        if w.week == 1
+    ]
+    worker.tick()
+    with pytest.raises(ValueError, match="review the new proposal"):
+        coach.adapt(request, today=monday)
+    assert store.plan() == plan
+    assert store.adjustment(2) is None
+    fresh = coach.propose_adjustment(2).adjustment
+    assert fresh.inputs["proposal_fingerprint"] != request.proposal_fingerprint
+    assert fresh.factor != preview.factor
+    request.proposal_fingerprint = fresh.inputs["proposal_fingerprint"]
+    applied = coach.adapt(request, today=monday)
+    assert applied.applied
+    assert applied.factor == fresh.factor
+    assert coach.adapt(request, today=monday) == applied

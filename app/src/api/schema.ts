@@ -348,6 +348,8 @@ export interface components {
              * @default false
              */
             apply?: boolean;
+            /** Proposal Fingerprint */
+            proposal_fingerprint?: string | null;
             /** Week */
             week: number;
         };

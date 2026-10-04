@@ -160,7 +160,13 @@ def test_restart_retains_unresolved_write_and_adaptation(store):
         assert client.writes.count("schedule") == 1
         monday = plan.setup.start + timedelta(weeks=1)
         reopened.save_sync([], str(monday - timedelta(days=14)), str(monday), today=monday)
-        applied = adapt(reopened, 2, monday, apply=True)
+        applied = adapt(
+            reopened,
+            2,
+            monday,
+            apply=True,
+            proposal_fingerprint=adapt(reopened, 2, monday).inputs["proposal_fingerprint"],
+        )
         assert store.adjustment(2) == applied
         assert store.scheduled(plan.workouts[0].id)["scheduled"]
     finally:

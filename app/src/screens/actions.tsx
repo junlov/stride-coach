@@ -125,6 +125,9 @@ function ConnectedActions() {
           const result = await client.adapt({
             week: pending.week,
             apply: true,
+            proposal_fingerprint: String(
+              pending.adjustment.inputs?.proposal_fingerprint ?? "",
+            ),
           });
           if (active()) {
             setApplied(result);
@@ -458,9 +461,9 @@ function ConnectedActions() {
               }
             >
               <Muted>
-                Confirm only after reviewing. Current server state is
-                recalculated and changes from another client can change the
-                result.
+                {preview.kind === "adapt"
+                  ? "Confirm after review. If training data changes, preview and review the new proposal before confirming."
+                  : "Confirm only after reviewing. Current server state is recalculated and changes from another client can change the result."}
               </Muted>
             </Notice>
             <Button
