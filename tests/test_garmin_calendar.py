@@ -94,7 +94,7 @@ def test_past_removal_requires_coverage_and_preserves_completed(store):
     removed = [c["workout_id"] for c in preview["changes"] if c["action"] == "remove"]
     assert set(removed) == {w.id for w in plan.workouts[1:4]}
     reconcile_calendar(store, client, today, apply=True, preview_id=preview["preview_id"])
-    assert any(r["description"] == tag(completed) for r in client.data.values())
+    assert any(tag(completed) in r["description"].splitlines() for r in client.data.values())
 
 
 @pytest.mark.parametrize("change", ["setting", "plan", "ownership", "calendar", "day"])
@@ -208,7 +208,7 @@ def test_detail_owned_renamed_workout_is_reused_when_summary_omits_tag(store):
     assert preview["changes"][0]["action"] == "update"
     reconcile_calendar(store, client, workout.day, apply=True, preview_id=preview["preview_id"])
     assert client.writes.count("update") == 1
-    assert client.data[remote_id]["description"] == tag(workout)
+    assert tag(workout) in client.data[remote_id]["description"].splitlines()
 
 
 def test_manual_removal_invalidates_last_confirmed_calendar(store):
@@ -250,7 +250,7 @@ def test_past_cleanup_retries_after_partial_removal(store, failure):
     )
     reconcile_calendar(store, client, today, apply=True, preview_id=preview["preview_id"])
     assert store.scheduled(workout.id) is None
-    assert not any(r["description"] == tag(workout) for r in client.data.values())
+    assert not any(tag(workout) in r["description"].splitlines() for r in client.data.values())
     assert client.writes.count("unschedule") == 1
 
 
@@ -284,7 +284,7 @@ def test_lost_delete_response_allows_recreation_in_window(store, retry):
     else:
         push(store, [workout], client, False)
     remote_id = store.scheduled(workout.id)["remote_id"]
-    assert client.data[remote_id]["description"] == tag(workout)
+    assert tag(workout) in client.data[remote_id]["description"].splitlines()
     assert sum(str(e["workoutId"]) == remote_id for e in client.events) == 1
 
 
@@ -369,7 +369,7 @@ def retry_after_window_advance(store, client, start, workout, cached, retry):
         push(store, [workout], client, False)
     assert store.scheduled(workout.id) == {**cached, "scheduled": True}
     assert not store.pending(f"unschedule:{workout.id}")
-    assert sum(r["description"] == tag(workout) for r in client.data.values()) == 1
+    assert sum(tag(workout) in r["description"].splitlines() for r in client.data.values()) == 1
     assert (
         sum(
             str(e["workoutId"]) == remote_id and e["date"] == workout.day.isoformat()
