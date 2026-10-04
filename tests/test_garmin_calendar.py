@@ -245,7 +245,9 @@ def test_past_cleanup_retries_after_partial_removal(store, failure):
     assert store.scheduled(workout.id)
     setattr(client, failure, original)
     preview = reconcile_calendar(store, client, today)
-    assert any(c["action"] == "remove" and c["workout_id"] == workout.id for c in preview["changes"])
+    assert any(
+        c["action"] == "remove" and c["workout_id"] == workout.id for c in preview["changes"]
+    )
     reconcile_calendar(store, client, today, apply=True, preview_id=preview["preview_id"])
     assert store.scheduled(workout.id) is None
     assert not any(r["description"] == tag(workout) for r in client.data.values())
@@ -278,9 +280,7 @@ def test_lost_delete_response_allows_recreation_in_window(store, retry):
         assert any(
             c["action"] == "create" and c["workout_id"] == workout.id for c in preview["changes"]
         )
-        reconcile_calendar(
-            store, client, workout.day, apply=True, preview_id=preview["preview_id"]
-        )
+        reconcile_calendar(store, client, workout.day, apply=True, preview_id=preview["preview_id"])
     else:
         push(store, [workout], client, False)
     remote_id = store.scheduled(workout.id)["remote_id"]
@@ -290,8 +290,9 @@ def test_lost_delete_response_allows_recreation_in_window(store, retry):
 
 @pytest.mark.parametrize("retry", ["calendar", "push"])
 @pytest.mark.parametrize("lost_schedule_response", [False, True])
-def test_window_advance_recovers_after_unschedule_and_failed_delete(
-    store, retry, lost_schedule_response
+@pytest.mark.parametrize("failure", ["delete", "unschedule", "read", "restart"])
+def test_window_advance_recovers_after_interrupted_removal(
+    store, retry, lost_schedule_response, failure
 ):
     client = FakeGarmin()
     plan = store.plan()
@@ -314,28 +315,94 @@ def test_window_advance_recovers_after_unschedule_and_failed_delete(
     def fail_delete(remote_id):
         raise GarminError("Deletion failed")
 
+    original_calendar = client.calendar
+    original_unschedule = client.unschedule
+
+    def failed_read(day):
+        raise GarminError("Calendar unavailable")
+
+    def lost_unschedule_response(schedule_id):
+        original_unschedule(schedule_id)
+        if failure == "read":
+            client.calendar = failed_read
+        if failure == "restart":
+            raise SystemExit("Process stopped")
+        raise GarminError("Unschedule response lost")
+
     client.delete = fail_delete
-    with pytest.raises(GarminError, match="Deletion failed"):
+    if failure != "delete":
+        client.unschedule = lost_unschedule_response
+    error = SystemExit if failure == "restart" else GarminError
+    with pytest.raises(error):
         reconcile_calendar(store, client, start, apply=True, preview_id=preview["preview_id"])
     assert remote_id in client.data
     assert not client.events
-    assert store.scheduled(workout.id) == {**cached, "scheduled": False}
-    assert not store.pending(f"schedule:{workout.id}")
+    if failure in {"read", "restart"}:
+        assert store.scheduled(workout.id) == cached
+        assert store.pending(f"unschedule:{workout.id}")
+        assert store.pending(f"schedule:{workout.id}") == lost_schedule_response
+    else:
+        assert store.scheduled(workout.id) == {**cached, "scheduled": False}
+        assert not store.pending(f"schedule:{workout.id}")
+        assert not store.pending(f"unschedule:{workout.id}")
+    client.calendar = original_calendar
+    client.unschedule = original_unschedule
     client.writes.clear()
+    reopened = Store(store.url)
+    try:
+        retry_after_window_advance(reopened, client, start, workout, cached, retry)
+    finally:
+        reopened.close()
+
+
+def retry_after_window_advance(store, client, start, workout, cached, retry):
+    remote_id = cached["remote_id"]
     tomorrow = start + timedelta(days=1)
     if retry == "calendar":
         preview = reconcile_calendar(store, client, tomorrow)
         assert any(
-            c["action"] == "schedule" and c["workout_id"] == workout.id
-            for c in preview["changes"]
+            c["action"] == "schedule" and c["workout_id"] == workout.id for c in preview["changes"]
         )
         assert not client.writes
         reconcile_calendar(store, client, tomorrow, apply=True, preview_id=preview["preview_id"])
     else:
         push(store, [workout], client, False)
     assert store.scheduled(workout.id) == {**cached, "scheduled": True}
+    assert not store.pending(f"unschedule:{workout.id}")
     assert sum(r["description"] == tag(workout) for r in client.data.values()) == 1
-    assert sum(
-        str(e["workoutId"]) == remote_id and e["date"] == workout.day.isoformat()
-        for e in client.events
-    ) == 1
+    assert (
+        sum(
+            str(e["workoutId"]) == remote_id and e["date"] == workout.day.isoformat()
+            for e in client.events
+        )
+        == 1
+    )
+
+
+@pytest.mark.parametrize("failure", ["unschedule", "ownership"])
+def test_uncertain_unschedule_requires_absence_and_ownership(store, failure):
+    client = FakeGarmin()
+    workout = store.plan().workouts[8]
+    start = workout.day - timedelta(days=store.calendar_settings()["window_days"])
+    push(store, [workout], client, False)
+    cached = store.scheduled(workout.id)
+    preview = reconcile_calendar(store, client, start)
+    original_unschedule = client.unschedule
+
+    def interrupted(schedule_id):
+        if failure == "ownership":
+            original_unschedule(schedule_id)
+            client.data[cached["remote_id"]]["description"] = "Personal workout"
+        raise GarminError("Unschedule interrupted")
+
+    client.unschedule = interrupted
+    with pytest.raises(GarminError, match="Unschedule interrupted"):
+        reconcile_calendar(store, client, start, apply=True, preview_id=preview["preview_id"])
+    assert store.scheduled(workout.id) == cached
+    assert store.pending(f"unschedule:{workout.id}")
+    assert "delete" not in client.writes
+    if failure == "ownership":
+        client.writes.clear()
+        with pytest.raises(GarminError, match="unresolved"):
+            reconcile_calendar(store, client, start + timedelta(days=1))
+        assert not client.writes
