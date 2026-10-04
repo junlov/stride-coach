@@ -5,7 +5,7 @@ import os
 import zlib
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 
 from .activity_models import CaptureStatus, HeartRateZone, RunLap, RunMetrics, RunStreams
 from .db_models import (
@@ -69,6 +69,11 @@ def save_details(session, activity, *, gps: bool | None = None):
         )
     if activity.source == "local":
         row.state = "imported"
+    elif activity.source == "garmin":
+        row.source = "garmin"
+        if row.state == "imported":
+            row.state = "pending"
+            row.error = None
     return row
 
 
@@ -131,7 +136,11 @@ def pending_ids(store, limit: int, *, include_legacy: bool = False) -> list[str]
             pending |= ActivityDetailRow.activity_id.is_(None)
         return list(
             session.scalars(
-                query.where(pending).order_by(ActivityRow.day, ActivityRow.id).limit(limit)
+                query.where(pending)
+                .order_by(
+                    func.coalesce(ActivityDetailRow.attempts, 0), ActivityRow.day, ActivityRow.id
+                )
+                .limit(limit)
             )
         )
 

@@ -110,10 +110,11 @@ When present, `directDoubleCadence` supplies steps per minute in preference to t
 `directRunCadence` channel. Descriptor-based parsing follows the pinned client's
 [activity detail endpoint](https://github.com/cyberjunky/python-garminconnect/blob/v0.2.38/garminconnect/__init__.py)
 and Garmin's [published example descriptor keys](https://forums.garmin.com/apps-software/mobile-apps-web/f/garmin-connect-web/338885/connectiq-charts-no-longer-appear-on-connect-web).
-Kilometer splits are derived from cumulative distance and elapsed time, interpolating boundary
-crossings and weighting sensor averages by time. They are estimates at chart resolution,
-include pauses, and may differ from Garmin's display. Nonmonotonic/missing distance produces
-no derived kilometer splits; original laps and FIT remain available. No run type is inferred.
+Garmin laps supply kilometer splits when each lap covers one kilometer, with an optional final partial kilometer.
+Otherwise, Stride Coach derives splits from cumulative distance and elapsed time.
+It interpolates boundary crossings and weights sensor averages by time.
+These estimates include pauses, including stationary time at the final kilometer boundary, and can differ from Garmin's display.
+Missing or decreasing distance produces no derived kilometer splits. Original laps and FIT remain available. Stride Coach infers no run type.
 
 ## Original files and privacy
 

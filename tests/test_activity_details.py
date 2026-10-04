@@ -169,6 +169,95 @@ def test_resume_failure_does_not_lose_summary(store, capture_client):
             capture_pending(store, capture_client, limit=invalid)
 
 
+def test_failed_capture_does_not_starve_unattempted_runs(store, capture_client):
+    older = fixture_activity()
+    newer = older.model_copy(update={"id": "67890"})
+    store.save_sync([older, newer], str(DAY), str(DAY))
+    detail = Mock()
+
+    def fetch(activity_id, *, gps):
+        if activity_id == older.id:
+            raise ValueError("Permanently unavailable FIT")
+        return newer, (FIXTURES / "synthetic-run.fit").read_bytes()
+
+    detail.side_effect = fetch
+    capture_client.activity_detail = detail
+    assert capture_pending(store, capture_client).model_dump() == {
+        "completed": 0,
+        "failed": 1,
+        "remaining": 2,
+    }
+    assert detail.call_count == 1
+    assert pending_ids(store, 20) == [newer.id, older.id]
+    assert capture_pending(store, capture_client).model_dump() == {
+        "completed": 1,
+        "failed": 1,
+        "remaining": 1,
+    }
+    assert read_detail(store, newer.id).capture.state == "complete"
+    assert read_detail(store, older.id).capture.attempts == 2
+
+
+@pytest.mark.parametrize("with_details", [False, True])
+def test_garmin_summary_makes_local_import_capture_eligible(store, capture_client, with_details):
+    imported = (
+        fixture_activity()
+        if with_details
+        else Activity(**fixture_activity().model_dump(include=set(ActivityCore.model_fields)))
+    )
+    imported.source = "local"
+    save(store, imported)
+    summary = normalize_activity({**payload("summary"), **payload("summary")["summaryDTO"]})
+    save(store, summary)
+    assert pending_ids(store, 20) == [imported.id]
+    assert read_detail(store, imported.id).capture.state == "pending"
+    if with_details:
+        detail = read_detail(store, imported.id)
+        assert detail.laps == imported.laps
+        assert detail.splits == imported.splits
+        assert detail.hr_zones == imported.hr_zones
+        assert detail.metrics.device == imported.metrics.device
+        assert read_streams(store, imported.id) == imported.streams
+    assert capture_pending(store, capture_client).completed == 1
+    save(store, summary)
+    assert pending_ids(store, 20) == []
+    assert read_detail(store, imported.id).capture.state == "complete"
+
+
+@pytest.mark.parametrize(
+    ("times", "distances", "durations"),
+    [
+        ([0, 360, 420], [0, 1000, 1000], [420]),
+        ([0, 360, 720, 780], [0, 1000, 2000, 2000], [360, 420]),
+        ([0, 720, 780], [0, 2000, 2000], [360, 420]),
+    ],
+)
+def test_kilometer_splits_include_stationary_finish(times, distances, durations):
+    streams = RunStreams(
+        time_s=times, distance_m=distances, heart_rate_bpm=[120] * (len(times) - 1) + [150]
+    )
+    splits = kilometer_splits(streams)
+    assert [split.duration_s for split in splits] == durations
+    assert sum(split.duration_s for split in splits) == times[-1]
+    assert splits[-1].average_pace_s_km == durations[-1]
+    assert splits[-1].max_hr == 150
+    assert splits[-1].average_hr == pytest.approx((120 * 360 + 150 * 60) / 420)
+
+
+def test_capture_prefers_provider_kilometer_laps(capture_client):
+    laps = payload("laps")
+    laps["lapDTOs"] = [
+        laps["lapDTOs"][0],
+        laps["lapDTOs"][0],
+        {**laps["lapDTOs"][1], "distance": 500, "duration": 200},
+    ]
+    capture_client.api.get_activity_splits.return_value = laps
+    activity, _ = capture_client.activity_detail("12345")
+    assert activity.splits == normalize_laps(laps)
+    assert activity.splits[-1].duration_s == 200
+    assert activity.splits != kilometer_splits(activity.streams)
+
+
 def test_gps_opt_out_includes_raw_summary_fit_and_import(
     store, capture_client, monkeypatch, tmp_path
 ):

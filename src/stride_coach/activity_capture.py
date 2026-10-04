@@ -241,7 +241,7 @@ def kilometer_splits(streams: RunStreams) -> list[RunLap]:
                 change = (elevation[i] - elevation[i - 1]) * fraction
                 accum["gain"] = accum.get("gain", 0) + max(0, change)
                 accum["loss"] = accum.get("loss", 0) + max(0, -change)
-            if end == next_boundary:
+            if end == next_boundary and end < distance[-1]:
                 finish(end)
                 next_boundary += 1000
             if end >= hi:
@@ -359,7 +359,14 @@ def fetch_detail(client, activity_id: str, *, gps: bool):
     activity.streams = normalize_streams(
         request(client.api.get_activity_details, activity_id, maxchart=200000, maxpoly=0), gps=gps
     )
-    activity.splits = kilometer_splits(activity.streams)
+    laps = activity.laps
+    activity.splits = (
+        laps
+        if laps
+        and all(lap.distance_m == 1000 for lap in laps[:-1])
+        and 0 < laps[-1].distance_m <= 1000
+        else kilometer_splits(activity.streams)
+    )
     download = (
         request(
             client.api.download_activity,
