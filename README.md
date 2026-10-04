@@ -66,7 +66,9 @@ or [build your own installable copy](app/README.md#build-your-own-app-copy).
    Use the [first live check](#garmin-authentication-and-first-live-check) for watch delivery.
 
 If startup fails, run `docker compose logs --tail=80 api postgres` and check `.env` and port
-availability. Redact logs before sharing. A failed Garmin login is not a failed server health
+availability. If port 8000 is occupied (or `/health` reaches another service), set `PORT=18000`
+in `.env`, rerun the Compose command, and check `curl --fail http://127.0.0.1:18000/health`.
+Update the HTTPS proxy target to that port. Redact logs before sharing. A failed Garmin login is not a failed server health
 check; follow the connection recovery guide instead of repeatedly retrying.
 
 [Self-hosting and backups](docs/self-hosting.md) · [Mobile app](app/README.md) ·
