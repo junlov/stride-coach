@@ -10,6 +10,71 @@ Garmin, or V.O2.** It contains original rules and session descriptions, with no 
 commercial plans or copied interfaces. There are no LLM API calls or API keys in this package.
 Claude Code can discuss your local plan through MCP using your existing Claude Code access.
 
+## 15-minute quickstart
+
+Stride Coach creates a plan, shows today's workout, imports completed Garmin runs, and
+explains weekly adjustments. Uploads require your confirmation. You own the single-user
+server and its data. It does not provide medical advice, multi-user accounts, background
+sync, a web UI, or support for other watch vendors.
+
+Allow about 15 minutes **after** installing Docker with Compose, Git, Python 3, and a compatible
+mobile app, and preparing an HTTPS hostname/proxy. Image downloads, DNS, app builds, Apple
+provisioning, and Garmin MFA can take longer. There is no public hosted service or promised
+store download. Use [Expo Go](app/README.md#local-development) with Node 22.13+ to try the app,
+or [build your own installable copy](app/README.md#build-your-own-app-copy).
+
+1. Clone and configure the server:
+
+   ```sh
+   git clone https://github.com/junlov/stride-coach.git
+   cd stride-coach
+   cp .env.example .env
+   python3 -c 'import secrets; print(secrets.token_hex(32)); print(secrets.token_hex(32))'
+   ```
+
+   Edit `.env`: put the first secret in `STRIDE_COACH_API_TOKEN`, the second in
+   `POSTGRES_PASSWORD`, and set `TZ` to your IANA timezone (for example `America/Sao_Paulo`).
+   Keep both secrets private.
+
+2. Start the server with one command and check readiness:
+
+   ```sh
+   docker compose up -d --build --wait
+   curl --fail http://127.0.0.1:8000/health
+   ```
+
+   Expect `{"status":"ready"}`. Put the server behind [HTTPS](docs/self-hosting.md#environment-and-https).
+   A phone cannot reach your computer through the phone's `localhost`.
+
+3. Open the app. For Expo Go, run the following in a second terminal from the repository root,
+   then scan the QR code with an SDK-compatible Expo Go:
+
+   ```sh
+   cd app
+   npm ci
+   npm start -- --go
+   ```
+
+4. In **Settings**, enter your HTTPS server URL and the `.env` API token. Tap **Test connection**
+   and **Save connection**. A new server has no plan yet; that is expected.
+5. Tap **Connect Garmin**, enter your Garmin credentials, and complete MFA if requested.
+   Open **Goal**, choose your distance, Monday start, goal date, and running days, then create
+   the plan. See [goal constraints](#plan-and-review). To use recent history for the initial
+   estimate, follow the [first-run sync instructions](docs/self-hosting.md#first-run-and-garmin)
+   before creating the goal.
+6. Review **Today** and **Plan**. Preview a workout before confirming any Garmin upload.
+   Use the [first live check](#garmin-authentication-and-first-live-check) for watch delivery.
+
+If startup fails, run `docker compose logs --tail=80 api postgres` and check `.env` and port
+availability. If port 8000 is occupied (or `/health` reaches another service), set `PORT=18000`
+in `.env`, rerun the Compose command, and check `curl --fail http://127.0.0.1:18000/health`.
+Update the HTTPS proxy target to that port. Redact logs before sharing. A failed Garmin login is not a failed server health
+check; follow the connection recovery guide instead of repeatedly retrying.
+
+[Self-hosting and backups](docs/self-hosting.md) · [Mobile app](app/README.md) ·
+[Contributing and one-command development](CONTRIBUTING.md) · [Roadmap](ROADMAP.md) ·
+[Report a vulnerability](SECURITY.md)
+
 ## Install
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then:
