@@ -1,10 +1,13 @@
 import React from "react";
 import {
+  act,
   fireEvent,
   render,
   screen,
   waitFor,
 } from "@testing-library/react-native";
+import { AppState } from "react-native";
+import { localDay } from "../src/dates";
 import * as SecureStore from "expo-secure-store";
 import { ConnectionProvider } from "../src/state/connection";
 import ActionsScreen from "../src/screens/actions";
@@ -18,11 +21,12 @@ import { connection, mockServer, plan, response } from "./fixtures";
 
 jest.mock("../src/dates", () => ({
   ...jest.requireActual("../src/dates"),
-  localDay: () => "2026-10-05",
+  localDay: jest.fn(() => "2026-10-05"),
 }));
 let server: ReturnType<typeof mockServer>;
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.mocked(localDay).mockReturnValue("2026-10-05");
   jest
     .mocked(SecureStore.getItemAsync)
     .mockResolvedValue(JSON.stringify(connection));
@@ -277,4 +281,65 @@ test("switching servers clears the old action preview", async () => {
     expect(screen.queryByText("Confirm live Garmin push")).toBeNull(),
   );
   expect(bodies("/push")).toEqual([{ dry_run: true, apply: false }]);
+});
+
+test.each(["2026-11-30", "2026-12-01", "2026-12-02"])(
+  "today uses the completion date for an empty week on %s",
+  async (today) => {
+    jest.mocked(localDay).mockReturnValue(today);
+    server = mockServer({
+      "/plan": { ...plan, setup: { ...plan.setup, race_date: "2026-12-01" } },
+    });
+    await mount(<TodayScreen />);
+    expect(
+      await screen.findByText(
+        today > "2026-12-01"
+          ? "Your plan has ended. Review your progress or set a new goal."
+          : "No workouts scheduled this week.",
+      ),
+    ).toBeTruthy();
+    expect(
+      server.mock.calls.some(([url]) => String(url).includes("/weeks/")),
+    ).toBe(false);
+  },
+);
+
+test("today refreshes when the app resumes after the date changes", async () => {
+  const listener = jest.mocked(AppState.addEventListener);
+  await mount(<TodayScreen />);
+  await screen.findByText("Your workout is ready below.");
+  jest.mocked(localDay).mockReturnValue("2026-10-06");
+  const onChange = listener.mock.calls.at(-1)![1];
+  await act(async () => {
+    onChange("background");
+    onChange("active");
+  });
+  expect(
+    await screen.findByText("Rest day. Make room for recovery."),
+  ).toBeTruthy();
+  expect(screen.getByText("2026-10-06 · 5k")).toBeTruthy();
+});
+
+test("today refreshes at midnight while the app stays open", async () => {
+  jest.useFakeTimers({ now: new Date(2026, 9, 5, 23, 59, 59) });
+  try {
+    await mount(<TodayScreen />);
+    await screen.findByText("Your workout is ready below.");
+    jest.mocked(localDay).mockReturnValue("2026-10-06");
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(1000);
+    });
+    expect(
+      await screen.findByText("Rest day. Make room for recovery."),
+    ).toBeTruthy();
+    expect(screen.getByText("2026-10-06 · 5k")).toBeTruthy();
+    await screen.unmount();
+    const requests = server.mock.calls.length;
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(86400000);
+    });
+    expect(server.mock.calls).toHaveLength(requests);
+  } finally {
+    jest.useRealTimers();
+  }
 });

@@ -42,8 +42,7 @@ logs, source files, or build configuration. Changing connections invalidates pen
 A physical phone's `localhost` is the phone itself. Use the server's HTTPS address for phones.
 For local simulator development only, HTTP loopback is accepted: `http://127.0.0.1:8000` for an
 iOS simulator, or `http://10.0.2.2:8000` for the Android emulator. Release networking policies
-may require HTTPS even there. Native apps do not require CORS settings. The optional web
-preview is not a supported credential-storage target because SecureStore is native-only.
+can require HTTPS even there. Native apps do not require CORS settings.
 Keep the server timezone aligned with the athlete's local timezone.
 
 ## Screens and actions
@@ -68,7 +67,8 @@ two complete weeks. Reductions can also affect later weeks; the server checks th
 The API recalculates operations on confirmation; it has no immutable preview identifier. Avoid
 concurrent changes from another client while reviewing. The app never retries writes automatically.
 If a connection fails during a write, inspect the server state before trying again. Errors,
-including 401 and timeouts, are shown on screen. Read screens offer Retry and reload on focus.
+including 401 and timeouts, are shown on screen. Read screens offer Retry and reload on focus or app resume.
+Today also reloads at local midnight.
 There is no offline workout cache, background sync, notification service, or multi-user account.
 
 ## Generated API contract

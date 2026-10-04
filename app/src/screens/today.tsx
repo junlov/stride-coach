@@ -28,7 +28,7 @@ async function loadToday(client: Client) {
   };
 }
 export default function TodayScreen() {
-  const query = useQuery(loadToday);
+  const query = useQuery(loadToday, true);
   const data = query.data;
   const todayWorkouts =
     data?.week?.workouts.filter(({ workout }) => workout.day === data.today) ??
@@ -50,9 +50,11 @@ export default function TodayScreen() {
                 <Copy>
                   {data.number < 1
                     ? `Your plan starts ${data.plan.setup.start}.`
-                    : !data.week
+                    : data.today > data.plan.setup.race_date
                       ? "Your plan has ended. Review your progress or set a new goal."
-                      : "Rest day. Make room for recovery."}
+                      : !data.week
+                        ? "No workouts scheduled this week."
+                        : "Rest day. Make room for recovery."}
                 </Copy>
               )}
             </Card>
