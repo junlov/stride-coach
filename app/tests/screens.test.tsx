@@ -475,7 +475,9 @@ test.each(["connected", "disconnected", "renewal failure"])(
             display_name: "Refreshed Runner",
           }),
     );
-    const onChange = jest.mocked(AppState.addEventListener).mock.calls.at(-1)![1];
+    const onChange = jest
+      .mocked(AppState.addEventListener)
+      .mock.calls.at(-1)![1];
     await act(async () => {
       onChange("background");
       onChange("active");
