@@ -24,7 +24,7 @@ export function WorkoutCard({
   match,
   children,
 }: {
-  workout: Schema<"Workout">;
+  workout: Schema<"Workout"> | Schema<"WorkoutSummary">;
   hero?: boolean;
   children?: ReactNode;
   match?: Schema<"Match">;
@@ -37,7 +37,7 @@ export function WorkoutCard({
         {workout.cutback ? "Cutback" : workout.phase} · Week {workout.week}
       </Badge>
       <Heading>
-        {workout.day} · {workout.kind}
+        {workout.day} · {"name" in workout ? workout.name : workout.kind}
       </Heading>
       {hero ? (
         <Hero value={Math.round(workoutMinutes(workout))} unit="min" />

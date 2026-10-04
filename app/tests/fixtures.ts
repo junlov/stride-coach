@@ -14,15 +14,16 @@ export const metrics: Schema<"Metrics"> = {
   missing_hr: 1,
   matches: [],
 };
-export const workout: Schema<"Workout"> = {
+export const workout: Schema<"WorkoutSummary"> = {
   id: "synthetic-run",
+  name: "Easy Run 30 min",
   day: "2026-10-05",
   week: 1,
   phase: "base",
   kind: "easy",
   steps: [{ label: "Easy running", minutes: 30, hr_min: 120, hr_max: 140 }],
 };
-export const plan: Schema<"Plan"> = {
+export const plan: Schema<"PlanView"> = {
   id: "synthetic-plan",
   setup: {
     start: "2026-10-05",

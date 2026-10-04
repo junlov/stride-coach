@@ -1037,7 +1037,7 @@
         "title": "PairingExchange",
         "type": "object"
       },
-      "Plan": {
+      "PlanView": {
         "additionalProperties": false,
         "properties": {
           "fitness": {
@@ -1059,7 +1059,7 @@
           },
           "workouts": {
             "items": {
-              "$ref": "#/components/schemas/Workout"
+              "$ref": "#/components/schemas/WorkoutSummary"
             },
             "title": "Workouts",
             "type": "array"
@@ -1071,7 +1071,7 @@
           "fitness",
           "workouts"
         ],
-        "title": "Plan",
+        "title": "PlanView",
         "type": "object"
       },
       "Proposal": {
@@ -2662,6 +2662,59 @@
         "title": "Workout",
         "type": "object"
       },
+      "WorkoutSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "cutback": {
+            "default": false,
+            "title": "Cutback",
+            "type": "boolean"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/Kind"
+          },
+          "name": {
+            "readOnly": true,
+            "title": "Name",
+            "type": "string"
+          },
+          "phase": {
+            "title": "Phase",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "week": {
+            "title": "Week",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "day",
+          "week",
+          "phase",
+          "kind",
+          "steps",
+          "name"
+        ],
+        "title": "WorkoutSummary",
+        "type": "object"
+      },
       "WorkoutView": {
         "additionalProperties": false,
         "properties": {
@@ -2670,7 +2723,7 @@
             "type": "number"
           },
           "workout": {
-            "$ref": "#/components/schemas/Workout"
+            "$ref": "#/components/schemas/WorkoutSummary"
           }
         },
         "required": [
@@ -3782,7 +3835,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Plan"
+                  "$ref": "#/components/schemas/PlanView"
                 }
               }
             },

@@ -93,8 +93,9 @@ duplicate remote writes; there is no claim of distributed exactly-once delivery.
 
 Do not run concurrent writers from separate database copies. Do not manually delete the
 write-intent metadata to bypass uncertainty. Removing a pending upload that cannot be found
-also stops. Manual Garmin renames, marker deletion, or moving calendar entries outside the
-planned month may require manual inspection. `remove` is scoped to the active local plan.
+also stops. Marker deletion or calendar entries outside the planned month can require manual inspection.
+See [workout ownership and migration](garmin-workouts.md#ownership-and-migration) for renamed workouts and discovery reads.
+`remove` is scoped to the active local plan.
 
 ## Data and testing
 

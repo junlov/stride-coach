@@ -36,6 +36,14 @@ def main():
     # A future week is always available for the real CLI's date guard.
     previews = cli("push", "--week", "4", "--dry-run")
     print(f"push: {len(previews)} local payload previews, zero Garmin calls")
+    preview = previews[0]["payload"]
+    view = cli("plan", "--week", "4")["workouts"][0]["workout"]
+    assert view["name"] == preview["workoutName"]
+    assert len(preview["workoutName"]) <= 15
+    assert preview["description"].splitlines()[-1] == f"stride-coach:v1:{view['id']}"
+    print(f"workout: {view['name']} (same name in API view and Garmin preview)")
+    print("guidance: " + preview["description"].splitlines()[0])
+    print("first step: " + preview["workoutSegments"][0]["workoutSteps"][0]["description"])
     workouts = cli("plan", "--week", "2")["workouts"]
     activities = [
         {

@@ -800,8 +800,8 @@ export interface components {
              */
             code: string;
         };
-        /** Plan */
-        Plan: {
+        /** PlanView */
+        PlanView: {
             fitness: components["schemas"]["Fitness"];
             /** Id */
             id: string;
@@ -809,7 +809,7 @@ export interface components {
             /** Warnings */
             warnings?: string[];
             /** Workouts */
-            workouts: components["schemas"]["Workout"][];
+            workouts: components["schemas"]["WorkoutSummary"][];
         };
         /** Proposal */
         Proposal: {
@@ -1239,11 +1239,35 @@ export interface components {
             /** Week */
             week: number;
         };
+        /** WorkoutSummary */
+        WorkoutSummary: {
+            /**
+             * Cutback
+             * @default false
+             */
+            cutback?: boolean;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Id */
+            id: string;
+            kind: components["schemas"]["Kind"];
+            /** Name */
+            readonly name: string;
+            /** Phase */
+            phase: string;
+            /** Steps */
+            steps: components["schemas"]["Step"][];
+            /** Week */
+            week: number;
+        };
         /** WorkoutView */
         WorkoutView: {
             /** Minutes */
             minutes: number;
-            workout: components["schemas"]["Workout"];
+            workout: components["schemas"]["WorkoutSummary"];
         };
         /** WriteResult */
         WriteResult: {
@@ -2120,7 +2144,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Plan"];
+                    "application/json": components["schemas"]["PlanView"];
                 };
             };
             /** @description Bad Request */

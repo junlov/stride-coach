@@ -12,6 +12,15 @@ import ActionsScreen from "../src/screens/actions";
 import { connection, mockServer, response, workout } from "./fixtures";
 import { Schema } from "../src/api/client";
 
+const recoveryWorkout: Schema<"Workout"> = {
+  id: workout.id,
+  day: "2026-10-06",
+  week: workout.week,
+  phase: workout.phase,
+  kind: "tempo",
+  steps: workout.steps,
+  cutback: workout.cutback,
+};
 const proposal: Schema<"DailyProposal"> = {
   day: "2026-10-05",
   readiness: {
@@ -21,8 +30,8 @@ const proposal: Schema<"DailyProposal"> = {
     sleep_score: 40,
     hrv_status: null,
   },
-  before: { ...workout, day: "2026-10-06", kind: "tempo" },
-  after: { ...workout, day: "2026-10-06", kind: "easy" },
+  before: recoveryWorkout,
+  after: { ...recoveryWorkout, kind: "easy" },
   reasons: ["Sleep score is 40/100 (below 50)."],
   proposal_fingerprint: "reviewed-daily-change",
   garmin_update_required: true,
@@ -58,6 +67,8 @@ test("daily change requires review and explicit confirmation, with separate Garm
   await fireEvent.press(await screen.findByText("Preview tomorrow's change"));
   expect(await screen.findByText("Currently planned")).toBeTruthy();
   expect(screen.getByText("Proposed workout")).toBeTruthy();
+  expect(screen.getByText("2026-10-06 · tempo")).toBeTruthy();
+  expect(screen.getByText("2026-10-06 · easy")).toBeTruthy();
   expect(changes()).toHaveLength(0);
   await fireEvent.press(screen.getByText("Confirm tomorrow’s change"));
   await waitFor(() => expect(changes()).toHaveLength(1));
