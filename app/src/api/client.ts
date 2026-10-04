@@ -118,12 +118,16 @@ export function createClient(
     status: () => request<Result<"get_status">>("/status"),
     plan: () => request<Result<"get_plan">>("/plan"),
     week: (number: number) => request<Result<"get_week">>(`/weeks/${number}`),
+    activity: (id: string) =>
+      request<Result<"get_activity">>(`/activities/${encodeURIComponent(id)}`),
+    activityStreams: (id: string) =>
+      request<Result<"get_activity_streams">>(`/activities/${encodeURIComponent(id)}/streams`),
     load: () => request<Result<"get_load">>("/load"),
     compliance: () => request<Result<"get_compliance">>("/compliance"),
     goal: (body: Schema<"GoalRequest">) =>
       request<Result<"setup_goal">>("/goal", body),
     sync: (body: Schema<"SyncRequest"> = {}) =>
-      request<Result<"sync_activities">>("/sync", body),
+      request<Result<"sync_activities">>("/sync", body, 180000),
     propose: (number: number) =>
       request<Result<"propose_adjustment">>(
         `/adjustments/propose/${number}`,

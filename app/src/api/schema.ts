@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/activities/{activity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Activity */
+        get: operations["get_activity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/activities/{activity_id}/streams": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Activity Streams */
+        get: operations["get_activity_streams"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/adapt": {
         parameters: {
             query?: never;
@@ -272,6 +306,7 @@ export interface components {
              * @default false
              */
             best_effort?: boolean;
+            capture?: components["schemas"]["CaptureStatus"] | null;
             /**
              * Day
              * Format: date
@@ -281,14 +316,31 @@ export interface components {
             distance_km: number;
             /** Duration Min */
             duration_min: number;
+            /** Hr Zones */
+            hr_zones?: components["schemas"]["HeartRateZone"][] | null;
             /** Id */
             id: string;
             kind?: components["schemas"]["Kind"] | null;
+            /** Laps */
+            laps?: components["schemas"]["RunLap"][] | null;
+            metrics?: components["schemas"]["RunMetrics"] | null;
+            /** Raw Summary */
+            raw_summary?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Source
+             * @default local
+             */
+            source?: string;
+            /** Splits */
+            splits?: components["schemas"]["RunLap"][] | null;
             /**
              * Sport
              * @default running
              */
             sport?: string;
+            streams?: components["schemas"]["RunStreams"] | null;
         };
         /** AdaptRequest */
         AdaptRequest: {
@@ -340,6 +392,40 @@ export interface components {
              * @default 1.92
              */
             trimp_b?: number;
+        };
+        /** BackfillResult */
+        BackfillResult: {
+            /**
+             * Completed
+             * @default 0
+             */
+            completed?: number;
+            /**
+             * Failed
+             * @default 0
+             */
+            failed?: number;
+            /**
+             * Remaining
+             * @default 0
+             */
+            remaining?: number;
+        };
+        /** CaptureStatus */
+        CaptureStatus: {
+            /** Attempts */
+            attempts: number;
+            /** Error */
+            error?: string | null;
+            /** Fetched At */
+            fetched_at?: string | null;
+            /**
+             * Fit Archived
+             * @default false
+             */
+            fit_archived?: boolean;
+            /** State */
+            state: string;
         };
         /** Created */
         Created: {
@@ -427,6 +513,17 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HeartRateZone */
+        HeartRateZone: {
+            /** Lower Bpm */
+            lower_bpm?: number | null;
+            /** Seconds */
+            seconds: number;
+            /** Upper Bpm */
+            upper_bpm?: number | null;
+            /** Zone */
+            zone: number;
         };
         /**
          * Kind
@@ -529,6 +626,160 @@ export interface components {
              */
             dry_run?: boolean;
         };
+        /** RunDetail */
+        RunDetail: {
+            /** Average Hr */
+            average_hr?: number | null;
+            /**
+             * Best Effort
+             * @default false
+             */
+            best_effort?: boolean;
+            capture?: components["schemas"]["CaptureStatus"] | null;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Distance Km */
+            distance_km: number;
+            /** Duration Min */
+            duration_min: number;
+            /** Hr Zones */
+            hr_zones?: components["schemas"]["HeartRateZone"][] | null;
+            /** Id */
+            id: string;
+            kind?: components["schemas"]["Kind"] | null;
+            /** Laps */
+            laps?: components["schemas"]["RunLap"][] | null;
+            metrics?: components["schemas"]["RunMetrics"] | null;
+            /** Raw Summary */
+            raw_summary?: {
+                [key: string]: unknown;
+            } | null;
+            /** Splits */
+            splits?: components["schemas"]["RunLap"][] | null;
+            /**
+             * Sport
+             * @default running
+             */
+            sport?: string;
+        };
+        /** RunLap */
+        RunLap: {
+            /** Average Cadence Spm */
+            average_cadence_spm?: number | null;
+            /** Average Hr */
+            average_hr?: number | null;
+            /** Average Pace S Km */
+            average_pace_s_km?: number | null;
+            /** Average Power W */
+            average_power_w?: number | null;
+            /** Distance M */
+            distance_m: number;
+            /** Duration S */
+            duration_s: number;
+            /** Elevation Gain M */
+            elevation_gain_m?: number | null;
+            /** Elevation Loss M */
+            elevation_loss_m?: number | null;
+            /** Max Hr */
+            max_hr?: number | null;
+            /** Max Power W */
+            max_power_w?: number | null;
+        };
+        /** RunMetrics */
+        RunMetrics: {
+            /** Aerobic Training Effect */
+            aerobic_training_effect?: number | null;
+            /** Anaerobic Training Effect */
+            anaerobic_training_effect?: number | null;
+            /** Average Cadence Spm */
+            average_cadence_spm?: number | null;
+            /** Average Pace S Km */
+            average_pace_s_km?: number | null;
+            /** Average Power W */
+            average_power_w?: number | null;
+            /** Average Speed M S */
+            average_speed_m_s?: number | null;
+            /** Average Temperature C */
+            average_temperature_c?: number | null;
+            /** Calories */
+            calories?: number | null;
+            /** Device */
+            device?: string | null;
+            /** Elapsed Time S */
+            elapsed_time_s?: number | null;
+            /** Elevation Gain M */
+            elevation_gain_m?: number | null;
+            /** Elevation Loss M */
+            elevation_loss_m?: number | null;
+            /** Ground Contact Time Ms */
+            ground_contact_time_ms?: number | null;
+            /** Max Cadence Spm */
+            max_cadence_spm?: number | null;
+            /** Max Elevation M */
+            max_elevation_m?: number | null;
+            /** Max Hr */
+            max_hr?: number | null;
+            /** Max Pace S Km */
+            max_pace_s_km?: number | null;
+            /** Max Power W */
+            max_power_w?: number | null;
+            /** Max Speed M S */
+            max_speed_m_s?: number | null;
+            /** Max Temperature C */
+            max_temperature_c?: number | null;
+            /** Min Elevation M */
+            min_elevation_m?: number | null;
+            /** Min Temperature C */
+            min_temperature_c?: number | null;
+            /** Moving Time S */
+            moving_time_s?: number | null;
+            /** Normalized Power W */
+            normalized_power_w?: number | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Stride Length Cm */
+            stride_length_cm?: number | null;
+            /** Timezone */
+            timezone?: string | null;
+            /** Training Load */
+            training_load?: number | null;
+            /** Vertical Oscillation Cm */
+            vertical_oscillation_cm?: number | null;
+            /** Vertical Ratio Percent */
+            vertical_ratio_percent?: number | null;
+            /** Vo2 Max */
+            vo2_max?: number | null;
+        };
+        /** RunStreams */
+        RunStreams: {
+            /** Cadence Spm */
+            cadence_spm?: (number | null)[] | null;
+            /** Distance M */
+            distance_m?: (number | null)[] | null;
+            /** Elevation M */
+            elevation_m?: (number | null)[] | null;
+            /** Heart Rate Bpm */
+            heart_rate_bpm?: (number | null)[] | null;
+            /** Latitude Deg */
+            latitude_deg?: (number | null)[] | null;
+            /** Longitude Deg */
+            longitude_deg?: (number | null)[] | null;
+            /** Power W */
+            power_w?: (number | null)[] | null;
+            /** Speed M S */
+            speed_m_s?: (number | null)[] | null;
+            /** Time S */
+            time_s?: number[];
+            /**
+             * Version
+             * @default 1
+             * @constant
+             */
+            version?: 1;
+        };
         /** Setup */
         Setup: {
             athlete?: components["schemas"]["Athlete"];
@@ -589,6 +840,7 @@ export interface components {
         };
         /** SyncResult */
         SyncResult: {
+            details?: components["schemas"]["BackfillResult"] | null;
             /**
              * Since
              * Format: date
@@ -690,6 +942,122 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_activity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunDetail"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_activity_streams: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunStreams"] | null;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     adapt_week: {
         parameters: {
             query?: never;

@@ -1,0 +1,19 @@
+{
+  "activityId": 12345,
+  "activityTypeDTO": {"typeKey": "running"},
+  "timeZoneUnitDTO": {"timeZone": "America/Sao_Paulo"},
+  "deviceDTO": {"displayName": "Synthetic Watch"},
+  "summaryDTO": {
+    "startTimeLocal": "2026-09-01 07:00:00", "startTimeGMT": "2026-09-01 10:00:00",
+    "distance": 2500, "duration": 900, "movingDuration": 880, "elapsedDuration": 920,
+    "averageSpeed": 2.7777777778, "maxSpeed": 5, "averageHR": 142, "maxHR": 170,
+    "averageRunningCadenceInStepsPerMinute": 172, "maxRunningCadenceInStepsPerMinute": 184,
+    "avgStrideLength": 110, "avgVerticalOscillation": 8.2, "avgVerticalRatio": 7.4,
+    "avgGroundContactTime": 245, "avgPower": 230, "maxPower": 340, "normPower": 244,
+    "elevationGain": 12, "elevationLoss": 10, "minElevation": -3, "maxElevation": 9,
+    "averageTemperature": 22, "minTemperature": 20, "maxTemperature": 24,
+    "calories": 210, "trainingEffect": 2.5, "anaerobicTrainingEffect": 0.4,
+    "activityTrainingLoad": 44, "vO2MaxValue": 48, "startLatitude": -23.0,
+    "startLongitude": -46.0
+  }
+}

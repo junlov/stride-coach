@@ -20,6 +20,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
 
+from .activity_models import RunStreams
 from .database import check_schema, database_url, make_engine, upgrade
 from .garmin import GarminClient, GarminError
 from .garmin_auth import (
@@ -29,7 +30,7 @@ from .garmin_auth import (
     GarminMFA,
     GarminStatus,
 )
-from .models import Adjustment, Plan, Record
+from .models import Adjustment, Plan, Record, RunDetail
 from .service import (
     DEFAULT_TOKENS,
     AdaptRequest,
@@ -299,6 +300,24 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
     @app.post("/sync", response_model=SyncResult, responses=errors, operation_id="sync_activities")
     def sync(body: SyncRequest, service: Service):
         return service.sync(body)
+
+    @app.get(
+        "/activities/{activity_id}",
+        response_model=RunDetail,
+        responses=errors,
+        operation_id="get_activity",
+    )
+    def activity(activity_id: str, service: Service):
+        return service.activity(activity_id)
+
+    @app.get(
+        "/activities/{activity_id}/streams",
+        response_model=RunStreams | None,
+        responses=errors,
+        operation_id="get_activity_streams",
+    )
+    def activity_streams(activity_id: str, service: Service):
+        return service.activity_streams(activity_id)
 
     @app.post("/adapt", response_model=Adjustment, responses=errors, operation_id="adapt_week")
     def adapt(body: AdaptRequest, service: Service):

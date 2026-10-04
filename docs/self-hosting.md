@@ -310,3 +310,25 @@ For the packaged clean-install, restart, schema-upgrade, and dump/restore proof,
 `uv run python examples/selfhost_proof.py`. It builds the image and creates a randomly named
 Compose project with generated secrets, uses synthetic data, then removes only that project
 and its volumes. No existing `.env` settings or Garmin credentials are used.
+
+## Run detail archive
+
+See [run data and normalized imports](activity-data.md) for the metric schema, read endpoints,
+GPS opt-out, backfill command, and compact stream format. Compose persists original FIT files
+at `/data/fit` in the `run-originals` volume. `STRIDE_COACH_FIT_VOLUME` can select an absolute
+host directory; it must be writable by UID/GID `10001:10001`. Outside Compose, set
+`STRIDE_COACH_FIT_DIR`. Set `STRIDE_COACH_STORE_GPS=false` before import/sync to omit GPS,
+raw summaries and original files. This does not erase existing location data.
+
+Back up `/data/fit` alongside the database and Garmin session while all writers are stopped:
+
+```sh
+docker compose run --rm -T --no-deps --entrypoint tar api \
+  -C /data/fit -czf - . > backups/run-originals.tgz
+```
+
+Restore the paired archive into the configured FIT volume with UID/GID `10001:10001`, directory
+mode 700 and file mode 600 before resuming capture. Keep the same volume when upgrading or
+moving hosts. Stream records, metrics, laps, zones and capture checkpoints are included in
+PostgreSQL backups. Deleting Compose volumes also deletes originals. Protect these backups:
+GPS tracks reveal locations, and FIT files may contain additional personal data.
