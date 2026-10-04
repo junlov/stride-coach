@@ -106,5 +106,6 @@ load-rise comparison. Do not interpret a displayed zero with missing HR as zero 
 
 Apply the smallest factor, never stack reductions or increase beyond the generated plan.
 Scale the target and all later weeks by that factor. Retain all triggered reasons.
-Applying a week twice returns its stored result, preventing repeated compounding.
+Repeating an apply with its accepted proposal fingerprint returns the stored result without compounding reductions.
+See the [weekly loop](../README.md#weekly-loop) for the confirmation contract.
 A "harder" observation describes the recorded target deviation; it does not diagnose fatigue.

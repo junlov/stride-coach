@@ -1,5 +1,7 @@
 """Explainable weekly adaptation; proposals have no side effects."""
 
+import hashlib
+import json
 import math
 from datetime import date, timedelta
 
@@ -117,19 +119,50 @@ def propose(plan: Plan, activities: list[Activity], week: int) -> Adjustment:
     factor = min(1, factor)
     if not reasons:
         reasons.append("Completion and load are within limits: retain the planned week.")
+    start = plan.setup.start + timedelta(weeks=week - 1)
+    proposal_inputs = {
+        "plan": plan.model_dump(mode="json"),
+        "activities": [
+            a.model_dump(mode="json")
+            for a in sorted(activities, key=lambda a: a.id)
+            if start - timedelta(days=14) <= a.day < start
+        ],
+        "week": week,
+        "rule_version": "v1",
+    }
+    fingerprint = hashlib.sha256(
+        json.dumps(proposal_inputs, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     return Adjustment(
         week=week,
         factor=factor,
         reasons=reasons,
+        inputs={
+            "rule_version": "v1",
+            "proposal_fingerprint": fingerprint,
+            "current_week": current,
+            "previous_week": previous,
+            "athlete": plan.setup.athlete.model_dump(mode="json"),
+            "hard_runs": hard,
+            "easy_runs": easy,
+        },
         before_minutes=before,
         after_minutes=before * factor,
     )
 
 
-def adapt(store: Store, week: int, today: date, apply: bool = False) -> Adjustment:
+def adapt(
+    store: Store,
+    week: int,
+    today: date,
+    apply: bool = False,
+    proposal_fingerprint: str | None = None,
+) -> Adjustment:
     with store.lock():
         existing = store.adjustment(week)
         if existing:
+            if apply:
+                require_preview(existing, proposal_fingerprint)
             return existing
         plan = store.plan()
         start = plan.setup.start + timedelta(weeks=week - 1)
@@ -144,7 +177,9 @@ def adapt(store: Store, week: int, today: date, apply: bool = False) -> Adjustme
         ):
             raise ValueError("Sync the previous two complete weeks before adaptation.")
         adjustment = propose(plan, store.activities(), week)
+        adjustment.inputs["complete_sync_window"] = window
         if apply:
+            require_preview(adjustment, proposal_fingerprint)
             # Propagate the reduction so later weeks cannot jump back above the 10% cap.
             for workout in plan.workouts:
                 if workout.week >= week:
@@ -152,3 +187,11 @@ def adapt(store: Store, week: int, today: date, apply: bool = False) -> Adjustme
                         step.minutes *= adjustment.factor
             store.apply(plan, adjustment)
         return adjustment
+
+
+def require_preview(adjustment: Adjustment, fingerprint: str | None) -> None:
+    if not fingerprint or fingerprint != adjustment.inputs.get("proposal_fingerprint"):
+        raise ValueError(
+            "The adjustment preview is missing or stale. "
+            "Preview adjustment again and review the new proposal before confirming."
+        )

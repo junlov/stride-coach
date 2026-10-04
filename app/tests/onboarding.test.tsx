@@ -92,7 +92,9 @@ describe.each(["light", "dark"] as const)(
         if (connectGarmin) {
           await login();
           await screen.findByText("Connected to Garmin.");
-          await press("Continue to goal");
+          await press("Continue to import");
+          await screen.findByText("Import past runs");
+          await press("Skip import for now");
         } else await press("Skip Garmin for now");
         expect(screen.queryByText("Import past runs")).toBeNull();
         await press("Goal: 5K ▾");
@@ -360,8 +362,11 @@ describe.each(["light", "dark"] as const)(
 );
 
 test("saved empty plan provides a goal entry instead of retrying a missing plan", async () => {
-  server.mockResolvedValueOnce(
-    response({ detail: "No plan. Run stride-coach init first." }, 400),
+  const original = server.getMockImplementation()!;
+  server.mockImplementation(async (input) =>
+    new URL(String(input)).pathname === "/status"
+      ? response({ detail: "No plan. Run stride-coach init first." }, 400)
+      : original(input),
   );
   await mount(<TodayScreen />);
   await screen.findByText("Start with a destination.");
@@ -388,4 +393,47 @@ test("storage hydration does not flash setup", async () => {
   await waitFor(() =>
     expect(screen.getByText("Today destination")).toBeTruthy(),
   );
+});
+
+test("wizard imports Garmin history before goal setup", async () => {
+  jest.mocked(SecureStore.getItemAsync).mockResolvedValue(null);
+  const completed = {
+    id: "wizard-import",
+    source: "history",
+    history_range: "12-weeks",
+    started_at: "2026-10-04T06:00:00Z",
+    finished_at: "2026-10-04T06:01:00Z",
+    since: "2026-07-12",
+    until: "2026-10-04",
+    activity_count: 12,
+    result: "success",
+    next_page: 12,
+  };
+  server = mockServer({ "/sync/history": completed });
+  const original = server.getMockImplementation()!;
+  server.mockImplementation(async (input) =>
+    new URL(String(input)).pathname === "/status"
+      ? response({ detail: "No plan. Run stride-coach init first." }, 400)
+      : original(input),
+  );
+  await mount(
+    <FirstRunGate>
+      <Native.Text>Today destination</Native.Text>
+    </FirstRunGate>,
+  );
+  await enterServer();
+  await press("Save connection");
+  await press("Continue to import");
+  expect(await screen.findByText("Import past runs")).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "Continue to goal" }),
+  ).toBeDisabled();
+  await press("Import 12 weeks");
+  await screen.findByText("12 runs imported · Complete");
+  await press("Continue to goal");
+  await screen.findByLabelText("Start Monday (YYYY-MM-DD)");
+  expect(calls("/sync/history")).toHaveLength(1);
+  expect(calls("/goal")).toHaveLength(0);
+  expect(calls("/push")).toHaveLength(0);
+  expect(calls("/adapt")).toHaveLength(0);
 });

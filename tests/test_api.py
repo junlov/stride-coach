@@ -119,7 +119,11 @@ def test_api_sync_propose_apply_and_repeat(api, setup, monkeypatch):
     assert proposal["adjustment"]["factor"] == 0.75
     proposal = api.post("/adapt", json={"week": 2}, headers=HEADERS).json()
     assert not proposal["applied"]
-    body = {"week": 2, "apply": True}
+    body = {
+        "week": 2,
+        "apply": True,
+        "proposal_fingerprint": proposal["inputs"]["proposal_fingerprint"],
+    }
     applied = api.post("/adapt", json=body, headers=HEADERS)
     assert applied.status_code == 200, applied.text
     assert applied.json()["applied"]

@@ -1,3 +1,4 @@
+import { SyncStatus } from "../components/sync-status";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import { ApiError, Schema } from "../api/client";
@@ -124,6 +125,9 @@ function ConnectedActions() {
           const result = await client.adapt({
             week: pending.week,
             apply: true,
+            proposal_fingerprint: String(
+              pending.adjustment.inputs?.proposal_fingerprint ?? "",
+            ),
           });
           if (active()) {
             setApplied(result);
@@ -222,6 +226,7 @@ function ConnectedActions() {
   return (
     <Page title="Ready for your next run." eyebrow="Coach actions">
       <ConnectionGate>
+        <SyncStatus />
         <Card>
           <Heading>Bring your training up to date</Heading>
           <Muted>
@@ -456,9 +461,9 @@ function ConnectedActions() {
               }
             >
               <Muted>
-                Confirm only after reviewing. Current server state is
-                recalculated and changes from another client can change the
-                result.
+                {preview.kind === "adapt"
+                  ? "Confirm after review. If training data changes, preview and review the new proposal before confirming."
+                  : "Confirm only after reviewing. Current server state is recalculated and changes from another client can change the result."}
               </Muted>
             </Notice>
             <Button

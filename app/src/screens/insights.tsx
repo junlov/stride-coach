@@ -14,11 +14,12 @@ import {
 } from "../components/ui";
 import { useQuery } from "../state/query";
 async function loadInsights(client: Client) {
-  const [load, compliance] = await Promise.all([
+  const [load, compliance, status] = await Promise.all([
     client.load(),
     client.compliance(),
+    client.status(),
   ]);
-  return { load, compliance };
+  return { load, compliance, status };
 }
 export default function InsightsScreen() {
   const query = useQuery(loadInsights);
@@ -70,6 +71,20 @@ export default function InsightsScreen() {
             ))}
           </Card>
         )}
+        {query.data?.status.adjustments
+          .filter((item) => item.applied)
+          .map((item) => (
+            <Card key={`adjustment-${item.week}`}>
+              <Heading>Why week {item.week} changed</Heading>
+              <Copy>
+                {item.before_minutes.toFixed(0)} to{" "}
+                {item.after_minutes.toFixed(0)} minutes
+              </Copy>
+              {item.reasons.map((reason) => (
+                <Copy key={reason}>{reason}</Copy>
+              ))}
+            </Card>
+          ))}
         {query.data?.compliance.length === 0 && (
           <Copy>No training weeks yet.</Copy>
         )}

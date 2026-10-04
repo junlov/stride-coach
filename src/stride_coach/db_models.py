@@ -148,6 +148,7 @@ class AdjustmentRow(Base):
     week: Mapped[int] = mapped_column(primary_key=True)
     factor: Mapped[float]
     reasons: Mapped[list[str]]
+    inputs: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
     before_minutes: Mapped[float]
     after_minutes: Mapped[float]
     applied: Mapped[bool]
@@ -185,6 +186,22 @@ class MetadataRow(Base):
     since: Mapped[date | None]
     until: Mapped[date | None]
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SyncAttemptRow(Base):
+    __tablename__ = "sync_attempts"
+    id: Mapped[str] = mapped_column(primary_key=True)
+    source: Mapped[str]
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result: Mapped[str]
+    since: Mapped[date]
+    until: Mapped[date]
+    activity_count: Mapped[int]
+    error: Mapped[str | None]
+    history_range: Mapped[str | None]
+    next_page: Mapped[int]
+    next_page_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ActivityDetailRow(Base):

@@ -1,8 +1,10 @@
 # Run data storage and import contract
 
-Every Garmin sync stores the summary immediately, then captures detail for up to 20 pending
-running activities. This is separate from the scheduler and history-import window. Detail
-failure does not discard the summary or prevent its use for plan matching and training load.
+Regular Garmin sync stores summaries first, then captures detail for up to 20 pending running activities.
+This includes manual, daily, and app-open sync. History import pages store summaries only.
+Use the backfill command below or a later regular sync to capture their details.
+Sync status records summary completion before detail capture finishes.
+Detail failure does not discard the summary or prevent its use for plan matching and training load.
 The sync response's `details` reports completed, failed, and remaining captures. A failed batch
 stops at the first error to avoid hammering Garmin. Later batches prioritize runs with fewer
 capture attempts, then activity date and ID. A failed run remains retryable without blocking

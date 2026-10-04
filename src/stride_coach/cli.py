@@ -251,10 +251,16 @@ def backfill_details(
 
 
 @app.command()
-def adapt(ctx: typer.Context, week: int, apply: bool = False):
-    """Propose changes; --apply saves them locally. Run on the target Monday."""
+def adapt(
+    ctx: typer.Context, week: int, apply: bool = False, proposal_fingerprint: str | None = None
+):
+    """Propose changes. Apply on the target Monday with --apply and --proposal-fingerprint."""
     with session(ctx) as coach:
-        emit(coach.adapt(AdaptRequest(week=week, apply=apply)))
+        emit(
+            coach.adapt(
+                AdaptRequest(week=week, apply=apply, proposal_fingerprint=proposal_fingerprint)
+            )
+        )
 
 
 @app.command()

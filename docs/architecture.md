@@ -27,7 +27,11 @@ flowchart LR
     MCP --> Service
     Service --> Engine[Deterministic rules]
     Service --> DB[(PostgreSQL)]
-    Service -->|explicit sync or apply| Garmin[Garmin Connect]
+    API --> Worker[Sync worker]
+    Worker --> Service
+    Worker --> DB
+    Worker -->|history reads| Garmin[Garmin Connect]
+    Service -->|activity reads or explicit apply| Garmin
 ```
 
 ## Garmin boundary
@@ -46,7 +50,8 @@ Use one API process/worker because MFA challenges are not shared between workers
 [self-hosting guide](self-hosting.md) for volume setup and the
 [README Garmin section](../README.md#garmin-authentication-and-first-live-check) for security boundaries and upstream compatibility limits.
 
-Workout upload and activity reads use python-garminconnect public methods. The pinned release
+Workout uploads and regular activity reads use python-garminconnect public methods.
+History pages use its garth transport with activity-service parameters for date range, offset, and ascending order. The pinned release
 lacks scheduling, update, and delete helpers, so these use its garth transport with upstream
 workout-service endpoints. Calendar reads use calendar-service with zero-based months.
 Target identifiers follow the current upstream schema: pace.zone=6 (metres/second),
@@ -108,7 +113,8 @@ request access logging. `serve` validates configuration before accepting traffic
 
 Each HTTP request has its own SQLAlchemy connection. Transactions commit each durable remote
 intent before the network call and commit adaptation plus its adjustment together. Advisory locks
-coordinate API and CLI writers. There is no server-side background job. The public `/health`
+coordinate API, CLI, and worker writes. See [automatic sync and import recovery](self-hosting.md#automatic-sync-and-import-recovery)
+for the worker lifecycle. The public `/health`
 probe checks connectivity and exact schema compatibility without exposing training data or secrets.
 See [self-hosting](self-hosting.md) for configuration, deployment, and data recovery.
 

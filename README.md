@@ -14,8 +14,8 @@ Claude Code can discuss your local plan through MCP using your existing Claude C
 
 Stride Coach creates a plan, shows today's workout, imports completed Garmin runs, and
 explains weekly adjustments. Uploads require your confirmation. You own the single-user
-server and its data. It does not provide medical advice, multi-user accounts, background
-sync, a web UI, or support for other watch vendors.
+server and its data. It does not provide medical advice, multi-user accounts, a web UI,
+or support for other watch vendors.
 
 Allow about 15 minutes **after** installing Docker with Compose, Git, Python 3, and a compatible
 mobile app, and preparing an HTTPS hostname/proxy. Image downloads, DNS, app builds, Apple
@@ -135,7 +135,7 @@ A recent marked effort provides a VDOT-style estimate. Garmin averages are not a
 classified as maximal efforts. Without one, the engine uses recent easy paces or HR targets.
 `sync --activities PATH --since DATE --until DATE` imports normalized data offline.
 
-Each successful sync replaces stored activities within the inclusive date range,
+Each successful regular sync replaces stored activities within the inclusive date range,
 including removal of activities absent from the result.
 For an offline import, supply the complete activity list for that range.
 An empty list clears that range.
@@ -216,13 +216,15 @@ upload; inspect Garmin first. An unresolved, invisible upload intentionally bloc
 
 ## Weekly loop
 
-On Monday, sync through the completed Sunday, review the proposal, then apply it locally:
+On Monday, sync through the completed Sunday, review the proposal, then apply it locally.
+Replace `FINGERPRINT` with `inputs.proposal_fingerprint` from the reviewed proposal.
+If the server rejects a stale preview, request and review a new proposal.
 
 ```sh
 uv run stride-coach sync
 uv run stride-coach status
 uv run stride-coach adapt 2
-uv run stride-coach adapt 2 --apply
+uv run stride-coach adapt 2 --apply --proposal-fingerprint FINGERPRINT
 uv run stride-coach push --week 2 --dry-run
 uv run stride-coach push --week 2 --apply
 ```
@@ -258,8 +260,8 @@ Tools: `plan`, `week`, `compliance`, `load`, `propose_adjustment`.
 Ask Claude Code: "Review my last week, explain compliance and load, and propose next week's
 adjustment." The MCP tools open PostgreSQL transactions read-only, never invoke Garmin, and make no LLM calls.
 It exposes training data to your MCP client, so use a client/account you trust with that data.
-Proposals are previews and may include an incomplete week. Actual application remains the
-CLI's explicit `adapt WEEK --apply`, with date and sync checks. MCP cannot upload, remove, or apply.
+Proposals are previews and can include an incomplete week. Follow the [weekly loop](#weekly-loop)
+to apply a reviewed proposal. MCP cannot upload, remove, or apply.
 
 ## JSON API for a phone client
 
@@ -308,7 +310,7 @@ Run one server instance using the same PostgreSQL database and session directory
 | `GET /status`, `/compliance`, `/load` | Sync coverage, adjustments, completion, and TRIMP |
 | `POST /push` | Optional `week`/`workout`; defaults to dry run, `apply: true` writes Garmin |
 | `POST /sync` | Pull Garmin, or pass normalized `activities` plus date range |
-| `POST /adapt` | `{week: 2}` proposes; add `apply: true` to save locally |
+| `POST /adapt` | `{week: 2}` proposes; add `apply: true` and the reviewed `inputs.proposal_fingerprint` as `proposal_fingerprint` to save locally |
 | `POST /adjustments/propose/{number}` | Read-only preview, including incomplete-week caveat |
 | `POST /remove` | Preview owned removal; `apply: true` removes from Garmin |
 | `POST /garmin/login` | Submit `email` and `password` once; may return `challenge_id` and `mfa_required` |
@@ -328,7 +330,8 @@ No route accepts a filesystem path from a remote client.
 The committed [OpenAPI 3.1 schema](docs/openapi.json) is the mobile client handoff. It includes
 stable operation IDs, enums, request/response models, and the `CoachBearer` security scheme.
 Regenerate it after API changes with `uv run python examples/export_openapi.py`; tests fail
-if it differs from the application. The API has no background polling or automatic writes.
+if it differs from the application. See [automatic sync](docs/self-hosting.md#automatic-sync-and-import-recovery)
+for background activity reads. Garmin writes require explicit confirmation.
 
 ## iOS and Android app
 
@@ -364,3 +367,21 @@ the single-workout check above is required before relying on device delivery.
 The project has no web UI, multi-user hosting, other watch vendors, commercial-plan import, or integration
 that changes an existing Garmin analytics project. These are generic training heuristics,
 not clinical return-to-sport clearance. Stop a session if symptoms make running unsafe.
+
+### Daily sync, past runs, and plan-change reasons
+
+The HTTP server automatically reads Garmin activities daily and when the app opens or resumes.
+Settings, Today, and Actions show the last successful sync and any sync error. Before creating
+a goal, use **Import past runs** after Connect Garmin (also in Settings): choose **12 weeks**,
+**6 months**, or **Everything**, and wait for Complete so those runs inform the fitness estimate.
+Imports continue on the server, survive restarts, and offer Resume after a connection error.
+Reconnect Garmin if token renewal fails; no password login is retried automatically.
+
+Sync reads runs only. Applying a proposed adjustment still requires explicit confirmation;
+**Progress** shows the saved reasons for every applied adjustment. See [saved adjustment evidence](docs/self-hosting.md#automatic-sync-and-import-recovery)
+for the retained inputs and reasons.
+
+See [automatic sync and import recovery](docs/self-hosting.md#automatic-sync-and-import-recovery)
+for API endpoints, restart behavior, range semantics, and configuration limits. A synthetic
+loopback proof is available with `uv run python examples/sync_demo.py` and a disposable
+`TEST_DATABASE_URL`; it makes no live Garmin calls.

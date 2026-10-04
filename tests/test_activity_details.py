@@ -4,12 +4,13 @@ import io
 import json
 import stat
 import zipfile
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+from alembic import command
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from typer.testing import CliRunner
@@ -29,10 +30,12 @@ from stride_coach.activity_storage import (
     pending_ids,
     read_detail,
     read_streams,
+    save_details,
     store_gps,
 )
 from stride_coach.api import ServerConfig, create_app
 from stride_coach.cli import app
+from stride_coach.database import check_schema, migration_config
 from stride_coach.db_models import (
     ActivityDetailRow,
     ActivityLapRow,
@@ -43,6 +46,7 @@ from stride_coach.db_models import (
 from stride_coach.garmin import GarminClient, normalize_activity
 from stride_coach.models import Activity, ActivityCore
 from stride_coach.service import Coach, SyncRequest, read_activities
+from stride_coach.sync_models import SyncAttempt
 
 FIXTURES = Path(__file__).parent / "fixtures"
 DAY = date(2026, 9, 1)
@@ -462,3 +466,57 @@ def test_stream_descriptor_units_and_double_cadence():
     assert result.distance_m == [0, 3]
     assert result.cadence_spm == [170, 172]
     assert result.speed_m_s == pytest.approx([3, 3])
+
+
+def test_run_data_then_sync_migration_preserves_data(store):
+    activity = fixture_activity()
+    save(store, activity)
+    with store.connection.begin():
+        command.downgrade(migration_config(store.connection), "0002")
+        command.upgrade(migration_config(store.connection), "0003_run_data")
+    with store.transaction() as session:
+        save_details(session, activity)
+    with store.connection.begin():
+        command.upgrade(migration_config(store.connection), "head")
+        check_schema(store.connection)
+    assert read_detail(store, activity.id).laps == activity.laps
+    assert read_detail(store, activity.id).metrics == activity.metrics
+    assert read_streams(store, activity.id) == activity.streams
+    attempt = SyncAttempt(
+        id="migration-import",
+        source="history",
+        started_at=datetime.now(UTC),
+        since=DAY,
+        until=DAY,
+        history_range="12-weeks",
+    )
+    store.save_history_page(attempt, [activity])
+    assert store.sync_status().history.id == attempt.id
+    assert store.sync_status().history.next_page == 0
+
+
+def test_history_pages_preserve_run_details_and_capture_checkpoints(store, capture_client):
+    activity = fixture_activity()
+    summary = activity.model_copy(
+        update={"laps": None, "splits": None, "hr_zones": None, "streams": None}
+    )
+    attempt = SyncAttempt(
+        id="detail-import",
+        source="history",
+        started_at=datetime.now(UTC),
+        since=DAY,
+        until=DAY,
+        history_range="12-weeks",
+        next_page=1,
+        activity_count=1,
+    )
+    store.save_history_page(attempt, [summary])
+    assert read_detail(store, activity.id).metrics == activity.metrics
+    assert pending_ids(store, 20) == [activity.id]
+    assert capture_pending(store, capture_client).completed == 1
+    captured = read_detail(store, activity.id)
+    store.save_history_page(attempt, [summary])
+    assert read_detail(store, activity.id) == captured
+    assert read_streams(store, activity.id) == activity.streams
+    assert store.sync_status().history.next_page == 1
+    assert store.sync_window(complete=True) == {}

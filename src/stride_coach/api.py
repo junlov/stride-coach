@@ -1,4 +1,4 @@
-"""Authenticated single-user JSON API. No scheduler or implicit Garmin writes."""
+"""Authenticated single-user JSON API. No implicit Garmin writes."""
 
 import os
 import secrets
@@ -49,6 +49,8 @@ from .service import (
     WriteResult,
 )
 from .storage import Store
+from .sync_models import HistoryRequest, SyncAttempt, SyncStatus
+from .sync_worker import SyncWorker
 
 
 class ServerConfig(Record):
@@ -58,6 +60,10 @@ class ServerConfig(Record):
     )
     tokens: Path = DEFAULT_TOKENS
     timezone: str = "UTC"
+    sync_enabled: bool = True
+    sync_time: str = Field(default="06:00", pattern=r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$")
+    sync_open_hours: float = Field(default=6, ge=0.1, le=720)
+    import_page_delay: float = Field(default=1, ge=0.1, le=60)
     cors_origins: list[str] = Field(default_factory=list)
 
     @field_validator("token")
@@ -118,6 +124,10 @@ class ServerConfig(Record):
             "database_url": os.getenv("DATABASE_URL", ""),
             "tokens": os.getenv("STRIDE_COACH_TOKENS", str(DEFAULT_TOKENS)),
             "timezone": os.getenv("TZ", "UTC"),
+            "sync_enabled": os.getenv("STRIDE_COACH_SYNC_ENABLED", "true"),
+            "sync_time": os.getenv("STRIDE_COACH_SYNC_TIME", "06:00"),
+            "sync_open_hours": os.getenv("STRIDE_COACH_SYNC_OPEN_HOURS", "6"),
+            "import_page_delay": os.getenv("STRIDE_COACH_IMPORT_PAGE_DELAY", "1"),
             "cors_origins": [
                 v.strip()
                 for v in os.getenv("STRIDE_COACH_CORS_ORIGINS", "").split(",")
@@ -139,6 +149,8 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
 
         client_factory = partial(GarminClient, database_url=url)
 
+    worker = SyncWorker(config, connection, client_factory)
+
     @asynccontextmanager
     async def lifespan(app):
         try:
@@ -146,12 +158,14 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
             # Validate the dedicated session directory before serving traffic.
             with connection.vault.locked():
                 pass
+            worker.start()
             yield
         except SQLAlchemyError:
             raise RuntimeError(
                 "Database startup failed. Check DATABASE_URL and PostgreSQL."
             ) from None
         finally:
+            worker.close()
             connection.close()
 
     app = FastAPI(
@@ -165,6 +179,7 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
         "Garmin push/removal default to previews; only apply=true permits writes.",
     )
     app.state.garmin_connection = connection
+    app.state.sync_worker = worker
     bearer = HTTPBearer(auto_error=False, scheme_name="CoachBearer")
 
     def authenticate(credentials: Annotated[HTTPAuthorizationCredentials | None, Security(bearer)]):
@@ -300,6 +315,24 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
     @app.post("/sync", response_model=SyncResult, responses=errors, operation_id="sync_activities")
     def sync(body: SyncRequest, service: Service):
         return service.sync(body)
+
+    @app.get(
+        "/sync/status", response_model=SyncStatus, responses=errors, operation_id="get_sync_status"
+    )
+    def sync_status(service: Service):
+        return service.store.sync_status()
+
+    @app.post(
+        "/sync/open", response_model=SyncStatus, responses=errors, operation_id="sync_on_open"
+    )
+    def sync_on_open(service: Service):
+        return worker.automatic(service.store, "app-open", worker.now())
+
+    @app.post(
+        "/sync/history", response_model=SyncAttempt, responses=errors, operation_id="import_history"
+    )
+    def import_history(body: HistoryRequest, service: Service):
+        return worker.enqueue(service.store, body)
 
     @app.get(
         "/activities/{activity_id}",

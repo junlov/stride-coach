@@ -165,6 +165,17 @@
             "title": "Apply",
             "type": "boolean"
           },
+          "proposal_fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal Fingerprint"
+          },
           "week": {
             "minimum": 2.0,
             "title": "Week",
@@ -196,6 +207,11 @@
           "factor": {
             "title": "Factor",
             "type": "number"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "title": "Inputs",
+            "type": "object"
           },
           "reasons": {
             "items": {
@@ -643,6 +659,25 @@
           "seconds"
         ],
         "title": "HeartRateZone",
+        "type": "object"
+      },
+      "HistoryRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "range": {
+            "enum": [
+              "12-weeks",
+              "6-months",
+              "everything"
+            ],
+            "title": "Range",
+            "type": "string"
+          }
+        },
+        "required": [
+          "range"
+        ],
+        "title": "HistoryRequest",
         "type": "object"
       },
       "Kind": {
@@ -1772,6 +1807,16 @@
               }
             ]
           },
+          "sync_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SyncStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "weeks": {
             "items": {
               "$ref": "#/components/schemas/Metrics"
@@ -1858,6 +1903,109 @@
         "title": "Step",
         "type": "object"
       },
+      "SyncAttempt": {
+        "additionalProperties": false,
+        "properties": {
+          "activity_count": {
+            "default": 0,
+            "title": "Activity Count",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "history_range": {
+            "anyOf": [
+              {
+                "enum": [
+                  "12-weeks",
+                  "6-months",
+                  "everything"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "History Range"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "next_page": {
+            "default": 0,
+            "title": "Next Page",
+            "type": "integer"
+          },
+          "next_page_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Page At"
+          },
+          "result": {
+            "default": "running",
+            "title": "Result",
+            "type": "string"
+          },
+          "since": {
+            "format": "date",
+            "title": "Since",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "until": {
+            "format": "date",
+            "title": "Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "started_at",
+          "since",
+          "until"
+        ],
+        "title": "SyncAttempt",
+        "type": "object"
+      },
       "SyncRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1942,6 +2090,48 @@
           "source"
         ],
         "title": "SyncResult",
+        "type": "object"
+      },
+      "SyncStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "history": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SyncAttempt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_success": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SyncAttempt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SyncAttempt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "skipped": {
+            "default": false,
+            "title": "Skipped",
+            "type": "boolean"
+          }
+        },
+        "title": "SyncStatus",
         "type": "object"
       },
       "SyncWindow": {
@@ -3269,6 +3459,185 @@
           }
         ],
         "summary": "Sync"
+      }
+    },
+    "/sync/history": {
+      "post": {
+        "operationId": "import_history",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HistoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncAttempt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        },
+        "security": [
+          {
+            "CoachBearer": []
+          }
+        ],
+        "summary": "Import History"
+      }
+    },
+    "/sync/open": {
+      "post": {
+        "operationId": "sync_on_open",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        },
+        "security": [
+          {
+            "CoachBearer": []
+          }
+        ],
+        "summary": "Sync On Open"
+      }
+    },
+    "/sync/status": {
+      "get": {
+        "operationId": "get_sync_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        },
+        "security": [
+          {
+            "CoachBearer": []
+          }
+        ],
+        "summary": "Sync Status"
       }
     },
     "/weeks/{number}": {

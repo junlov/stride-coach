@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { AppState } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { Connection, createClient, normalizeConnection } from "../api/client";
 const KEY = "stride-coach.connection";
@@ -57,6 +58,31 @@ export function ConnectionProvider({ children }: React.PropsWithChildren) {
     () => (connection ? createClient(connection) : null),
     [connection],
   );
+  useEffect(() => {
+    if (!client) return;
+    let active = true;
+    let pending = false;
+    async function sync() {
+      if (pending || !client) return;
+      pending = true;
+      try {
+        const result = await client.syncOnOpen();
+        if (active && !result.skipped) setRevision((n) => n + 1);
+      } catch {
+        // The read screens retain their retry UI; sync errors are persisted by the server.
+      } finally {
+        pending = false;
+      }
+    }
+    void sync();
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void sync();
+    });
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, [client]);
   const value: State = {
     connection,
     client,

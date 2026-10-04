@@ -1,3 +1,5 @@
+import { HistoryImport } from "../components/history-import";
+import { SyncStatus } from "../components/sync-status";
 import { useRef, useState } from "react";
 import { GarminSettings } from "../components/garmin-settings";
 import { ServerConnection } from "../components/server-connection";
@@ -124,6 +126,8 @@ export default function SettingsScreen() {
               onBusyChange={setGarminBusy}
             />
           )}
+          <SyncStatus />
+          <HistoryImport />
           <Card>
             <Heading>Your data</Heading>
             <Copy>Your training history and plan live on your own server.</Copy>

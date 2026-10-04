@@ -54,6 +54,23 @@ class GarminClient:
         )
         return [normalize_activity(r) for r in rows]
 
+    def activity_page(self, since: date, until: date, offset: int, limit: int = 100):
+        rows = self._call(
+            self.api.connectapi,
+            self.api.garmin_connect_activities,
+            params={
+                "startDate": since.isoformat(),
+                "endDate": until.isoformat(),
+                "start": str(offset),
+                "limit": str(limit),
+                "activityType": "running",
+                "sortOrder": "asc",
+            },
+        )
+        if not isinstance(rows, list):
+            raise GarminError("Unexpected Garmin activity page. Retry the import.")
+        return [normalize_activity(row) for row in rows]
+
     def activity_detail(self, activity_id: str, *, gps: bool = True):
         from .activity_capture import fetch_detail
 
