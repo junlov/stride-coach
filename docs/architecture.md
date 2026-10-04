@@ -6,7 +6,7 @@ keeps one plan, normalized activities, remote workout mappings,
 write intents, typed sync coverage, and applied adjustments in PostgreSQL.
 `db_models.py` defines SQLAlchemy typed columns, enums, foreign keys, and the single-plan constraint.
 Packaged Alembic revisions apply at API startup or through `stride-coach db upgrade`.
-Core records are relational; no plan, activity, or adjustment is serialized into a JSON column.
+Core records are relational. See [run data storage](activity-data.md) for detail storage and raw provider payloads.
 `adaptation.week_metrics` computes matches from the current plan and activities on demand.
 A relational match table is refreshed transactionally after initialization, sync, import, and adaptation.
 Applied plan changes and their adjustment record commit in one transaction.
@@ -87,10 +87,10 @@ planned month may require manual inspection. `remove` is scoped to the active lo
 
 ## Data and testing
 
-Garmin's local activity date is used for matching. Original titles, locations, and raw exports
-are not stored in PostgreSQL. OAuth tokens and an optional account display name live only in the
-private connection store. Generic Garmin running activities have unknown session type;
-inferred matches are labeled. Normalized imports can supply a `kind`. Best-effort status
+Garmin's local activity date is used for matching.
+See [original files and privacy](activity-data.md#original-files-and-privacy) for retained data and GPS controls.
+OAuth tokens and an optional account display name live only in the private connection store.
+Generic Garmin running activities have unknown session type; inferred matches are labeled. Normalized imports can supply a `kind`. Best-effort status
 must be supplied explicitly; it is never guessed from an ordinary activity title.
 
 The CLI's JSON output is intended for inspection and scripts. The MCP process reserves

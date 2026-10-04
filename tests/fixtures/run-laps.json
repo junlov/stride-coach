@@ -1,0 +1,6 @@
+{"lapDTOs": [{"distance": 1000, "duration": 360, "averageSpeed": 2.7777777778,
+ "averageHR": 140, "maxHR": 160, "averageRunCadence": 172, "elevationGain": 7,
+ "elevationLoss": 3, "averagePower": 225, "maxPower": 300},
+ {"distance": 1500, "duration": 540, "averageSpeed": 2.7777777778,
+ "averageHR": 145, "maxHR": 170, "averageRunCadence": 174, "elevationGain": 5,
+ "elevationLoss": 7, "averagePower": 235, "maxPower": 340}]}

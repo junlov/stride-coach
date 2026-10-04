@@ -9,9 +9,9 @@ RUN uv sync --locked --no-dev --no-editable
 
 FROM python:3.13.7-slim-bookworm@sha256:adafcc17694d715c905b4c7bebd96907a1fd5cf183395f0ebc4d3428bd22d92d AS runtime
 ENV PATH=/opt/venv/bin:$PATH PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \
-    STRIDE_COACH_TOKENS=/data/garmin TZ=UTC PORT=8000
+    STRIDE_COACH_TOKENS=/data/garmin STRIDE_COACH_FIT_DIR=/data/fit TZ=UTC PORT=8000
 RUN groupadd --gid 10001 coach && useradd --uid 10001 --gid coach --no-create-home coach \
-    && mkdir -p /data/garmin && chown -R coach:coach /data && chmod 700 /data/garmin
+    && mkdir -p /data/garmin /data/fit && chown -R coach:coach /data && chmod 700 /data/garmin /data/fit
 COPY --from=build /opt/venv /opt/venv
 USER 10001:10001
 EXPOSE 8000

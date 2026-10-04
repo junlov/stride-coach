@@ -17,7 +17,7 @@ from .db_models import (
     WriteIntentRow,
     WriteOperation,
 )
-from .models import Activity, Adjustment, Plan
+from .models import Activity, ActivityCore, Adjustment, Plan
 from .storage import Store
 
 
@@ -51,7 +51,9 @@ def import_sqlite(path: Path, store: Store) -> dict[str, int]:
             store._initialize(session, plans[0])
         if (adjustments or scheduled) and not plans:
             raise ValueError("Legacy adjustment/remote ledger has no owning plan")
-        session.add_all(ActivityRow(**a.model_dump()) for a in activities)
+        session.add_all(
+            ActivityRow(**a.model_dump(include=set(ActivityCore.model_fields))) for a in activities
+        )
         session.add_all(AdjustmentRow(plan_id=plans[0].id, **a.model_dump()) for a in adjustments)
         session.add_all(
             ScheduledRow(**{**row, "scheduled": bool(row["scheduled"])}) for row in scheduled

@@ -5,6 +5,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .activity_models import CaptureStatus, HeartRateZone, RunLap, RunMetrics, RunStreams
+
 
 class Record(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
@@ -40,7 +42,7 @@ class Athlete(Record):
         return self
 
 
-class Activity(Record):
+class ActivityCore(Record):
     id: str
     day: date
     distance_km: float = Field(ge=0, le=500)
@@ -49,6 +51,20 @@ class Activity(Record):
     sport: str = "running"
     kind: Kind | None = None
     best_effort: bool = False
+
+
+class RunDetail(ActivityCore):
+    metrics: RunMetrics | None = None
+    raw_summary: dict | None = None
+    laps: list[RunLap] | None = None
+    splits: list[RunLap] | None = None
+    hr_zones: list[HeartRateZone] | None = None
+    capture: CaptureStatus | None = None
+
+
+class Activity(RunDetail):
+    streams: RunStreams | None = None
+    source: str = "local"
 
 
 class Setup(Record):

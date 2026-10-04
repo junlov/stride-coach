@@ -1,0 +1,120 @@
+{
+  "metricDescriptors": [
+    {
+      "key": "directPower",
+      "metricsIndex": 0
+    },
+    {
+      "key": "sumDistance",
+      "metricsIndex": 1
+    },
+    {
+      "key": "directTimestamp",
+      "metricsIndex": 2
+    },
+    {
+      "key": "directHeartRate",
+      "metricsIndex": 3
+    },
+    {
+      "key": "directSpeed",
+      "metricsIndex": 4
+    },
+    {
+      "key": "directRunCadence",
+      "metricsIndex": 5
+    },
+    {
+      "key": "directElevation",
+      "metricsIndex": 6
+    },
+    {
+      "key": "directLatitude",
+      "metricsIndex": 7
+    },
+    {
+      "key": "directLongitude",
+      "metricsIndex": 8
+    }
+  ],
+  "activityDetailMetrics": [
+    {
+      "metrics": [
+        230,
+        0,
+        1788256800000,
+        140.0,
+        2.7777777778,
+        172,
+        5.0,
+        -23.0,
+        -46
+      ]
+    },
+    {
+      "metrics": [
+        230,
+        500,
+        1788256980000,
+        141.8,
+        2.7777777778,
+        172,
+        6.8,
+        -22.9982,
+        -46
+      ]
+    },
+    {
+      "metrics": [
+        230,
+        1000,
+        1788257160000,
+        143.6,
+        2.7777777778,
+        172,
+        8.6,
+        -22.9964,
+        -46
+      ]
+    },
+    {
+      "metrics": [
+        230,
+        1500,
+        1788257340000,
+        145.4,
+        2.7777777778,
+        172,
+        10.4,
+        -22.9946,
+        -46
+      ]
+    },
+    {
+      "metrics": [
+        230,
+        2000,
+        1788257520000,
+        147.2,
+        2.7777777778,
+        172,
+        12.2,
+        -22.9928,
+        -46
+      ]
+    },
+    {
+      "metrics": [
+        230,
+        2500,
+        1788257700000,
+        149.0,
+        2.7777777778,
+        172,
+        14.0,
+        -22.991,
+        -46
+      ]
+    }
+  ]
+}

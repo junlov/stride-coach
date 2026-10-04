@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
+from .activity_storage import save_details
 from .database import WRITE_LOCK, check_schema, connection_lock, database_url, make_engine, upgrade
 from .db_models import (
     ActivityRow,
@@ -21,7 +22,7 @@ from .db_models import (
     WriteIntentRow,
     WriteOperation,
 )
-from .models import Activity, Adjustment, Athlete, Fitness, Plan, Setup, Step, Workout
+from .models import Activity, ActivityCore, Adjustment, Athlete, Fitness, Plan, Setup, Step, Workout
 
 
 def fields(row, model):
@@ -156,7 +157,7 @@ class Store:
 
     def _activities(self, session):
         return [
-            Activity(**fields(row, Activity))
+            Activity(**fields(row, ActivityCore))
             for row in session.scalars(select(ActivityRow).order_by(ActivityRow.id))
         ]
 
@@ -173,10 +174,20 @@ class Store:
             raise ValueError("Sync needs since <= until <= today")
         complete_end = min(end, today - timedelta(days=1))
         with self.lock(), self.transaction() as session:
-            session.execute(delete(ActivityRow).where(ActivityRow.day.between(begin, end)))
+            # Preserve children for activities still present in the authoritative window.
+            ids = [a.id for a in activities if begin <= a.day <= end]
+            session.execute(
+                delete(ActivityRow).where(
+                    ActivityRow.day.between(begin, end), ActivityRow.id.not_in(ids)
+                )
+            )
             for activity in activities:
                 if begin <= activity.day <= end:
-                    session.merge(ActivityRow(**activity.model_dump()))
+                    session.merge(
+                        ActivityRow(**activity.model_dump(include=set(ActivityCore.model_fields)))
+                    )
+                    session.flush()
+                    save_details(session, activity)
             session.merge(
                 MetadataRow(key="sync", since=begin, until=end, updated_at=datetime.now(UTC))
             )
