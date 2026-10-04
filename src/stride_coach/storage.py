@@ -14,6 +14,7 @@ from .db_models import (
     ActivityRow,
     AdjustmentRow,
     DailyAdjustmentRow,
+    GarminCalendarRow,
     MatchRow,
     MetadataRow,
     PlanRow,
@@ -389,6 +390,32 @@ class Store:
         with self.transaction() as session:
             row = session.get(MetadataRow, "sync_complete" if complete else "sync")
             return {"since": str(row.since), "until": str(row.until)} if row and row.since else {}
+
+    def calendar_settings(self) -> dict:
+        with self.transaction() as session:
+            row = session.get(GarminCalendarRow, 1)
+            return {
+                "window_days": row.window_days if row else 14,
+                "synced_fingerprint": row.synced_fingerprint if row else None,
+            }
+
+    def save_calendar_settings(self, days: int):
+        if not 7 <= days <= 28:
+            raise ValueError("Garmin window must be between 7 and 28 days")
+        with self.lock(), self.transaction() as session:
+            row = session.get(GarminCalendarRow, 1)
+            if row:
+                row.window_days = days
+            else:
+                session.add(GarminCalendarRow(id=1, window_days=days))
+
+    def calendar_synced(self, digest: str | None):
+        with self.transaction() as session:
+            row = session.get(GarminCalendarRow, 1)
+            if row:
+                row.synced_fingerprint = digest
+            else:
+                session.add(GarminCalendarRow(id=1, window_days=14, synced_fingerprint=digest))
 
     def scheduled(self, workout_id: str):
         with self.transaction() as session:

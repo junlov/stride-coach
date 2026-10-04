@@ -1,3 +1,4 @@
+import { GarminWindowSettings } from "../components/garmin-calendar";
 import { HistoryImport } from "../components/history-import";
 import { SyncStatus } from "../components/sync-status";
 import { useRef, useState } from "react";
@@ -126,6 +127,7 @@ export default function SettingsScreen() {
               onBusyChange={setGarminBusy}
             />
           )}
+          <GarminWindowSettings key={connectionVersion} />
           <SyncStatus />
           <HistoryImport />
           <Card>

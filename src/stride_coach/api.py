@@ -38,6 +38,9 @@ from .recovery_models import DailyAdaptRequest, DailyProposal, DailyReadiness
 from .service import (
     DEFAULT_TOKENS,
     AdaptRequest,
+    CalendarRequest,
+    CalendarResult,
+    CalendarSettings,
     Coach,
     Created,
     GoalRequest,
@@ -408,6 +411,33 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
     )
     def daily_adapt(body: DailyAdaptRequest, service: Service):
         return service.daily_adjustment(body, today=worker.now().date())
+
+    @app.get(
+        "/calendar/settings",
+        response_model=CalendarSettings,
+        responses=errors,
+        operation_id="get_calendar_settings",
+    )
+    def calendar_settings(service: Service):
+        return service.calendar_settings()
+
+    @app.post(
+        "/calendar/settings",
+        response_model=CalendarSettings,
+        responses=errors,
+        operation_id="save_calendar_settings",
+    )
+    def save_calendar_settings(body: CalendarSettings, service: Service):
+        return service.save_calendar_settings(body)
+
+    @app.post(
+        "/calendar",
+        response_model=CalendarResult,
+        responses=errors,
+        operation_id="reconcile_calendar",
+    )
+    def calendar(body: CalendarRequest, service: Service):
+        return service.calendar(body)
 
     @app.post("/push", response_model=list[WriteResult], responses=errors, operation_id="push_plan")
     def push(body: PushRequest, service: Service):
