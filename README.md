@@ -214,6 +214,38 @@ manually moved calendar entries to another month, inspect those entries in Garmi
 Unrelated workouts are untouched. Do not erase the local ledger to work around an uncertain
 upload; inspect Garmin first. An unresolved, invisible upload intentionally blocks retry/removal.
 
+### Use one training plan on your watch
+
+Before your first Stride Coach push, turn off Garmin Daily Suggested Workout
+**prompts** and pause or quit any competing Garmin Coach plan. Stride Coach does
+not change those settings or detect competing plans. Disabling prompts does not
+stop Garmin generating suggestions or delete scheduled workouts.
+
+- **On the watch:** on a Forerunner 255, press START, choose Run, then hold UP.
+  Open **Training > Workouts > Daily Suggestions > Settings > Workout Prompt**
+  and use START to turn the prompt off. This is the
+  [Garmin-documented Forerunner 255 procedure](https://www8.garmin.com/manuals-apac/webhelp/forerunner255series/EN-SG/GUID-D7EE59E8-45FD-4EFF-B627-10D09D77E44F-6878.html).
+  Menu names vary by model and software; consult your watch manual if they differ.
+- **Daily suggestions in Garmin Connect:** a Connect app or web switch for turning
+  these off was not confirmed in Garmin's public help. Use the watch control above.
+- **Stop an adaptive running or Garmin Coach plan in Connect:** in the phone app,
+  open **More > Training & Planning > Garmin Coach Plans**, open the active plan,
+  then its three-dot menu. Choose **Pause Plan** for a temporary break or
+  **Quit Plan** to end it. On the website, open **Training & Planning > Garmin
+  Coach Plans**, then the gear beside the plan name and choose **Pause Plan** or
+  **Quit Plan**. Quitting cannot be undone; resuming requires a new plan. Completed
+  workouts stay in your calendar, while unfinished workouts for today and later
+  are removed. Self-guided plans cannot be paused. See
+  [Garmin's running plan help](https://support.garmin.com/en-US/?faq=IkvWNeIoSd48GIYCjkhlo7&productID=707538&tab=topics)
+  and [plan management help](https://support.garmin.com/en-AU/?faq=o21H5a4cSU52FwFAy0R6Z5&productID=707538&tab=topics).
+- **Stop a Coach plan on the watch:** a watch-only pause/quit procedure was not
+  confirmed in those public help pages. Stop the plan in Connect, then sync your
+  watch and check its upcoming workouts before sending Stride Coach workouts.
+
+Garmin settings and every push confirmation in the app include a reminder,
+including the first push. Check Garmin's calendar and the watch yourself to make
+sure you are following only the plan you intend.
+
 ## Weekly loop
 
 On Monday, sync through the completed Sunday, review the proposal, then apply it locally.

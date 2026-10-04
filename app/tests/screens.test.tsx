@@ -93,6 +93,40 @@ test("plan expands workouts and progress shows incomplete heart-rate load", asyn
   ).toBeTruthy();
   await view.unmount();
 });
+test.each([true, false])(
+  "Garmin settings show the one-plan reminder when connected=%s",
+  async (connected) => {
+    server = mockServer({ "/garmin/status": { connected } });
+    await mount(<SettingsScreen />);
+    expect(
+      await screen.findByText(
+        /For one training plan on your watch, turn off Garmin Daily Suggested Workout prompts/,
+      ),
+    ).toBeTruthy();
+  },
+);
+test.each(["push", "remove"] as const)(
+  "%s preview renders the coaching reminder only for a push",
+  async (action) => {
+    await mount(<ActionsScreen />);
+    expect(
+      screen.queryByText(/For one training plan on your watch/),
+    ).toBeNull();
+    await fireEvent.press(
+      await screen.findByText(
+        action === "push" ? "Preview Garmin push" : "Preview Garmin removal",
+      ),
+    );
+    await screen.findByText("Garmin dry-run preview");
+    expect(
+      Boolean(
+        screen.queryByText(
+          /For one training plan on your watch, turn off Garmin Daily Suggested Workout prompts/,
+        ),
+      ),
+    ).toBe(action === "push");
+  },
+);
 test.each(["push", "remove"] as const)(
   "%s requires server preview and explicit confirmation",
   async (action) => {

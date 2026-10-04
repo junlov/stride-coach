@@ -95,6 +95,15 @@ The onboarding and settings screens follow the phone’s light or dark appearanc
 `src/theme/index.ts` and `src/components/ui.tsx`. Expo system UI enables appearance changes in
 Android builds, as described in [Expo’s color theme guide](https://docs.expo.dev/develop/user-interface/color-themes/).
 
+Before sending workouts, [set up one training plan on your watch](../README.md#use-one-training-plan-on-your-watch):
+turn off Daily Suggested Workout prompts on the watch and pause or quit an active
+Garmin Coach or adaptive running plan in Garmin Connect. The linked guide gives
+confirmed watch, Connect app, and website steps, and marks unconfirmed controls.
+Turning off prompts does not remove suggestions or stop a Coach plan. After changing
+the plan in Connect, sync the watch and check its upcoming workouts. Stride Coach
+shows a reminder in Garmin settings and every push confirmation, including your
+first push; it does not detect clashes or change Garmin's coaching settings.
+
 **Refresh Garmin status** shows the connected account (when available) and access-token expiry.
 **Disconnect Garmin** opens a confirmation; only **Confirm disconnect** deletes tokens from
 the server and cancels pending login. It does not erase
