@@ -104,7 +104,7 @@ OAuth tokens and an optional account display name live only in the private conne
 Generic Garmin running activities have unknown session type; inferred matches are labeled. Normalized imports can supply a `kind`. Best-effort status
 must be supplied explicitly; it is never guessed from an ordinary activity title.
 
-The CLI's JSON output is intended for inspection and scripts. The MCP process reserves
+The CLI's JSON output is intended for inspection and scripts. The standalone stdio MCP process reserves
 stdout for stdio protocol traffic. See the [test setup](self-hosting.md#local-offline-tests-and-synthetic-proof)
 for PostgreSQL requirements and synthetic demos. No live Garmin write belongs in tests or CI.
 
