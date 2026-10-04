@@ -255,7 +255,7 @@ def reconcile_unschedule(store: Store, workout_id: str, remote: dict | None, eve
         not cached
         or not remote
         or str(remote["workoutId"]) != cached["remote_id"]
-        or remote.get("description") != f"stride-coach:v1:{workout_id}"
+        or f"stride-coach:v1:{workout_id}" not in (remote.get("description") or "").splitlines()
     ):
         return
     if any(
@@ -399,7 +399,7 @@ def delete_owned(store: Store, client, remote: dict, workout_id: str, events: li
     """Share deletion mechanics while treating a fresh detail tag as authority."""
     remote_id = str(remote["workoutId"])
     detail = client.workout(remote_id)
-    if detail.get("description") != f"stride-coach:v1:{workout_id}":
+    if f"stride-coach:v1:{workout_id}" not in (detail.get("description") or "").splitlines():
         raise GarminError("Workout ownership changed. Preview Garmin changes again.")
     cached = store.scheduled(workout_id)
     if cached and cached["remote_id"] == remote_id:
@@ -449,7 +449,14 @@ def reconcile_calendar(store: Store, client, today: date, *, apply=False, previe
         # including old or renamed workouts that are no longer in the local plan.
         for item in inventory:
             remote = client.workout(str(item["workoutId"]))
-            match = re.fullmatch(r"stride-coach:v1:(.+)", remote.get("description") or "")
+            match = next(
+                (
+                    match
+                    for line in (remote.get("description") or "").splitlines()
+                    if (match := re.fullmatch(r"stride-coach:v1:(.+)", line))
+                ),
+                None,
+            )
             if not match:
                 continue
             workout_id = match[1]
