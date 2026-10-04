@@ -12,3 +12,9 @@ dist/
 .garminconnect/
 *token*.json
 .local/
+node_modules/
+.expo/
+app/coverage/
+app/ios/
+app/android/
+*.tsbuildinfo

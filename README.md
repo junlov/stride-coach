@@ -224,6 +224,12 @@ stable operation IDs, enums, request/response models, and the `CoachBearer` secu
 Regenerate it after API changes with `uv run python examples/export_openapi.py`; tests fail
 if it differs from the application. The API has no background polling or automatic writes.
 
+## iOS and Android app
+
+The [Expo mobile app](app/README.md) connects to your own server for daily workouts, plans,
+goal setup, training progress, and preview-first Garmin actions. See its guide for Expo Go,
+secure connection settings, offline tests, and EAS builds.
+
 ## Development and offline proof
 
 ```sh
