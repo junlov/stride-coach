@@ -85,7 +85,8 @@ Garmin credentials or writes. Live Garmin rendering has not been verified.
 API workout summaries expose `step_descriptions` from the same formatter used by the Garmin
 builder. Notes include the end condition, primary target, optional cadence and a short cue.
 Distance is in meters, Lap steps say "press Lap" with a time estimate, and groups show the
-repeat count and whether to skip the last recovery. Notes use a conservative 200-character
+repeat count and whether to skip the last recovery. Each executable step note uses a conservative 200-character
 budget, below the [212-character note limit reported on Garmin's forum](https://forums.garmin.com/sports-fitness/cycling/f/edge-530/209957/display-step-notes).
 The client library does not validate note length; this budget is an application limit, not
 an assertion that every Garmin device displays all 200 characters.
+API repeat summaries combine child notes and can exceed this limit.
