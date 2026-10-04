@@ -37,8 +37,11 @@ profile below. SDK 58 is not used while it is on npm's prerelease channel.
    for now**. The app sends credentials once over the authenticated connection and clears the
    password immediately. If requested, enter the MFA code Garmin sends. The challenge expires
    after five minutes. After a failed completion, use **Restart Garmin sign-in** for a new
-   explicit login. After connecting, tap **Continue to goal**. You can also connect later in **Settings**.
-5. Choose your goal, Monday start, race or completion date, weekly running days, long-run day,
+   explicit login. After connecting, tap **Continue to import**. You can also connect later in **Settings**.
+5. **Import past runs** offers 12 weeks, 6 calendar months, or everything. Wait for Complete,
+   then **Continue to goal** so the imported runs inform the initial fitness estimate. **Skip import
+   for now** continues using the history already stored on the server. Skipping Garmin bypasses import.
+6. Choose your goal, Monday start, race or completion date, weekly running days, long-run day,
    and heart rates. **Review goal** shows the exact constraints before **Confirm new plan**
    creates it. Review any starting-fitness warnings, then tap **Go to Today**. If the server
    already has a plan, the wizard opens that plan instead of attempting to replace it.
@@ -53,9 +56,11 @@ If plan creation fails or times out, the app reads server status to find an exis
 If that read succeeds, tap **Go to Today**.
 If it fails, tap **Check plan status** to retry the read before submitting the goal again.
 
-The **Import past runs** step is hidden by default. `ImportPastRunsStep` in
-`src/screens/onboarding.tsx` is the extension slot immediately after Garmin for a future
-server-backed import flow. The current wizard makes no import or Garmin sync requests.
+The **Import past runs** step uses `HistoryImport` through the `ImportPastRunsStep` slot in
+`src/screens/onboarding.tsx`. The same controls in Settings show progress and offer **Resume import**
+after a connection failure. Imports run on the server and resume after server restarts.
+The app triggers a read-only sync on open or resume; the server enforces a six-hour interval by
+default and silently skips disconnected Garmin accounts.
 
 In **Settings**, **Manage connection** opens the server form. Test and save a changed URL or
 bearer token there. **Forget connection** opens a confirmation showing what will be removed.
@@ -74,8 +79,9 @@ Connected settings show activity coverage from `/status` separately from the Gar
 Without a plan, `/status` fails and the app shows coverage as unavailable, even when stored activities exist.
 After creating a plan, use **Retry activity coverage** to load coverage.
 The empty coverage message appears only after a successful response without coverage.
-The API does not expose a last-successful-sync timestamp or distinguish expired sessions from
-all other disconnections, so the app does not invent either value.
+Settings, Today, and Actions also show the last successful sync timestamp and latest sync error
+from `/sync/status`, which works before a plan exists. Reconnect guidance does not claim that every
+request failure is an expired session. Progress shows saved reasons for each applied adjustment.
 
 See the root [Garmin guide](../README.md#garmin-authentication-and-first-live-check) for container
 storage, server configuration, MFA worker requirements, upstream login limitations, and CLI commands.
@@ -127,7 +133,9 @@ Avoid concurrent changes from another client while reviewing.
 For failed writes, follow the [recovery guidance](#runner-design-and-api-limits) before another attempt.
 The app shows errors, including 401 and timeouts, on screen. Read screens offer Retry and reload on focus or app resume.
 Today and Week also reload at local midnight.
-There is no background sync, notification service, or multi-user account.
+The server runs daily activity sync at a configurable time and imports history in paced pages.
+See [sync configuration](../docs/self-hosting.md#automatic-sync-and-import-recovery).
+There is no notification service or multi-user account.
 See [API limits](#runner-design-and-api-limits) for excluded features.
 
 ## Generated API contract

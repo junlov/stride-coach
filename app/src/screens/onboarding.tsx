@@ -3,6 +3,7 @@ import { useRootNavigationState, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { HistoryImport } from "../components/history-import";
 import { GarminSettings } from "../components/garmin-settings";
 import { ServerConnection } from "../components/server-connection";
 import { Button, Card, Copy, Heading, Muted, Page } from "../components/ui";
@@ -10,13 +11,13 @@ import { useConnection } from "../state/connection";
 import { useTheme } from "../theme";
 import GoalScreen from "./goal";
 
-// Extension slot: Import past runs. Hidden until a server-backed step is supplied.
+// The import step can be replaced by hosts embedding this wizard.
 export type ImportPastRunsStep = (props: {
   onContinue: () => void;
 }) => React.ReactNode;
 
 export function OnboardingScreen({
-  importPastRunsStep: ImportPastRuns,
+  importPastRunsStep: ImportPastRuns = GarminHistoryStep,
   onComplete,
 }: {
   importPastRunsStep?: ImportPastRunsStep;
@@ -33,12 +34,10 @@ export function OnboardingScreen({
     setStep(hasPlan ? "existing" : "goal");
   }
   function afterGarmin() {
-    if (ImportPastRuns) setStep("import");
-    else goalStep();
+    setStep("import");
   }
   if (step === "goal") return <GoalScreen onComplete={complete} />;
-  if (step === "import" && ImportPastRuns)
-    return <ImportPastRuns onContinue={goalStep} />;
+  if (step === "import") return <ImportPastRuns onContinue={goalStep} />;
   if (step === "existing")
     return (
       <Page eyebrow="Your coach is connected" title="Your plan is ready.">
@@ -55,8 +54,8 @@ export function OnboardingScreen({
     <Page
       eyebrow={
         step === "server"
-          ? "Welcome to Stride Coach · 1 of 3"
-          : "Connect Garmin · 2 of 3"
+          ? "Welcome to Stride Coach · 1 of 4"
+          : "Connect Garmin · 2 of 4"
       }
       title={
         step === "server"
@@ -88,14 +87,14 @@ export function OnboardingScreen({
             />
           )}
           <Button
-            label="Continue to goal"
+            label="Continue to import"
             onPress={afterGarmin}
             disabled={garminBusy}
           />
           <Button
             label="Skip Garmin for now"
             variant="secondary"
-            onPress={afterGarmin}
+            onPress={goalStep}
             disabled={garminBusy}
           />
           <Muted>
@@ -105,6 +104,31 @@ export function OnboardingScreen({
         </>
       )}
       <Muted>PRIVATE TRAINING · YOUR SERVER</Muted>
+    </Page>
+  );
+}
+
+function GarminHistoryStep({ onContinue }: { onContinue: () => void }) {
+  const [imported, setImported] = useState(false);
+  return (
+    <Page
+      eyebrow="Import past runs · 3 of 4"
+      title="Start with your running history."
+    >
+      <HistoryImport onComplete={() => setImported(true)} />
+      <Button
+        label="Continue to goal"
+        onPress={onContinue}
+        disabled={!imported}
+      />
+      <Button
+        label="Skip import for now"
+        variant="secondary"
+        onPress={onContinue}
+      />
+      <Muted>
+        Wait for Complete to use these runs in your initial fitness estimate.
+      </Muted>
     </Page>
   );
 }

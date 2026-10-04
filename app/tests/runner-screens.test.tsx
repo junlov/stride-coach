@@ -190,7 +190,12 @@ test("an explicit adjustment rejection displays eligibility and cannot apply a s
 });
 
 test("expired authentication shows Settings recovery with no cached workout", async () => {
-  server.mockResolvedValueOnce(response({}, 401));
+  const original = server.getMockImplementation()!;
+  server.mockImplementation(async (input) =>
+    new URL(String(input)).pathname === "/status"
+      ? response({}, 401)
+      : original(input),
+  );
   await mount(<TodayScreen />);
   expect(
     await screen.findByText("Your connection needs attention."),
