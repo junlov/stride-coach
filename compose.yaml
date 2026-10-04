@@ -8,6 +8,7 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-stride}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-stride}}
+      STRIDE_COACH_PUBLIC_URL: ${STRIDE_COACH_PUBLIC_URL:-}
       STRIDE_COACH_API_TOKEN: ${STRIDE_COACH_API_TOKEN:?Set STRIDE_COACH_API_TOKEN in .env}
       STRIDE_COACH_TOKENS: ${STRIDE_COACH_TOKENS:-/data/garmin}
       STRIDE_COACH_CORS_ORIGINS: ${STRIDE_COACH_CORS_ORIGINS:-}

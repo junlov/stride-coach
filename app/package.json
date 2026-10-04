@@ -5,6 +5,7 @@
   "dependencies": {
     "expo": "~57.0.26",
     "expo-build-properties": "~57.0.22",
+    "expo-camera": "~57.0.6",
     "expo-constants": "~57.0.20",
     "expo-dev-client": "~57.0.19",
     "expo-linking": "~57.0.11",

@@ -112,7 +112,9 @@ for PostgreSQL requirements and synthetic demos. No live Garmin write belongs in
 
 The API requires one configured secret through `STRIDE_COACH_API_TOKEN`, with a minimum
 length of 32 characters and constant-time comparison. It does not issue tokens or host user
-accounts. Every data route and the runtime OpenAPI endpoint require bearer authentication.
+accounts. Data routes and the runtime OpenAPI endpoint require bearer authentication.
+The public pairing exchange transfers the existing token with a one-time code.
+See [phone pairing](self-hosting.md#phone-pairing) for its security rules and limits.
 CORS allows only configured exact origins and the needed methods/headers. Deployment uses
 HTTPS at a trusted reverse proxy; the built-in server defaults to loopback and disables
 request access logging. `serve` validates configuration before accepting traffic.

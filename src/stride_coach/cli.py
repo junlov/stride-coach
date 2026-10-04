@@ -271,6 +271,55 @@ def status(ctx: typer.Context):
 
 
 @app.command()
+def pair(
+    server: Annotated[str, typer.Option(envvar="STRIDE_COACH_PUBLIC_URL")],
+    api_url: Annotated[
+        str, typer.Option(envvar="STRIDE_COACH_PAIR_API_URL")
+    ] = "http://127.0.0.1:8000",
+):
+    """Print a one-time QR code for the phone using the server token from the environment."""
+    import os
+    from io import StringIO
+    from urllib.parse import urlencode
+
+    import httpx
+    import qrcode
+
+    from .pairing import PairingCode, server_url
+
+    try:
+        public_url = server_url(server)
+        target = server_url(api_url)
+        token = os.getenv("STRIDE_COACH_API_TOKEN", "")
+        if not token:
+            raise ValueError
+        response = httpx.post(
+            target + "/pairing/codes",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=15,
+            follow_redirects=False,
+        )
+        response.raise_for_status()
+        issued = PairingCode.model_validate(response.json())
+        link = "stridecoach://pair?" + urlencode({"server": public_url, "code": issued.code})
+        qr = qrcode.QRCode(border=4)
+        qr.add_data(link)
+        terminal = StringIO()
+        qr.print_ascii(out=terminal, invert=True)
+    except (ValueError, httpx.HTTPError):
+        typer.echo(
+            "Pairing failed. Check the running server, HTTPS --server URL, --api-url, "
+            "and STRIDE_COACH_API_TOKEN environment variable.",
+            err=True,
+        )
+        raise typer.Exit(1) from None
+    typer.echo(terminal.getvalue())
+    typer.echo(f"Server: {public_url}")
+    typer.echo(f"Pairing code: {issued.code}")
+    typer.echo("Scan to connect in the app. This code expires in 10 minutes and works once.")
+
+
+@app.command()
 def serve(
     ctx: typer.Context,
     host: str = "127.0.0.1",

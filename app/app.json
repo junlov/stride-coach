@@ -31,9 +31,17 @@
             "enableSceneSupport": true
           }
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Stride Coach to scan your server pairing QR code.",
+          "recordAudioAndroid": false,
+          "microphonePermission": false
+        }
       ]
     ],
-    "scheme": "stride-coach",
+    "scheme": ["stride-coach", "stridecoach"],
     "platforms": ["ios", "android"],
     "extra": {
       "router": {},

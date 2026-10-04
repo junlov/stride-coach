@@ -199,9 +199,12 @@ def test_committed_openapi_matches_application(api):
     schema = result.json()
     assert schema == json.loads(Path("docs/openapi.json").read_text())
     assert "CoachBearer" in schema["components"]["securitySchemes"]
-    for path in schema["paths"].values():
+    for name, path in schema["paths"].items():
         for operation in path.values():
-            assert operation["security"] == [{"CoachBearer": []}]
+            if name == "/pairing/exchange":
+                assert not operation.get("security")
+            else:
+                assert operation["security"] == [{"CoachBearer": []}]
 
 
 def test_http_and_direct_service_agree(api, setup, tmp_path):
