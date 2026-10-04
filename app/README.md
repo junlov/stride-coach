@@ -95,6 +95,8 @@ The onboarding and settings screens follow the phone’s light or dark appearanc
 `src/theme/index.ts` and `src/components/ui.tsx`. Expo system UI enables appearance changes in
 Android builds, as described in [Expo’s color theme guide](https://docs.expo.dev/develop/user-interface/color-themes/).
 
+Before sending workouts, follow the [one-plan setup guide](../README.md#use-one-training-plan-on-your-watch) for Garmin controls, app reminders, and limitations.
+
 **Refresh Garmin status** shows the connected account (when available) and access-token expiry.
 **Disconnect Garmin** opens a confirmation; only **Confirm disconnect** deletes tokens from
 the server and cancels pending login. It does not erase

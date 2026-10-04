@@ -125,6 +125,8 @@ To revoke access, [rotate the shared token](../README.md#api-authentication-and-
 ## First run and Garmin
 
 Follow the [mobile connection guide](../app/README.md#connect-your-server) to connect your phone and Garmin during first-run setup.
+Before sending workouts, follow the [one-plan setup guide](../README.md#use-one-training-plan-on-your-watch) for Garmin controls, app reminders, and limitations.
+
 For terminal sign-in, use the same container and volume:
 
 ```sh

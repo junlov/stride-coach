@@ -136,6 +136,11 @@ export function GarminSettings({
         Your server connects to Garmin. This session is separate from the app’s
         server token.
       </Muted>
+      <Muted>
+        For one training plan on your watch, turn off Garmin Daily Suggested
+        Workout prompts and pause or quit any Garmin Coach plan in Garmin
+        Connect before sending Stride Coach workouts.
+      </Muted>
       {disconnected && (
         <Copy>
           Garmin disconnected. Your plan, stored activities and existing Garmin

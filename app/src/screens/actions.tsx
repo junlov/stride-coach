@@ -460,6 +460,13 @@ function ConnectedActions() {
                     : "Confirm plan adjustment"
               }
             >
+              {preview.kind === "push" && (
+                <Muted>
+                  For one training plan on your watch, turn off Garmin Daily
+                  Suggested Workout prompts and pause or quit any Garmin Coach
+                  plan in Garmin Connect before sending Stride Coach workouts.
+                </Muted>
+              )}
               <Muted>
                 {preview.kind === "adapt"
                   ? "Confirm after review. If training data changes, preview and review the new proposal before confirming."
