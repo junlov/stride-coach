@@ -7,6 +7,8 @@
 - CLI, MCP, and HTTP share src/stride_coach/service.py. MCP stays read-only; CLI/API Garmin writes require explicit apply.
 - Mobile API contract: docs/openapi.json, regenerated with uv run python examples/export_openapi.py. See README.md for bearer auth and HTTPS deployment.
 
+- Mobile app setup, generated API types, Expo checks, and synthetic loopback proof: see app/README.md and app/package.json. Keep API types generated from docs/openapi.json.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.

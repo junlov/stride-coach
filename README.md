@@ -1,7 +1,9 @@
 # stride-coach
 
 An open source running coach with deterministic training plans, structured Garmin workouts,
-weekly adaptation from completed runs, and an authenticated JSON API for a future mobile client. Python 3.11+, MIT licensed.
+and weekly adaptation from completed runs.
+The [iOS and Android app](app/README.md) connects to your own server.
+The server requires Python 3.11+. The project is MIT licensed.
 
 **stride-coach is not affiliated with, endorsed by, or a replacement product from Runna,
 Garmin, or V.O2.** It contains original rules and session descriptions, with no imported
@@ -163,7 +165,7 @@ CLI's explicit `adapt WEEK --apply`, with date and sync checks. MCP cannot uploa
 
 ## JSON API for a phone client
 
-The package includes FastAPI; the iOS/Android app is a separate follow-up. CLI, MCP, and API
+The package includes FastAPI. CLI, MCP, and API
 use the same `service.Coach` operations. The API is single-user and requires a bearer token
 on every operation, including the schema endpoint. It accepts the token only in the
 `Authorization: Bearer ...` header, never a query parameter or cookie.
@@ -224,6 +226,12 @@ stable operation IDs, enums, request/response models, and the `CoachBearer` secu
 Regenerate it after API changes with `uv run python examples/export_openapi.py`; tests fail
 if it differs from the application. The API has no background polling or automatic writes.
 
+## iOS and Android app
+
+The [Expo mobile app](app/README.md) connects to your own server for daily workouts, plans,
+goal setup, training progress, and preview-first Garmin actions. See its guide for Expo Go,
+secure connection settings, offline tests, and EAS builds.
+
 ## Development and offline proof
 
 ```sh
@@ -243,6 +251,6 @@ GitHub Actions runs lint and tests on Python 3.11, 3.12, and 3.13 without secret
 Garmin payloads follow upstream API shapes but **have not been verified with live writes**;
 the single-workout check above is required before relying on device delivery.
 
-v1 has no mobile app, web UI, multi-user hosting, other watch vendors, commercial-plan import, or integration
+The project has no web UI, multi-user hosting, other watch vendors, commercial-plan import, or integration
 that changes an existing Garmin analytics project. These are generic training heuristics,
 not clinical return-to-sport clearance. Stop a session if symptoms make running unsafe.
