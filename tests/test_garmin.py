@@ -352,7 +352,9 @@ def test_missing_summary_descriptions_are_loaded_once(store, operation):
         result = remove(store, client, False)
         assert len(result) == len(workouts)
         assert set(client.data) == {"999"}
-    assert reads == Counter({"1": 2, "2": 2, "3": 2, "4": 2, "999": 1})
+    # Removal checks ownership again at the shared deletion boundary.
+    owned_reads = 3 if operation == "remove" else 2
+    assert reads == Counter({**dict.fromkeys(("1", "2", "3", "4"), owned_reads), "999": 1})
 
 
 @pytest.mark.parametrize("operation", ["push", "remove"])
