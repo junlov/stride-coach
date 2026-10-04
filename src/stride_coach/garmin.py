@@ -9,6 +9,7 @@ from typing import Any
 from .garmin_auth import AUTH_ERROR, GarminError, StoredSession, TokenVault
 from .models import Activity, Workout
 from .storage import Store
+from .workout_text import step_description, workout_description, workout_name
 
 SPORT = {"sportTypeId": 1, "sportTypeKey": "running"}
 
@@ -185,7 +186,7 @@ def workout_payload(workout: Workout) -> dict[str, Any]:
         record = {
             "type": "ExecutableStepDTO",
             "stepOrder": index,
-            "description": step.label,
+            "description": step_description(step),
             "stepType": {"stepTypeId": type_id, "stepTypeKey": type_key},
             "endCondition": {"conditionTypeId": 2, "conditionTypeKey": "time"},
             "endConditionValue": round(step.minutes * 60, 3),
@@ -204,8 +205,8 @@ def workout_payload(workout: Workout) -> dict[str, Any]:
             )
         steps.append(record)
     return {
-        "workoutName": f"SC {workout.id} {workout.kind.value}",
-        "description": tag(workout),
+        "workoutName": workout_name(workout),
+        "description": f"{workout_description(workout)}\n{tag(workout)}",
         "sportType": SPORT,
         "estimatedDurationInSecs": round(workout.minutes * 60),
         "workoutSegments": [{"segmentOrder": 1, "sportType": SPORT, "workoutSteps": steps}],
@@ -220,16 +221,23 @@ def pending(store: Store, key: str, state: bool | None = None) -> bool:
     return store.pending(key, state)
 
 
+def has_tag(record: dict, workout: Workout) -> bool:
+    description = record.get("description")
+    return isinstance(description, str) and tag(workout) in description.splitlines()
+
+
 def owned_remote(client, inventory: list[dict], workout: Workout) -> dict | None:
-    # Names narrow inventory reads; description is the ownership authority.
+    # Hydrate summaries without descriptions, including renamed human titles.
+    # A name is only a discovery hint; an exact tag line authorizes ownership.
     candidates = [
         r
         for r in inventory
-        if r.get("workoutName", "").startswith(f"SC {workout.id} ")
-        or r.get("description") == tag(workout)
+        if (r.get("workoutName") or "").startswith(f"SC {workout.id} ")
+        or has_tag(r, workout)
+        or not r.get("description")
     ]
     owned = [client.workout(str(r["workoutId"])) for r in candidates]
-    owned = [r for r in owned if r.get("description") == tag(workout)]
+    owned = [r for r in owned if has_tag(r, workout)]
     if len(owned) > 1:
         raise GarminError("Multiple workouts share an ownership tag; resolve duplicates in Garmin.")
     return owned[0] if owned else None
@@ -316,6 +324,7 @@ def remove(store: Store, client=None, dry_run: bool = True) -> list[dict]:
                     ):
                         client.unschedule(str(item["id"]))
                 client.delete(remote_id)
+                inventory = [r for r in inventory if str(r["workoutId"]) != remote_id]
                 output.append({"remote_id": remote_id, "action": "removed"})
             elif pending(store, f"create:{workout.id}"):
                 raise GarminError(

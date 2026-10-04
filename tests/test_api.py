@@ -78,6 +78,14 @@ def test_api_shared_service_views_and_safe_default_push(api, setup, monkeypatch)
     response = api.post("/push", json={"week": 1}, headers=HEADERS)
     assert response.status_code == 200, response.text
     assert all(r["action"] == "preview" for r in response.json())
+    previews = response.json()
+    plan = api.get("/plan", headers=HEADERS).json()
+    week = api.get("/weeks/1", headers=HEADERS).json()
+    for preview, view in zip(previews, week["workouts"], strict=True):
+        assert preview["payload"]["workoutName"] == view["workout"]["name"]
+        assert view["workout"]["name"] == next(
+            w["name"] for w in plan["workouts"] if w["id"] == view["workout"]["id"]
+        )
     assert api.post("/remove", json={}, headers=HEADERS).status_code == 200
     assert (
         api.post("/push", json={"apply": True, "dry_run": True}, headers=HEADERS).status_code == 400
@@ -231,7 +239,9 @@ def test_store_read_only_rejects_writes(store):
 
     read = Store(store.url, read_only=True)
     try:
-        assert Coach(read).plan() == store.plan()
+        assert (
+            Coach(read).plan().model_dump(exclude_computed_fields=True) == store.plan().model_dump()
+        )
         with pytest.raises(InternalError):
             read.save_sync(
                 [Activity(id="1", day="2026-10-03", distance_km=5, duration_min=30)],

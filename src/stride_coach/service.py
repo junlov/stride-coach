@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import Field
+from pydantic import Field, computed_field
 
 from .activity_capture import capture_pending
 from .activity_models import BackfillResult
@@ -21,6 +21,7 @@ from .garmin_auth import DEFAULT_TOKENS as DEFAULT_TOKENS
 from .models import Activity, Adjustment, Fitness, Plan, Record, Setup, Workout
 from .storage import Store
 from .sync_models import SyncAttempt, SyncStatus
+from .workout_text import workout_name
 
 
 class Match(Record):
@@ -48,8 +49,19 @@ class Load(Record):
     completed_minutes: float
 
 
+class WorkoutSummary(Workout):
+    @computed_field
+    @property
+    def name(self) -> str:
+        return workout_name(self)
+
+
+class PlanView(Plan):
+    workouts: list[WorkoutSummary]
+
+
 class WorkoutView(Record):
-    workout: Workout
+    workout: WorkoutSummary
     minutes: float
 
 
@@ -161,8 +173,8 @@ class Coach:
             warnings=plan.warnings,
         )
 
-    def plan(self) -> Plan:
-        return self.store.plan()
+    def plan(self) -> PlanView:
+        return PlanView.model_validate(self.store.plan().model_dump())
 
     def week(self, number: int) -> WeekView:
         plan = self.plan()
@@ -327,7 +339,8 @@ class Coach:
 
     def propose_adjustment(self, number: int) -> Proposal:
         with self.store.lock():
-            return Proposal(adjustment=propose(self.plan(), self.store.activities(), number))
+            # Fingerprint persisted training data, without presentation-only fields.
+            return Proposal(adjustment=propose(self.store.plan(), self.store.activities(), number))
 
 
 def read_activities(path: Path) -> list[Activity]:
