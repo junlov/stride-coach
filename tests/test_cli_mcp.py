@@ -132,9 +132,13 @@ def test_cli_adapt_positional_week_preview_and_apply(store, monkeypatch):
     args = ["--database-url", str(store.url), "adapt", "2"]
     preview = runner.invoke(app, args)
     assert preview.exit_code == 0, preview.output
-    assert not json.loads(preview.stdout)["applied"]
+    proposal = json.loads(preview.stdout)
+    assert not proposal["applied"]
     assert store.adjustment(2) is None
-    applied = runner.invoke(app, args + ["--apply"])
+    applied = runner.invoke(
+        app,
+        args + ["--apply", "--proposal-fingerprint", proposal["inputs"]["proposal_fingerprint"]],
+    )
     assert applied.exit_code == 0, applied.output
     assert json.loads(applied.stdout)["applied"]
     assert store.adjustment(2).applied
