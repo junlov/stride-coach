@@ -185,7 +185,9 @@ Do not repeatedly retry rejected logins; check status and investigate the failur
 
 **First live verification, after reviewing the plan:**
 
-1. Run `uv run stride-coach plan --week 1` and copy one future workout's `id`.
+1. Run `uv run stride-coach plan --week 1`.
+   Copy the `id` of a workout within the [Garmin calendar window](docs/self-hosting.md#garmin-calendar-window).
+   If week 1 is outside that window, select a week within it for these steps.
 2. Run `uv run stride-coach push --workout WORKOUT_ID --dry-run`. Replace `WORKOUT_ID`
    with that ID. This is fully local: check the date, step durations, and HR or pace targets.
 3. Run `uv run stride-coach push --workout WORKOUT_ID --apply` once. This creates the
