@@ -48,8 +48,14 @@ const mount = (element: React.ReactElement) =>
 const writes = (path: string) =>
   server.mock.calls.filter(([url]) => String(url).endsWith(path));
 
-test("seven days distinguish planned rest from an inferred match, without inventing actual measurements", async () => {
+test("seven days distinguish planned rest from an inferred match with recorded measurements", async () => {
   server = mockServer({
+    "/activities/run-123": {
+      id: "run-123",
+      day: workout.day,
+      duration_min: 32.5,
+      distance_km: 5.25,
+    },
     "/weeks/1": {
       workouts: [{ workout, minutes: 30 }],
       metrics: {
@@ -69,7 +75,9 @@ test("seven days distinguish planned rest from an inferred match, without invent
   await fireEvent.press(screen.getByText("Review matched run"));
   expect(screen.getByText("Activity: run-123")).toBeTruthy();
   expect(screen.getByText("Match method: date-kind")).toBeTruthy();
-  expect(screen.getByText(/recorded duration unavailable/)).toBeTruthy();
+  expect(
+    await screen.findByText("30 planned min · 32.5 recorded min"),
+  ).toBeTruthy();
   expect(screen.getByText(/not confirmed by you/)).toBeTruthy();
   expect(screen.getByRole("button", { name: "Previous week" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Next week" })).toBeDisabled();

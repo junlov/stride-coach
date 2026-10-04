@@ -1,6 +1,17 @@
-import { ReactNode, useState } from "react";
-import { Schema } from "../api/client";
-import { Badge, Button, Card, Copy, Heading, Hero, Muted, Notice } from "./ui";
+import { ReactNode, useCallback, useState } from "react";
+import { Client, Schema } from "../api/client";
+import {
+  Badge,
+  Button,
+  Card,
+  Copy,
+  Heading,
+  Hero,
+  Muted,
+  Notice,
+  QueryState,
+} from "./ui";
+import { useQuery } from "../state/query";
 export function pace(seconds: number) {
   const rounded = Math.round(seconds);
   return `${Math.floor(rounded / 60)}:${String(rounded % 60).padStart(2, "0")}`;
@@ -81,20 +92,91 @@ export function WorkoutCard({
                 This association is inferred by your server, not confirmed by
                 you.
               </Muted>
-              <Heading>Planned → actual</Heading>
-              <Copy>
-                {Math.round(workoutMinutes(workout))} planned min · recorded
-                duration unavailable
-              </Copy>
-              <Muted>
-                Recorded pace, distance, heart rate, laps, route and activity
-                source are not available in this response. Missing heart-rate
-                measurements do not mean zero training load.
-              </Muted>
+              <RunMeasurements
+                key={match.activity_id}
+                activityId={match.activity_id}
+                plannedMinutes={workoutMinutes(workout)}
+              />
             </Notice>
           )}
         </>
       )}
     </Card>
+  );
+}
+
+function measurement(
+  value: number | null | undefined,
+  format: (value: number) => string,
+) {
+  return value == null ? "unavailable" : format(value);
+}
+function RunMeasurements({
+  activityId,
+  plannedMinutes,
+}: {
+  activityId: string;
+  plannedMinutes: number;
+}) {
+  const query = useQuery(
+    useCallback((client: Client) => client.activity(activityId), [activityId]),
+  );
+  const run = query.data;
+  return (
+    <>
+      <QueryState {...query} />
+      {run && (
+        <>
+          <Heading>Planned → actual</Heading>
+          <Copy>
+            {Math.round(plannedMinutes)} planned min ·{" "}
+            {measurement(
+              run.duration_min,
+              (n) => `${n.toFixed(1)} recorded min`,
+            )}
+          </Copy>
+          <Copy>
+            Distance:{" "}
+            {measurement(run.distance_km, (n) => `${n.toFixed(2)} km`)}
+          </Copy>
+          <Copy>
+            Average pace:{" "}
+            {measurement(
+              run.metrics?.average_pace_s_km,
+              (n) => `${pace(n)} /km`,
+            )}
+          </Copy>
+          <Copy>
+            Average heart rate:{" "}
+            {measurement(run.average_hr, (n) => `${Math.round(n)} bpm`)}
+          </Copy>
+          {run.average_hr == null && (
+            <Muted>
+              Missing heart-rate measurements do not mean zero training load.
+            </Muted>
+          )}
+          <Heading>Laps</Heading>
+          {run.laps == null ? (
+            <Muted>Laps unavailable.</Muted>
+          ) : run.laps.length === 0 ? (
+            <Muted>No laps recorded.</Muted>
+          ) : (
+            run.laps.map((lap, index) => (
+              <Notice
+                key={index}
+                title={`Lap ${index + 1} · ${measurement(lap.distance_m, (n) => `${(n / 1000).toFixed(2)} km`)} · ${measurement(lap.duration_s, (n) => `${pace(n)} min`)}`}
+              >
+                <Copy>
+                  Average pace:{" "}
+                  {measurement(lap.average_pace_s_km, (n) => `${pace(n)} /km`)}{" "}
+                  · Average heart rate:{" "}
+                  {measurement(lap.average_hr, (n) => `${Math.round(n)} bpm`)}
+                </Copy>
+              </Notice>
+            ))
+          )}
+        </>
+      )}
+    </>
   );
 }
