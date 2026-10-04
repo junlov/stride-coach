@@ -141,6 +141,44 @@ class MatchRow(Base):
     method: Mapped[str]
 
 
+class StepComplianceRow(Base):
+    __tablename__ = "step_compliance"
+    workout_id: Mapped[str] = mapped_column(
+        ForeignKey("matches.workout_id", ondelete="CASCADE"), primary_key=True
+    )
+    position: Mapped[int] = mapped_column(primary_key=True)
+    label: Mapped[str]
+    planned_seconds: Mapped[float]
+    actual_seconds: Mapped[float | None]
+    duration_in_range: Mapped[bool | None]
+    target: Mapped[str | None]
+    target_score: Mapped[float | None]
+    score: Mapped[float | None]
+    missing: Mapped[str | None]
+
+
+class ReadinessRow(Base):
+    __tablename__ = "daily_readiness"
+    day: Mapped[date] = mapped_column(primary_key=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    training_readiness: Mapped[int | None]
+    hrv_status: Mapped[str | None]
+    sleep_score: Mapped[int | None]
+
+
+class DailyAdjustmentRow(Base):
+    __tablename__ = "daily_adjustments"
+    workout_id: Mapped[str] = mapped_column(ForeignKey("workouts.id"), primary_key=True)
+    day: Mapped[date]
+    proposal_fingerprint: Mapped[str] = mapped_column(unique=True)
+    reasons: Mapped[list[str]]
+    # Immutable evidence and before/after snapshots, not the current plan state.
+    readiness: Mapped[dict] = mapped_column(JSONB)
+    before: Mapped[dict] = mapped_column(JSONB)
+    after: Mapped[dict] = mapped_column(JSONB)
+    garmin_update_required: Mapped[bool]
+
+
 class AdjustmentRow(Base):
     __tablename__ = "adjustments"
     __table_args__ = (ForeignKeyConstraint(["plan_id", "week"], ["weeks.plan_id", "weeks.number"]),)

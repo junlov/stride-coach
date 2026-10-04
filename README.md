@@ -346,13 +346,14 @@ claude mcp add stride-coach -- uv run --directory /absolute/path/to/stride-coach
 ```
 
 Both transports expose `plan`, `week`, `compliance`, `load`, `propose_adjustment`,
-`today_workout`, `current_week`, and `status`.
+`today_workout`, `current_week`, `status`, `readiness`, `activity`, and
+`propose_daily_adjustment`.
 Ask Claude: "What is today's workout, how did this week go, and why did my plan change?"
 `today_workout` distinguishes a workout, a rest day, and a date outside the plan.
 `current_week` returns workouts and measured completion, or a null week outside the plan.
 Both use the server's `TZ` (UTC by default). `status` includes stored sync coverage and
-applied adjustments with reasons and before/after minutes. Empty adjustments mean no saved
-changes; null sync means no stored coverage. Coverage is not the time of the last sync attempt.
+applied adjustments with reasons and before/after minutes. Empty `adjustments` and `daily_adjustments` lists mean no saved changes.
+Null sync means no stored coverage. Coverage is not the time of the last sync attempt.
 The `sync_status` field returns stored sync-attempt details and history import progress.
 See [automatic sync and import recovery](docs/self-hosting.md#automatic-sync-and-import-recovery)
 for their meaning.
@@ -487,7 +488,8 @@ a goal, use **Import past runs** after Connect Garmin (also in Settings): choose
 Imports continue on the server, survive restarts, and offer Resume after a connection error.
 Reconnect Garmin if token renewal fails; no password login is retried automatically.
 
-Sync reads runs only. Applying a proposed adjustment still requires explicit confirmation;
+See [daily recovery](#daily-recovery-and-step-feedback) for the additional observations that sync reads.
+Applying a proposed adjustment still requires explicit confirmation;
 **Progress** shows the saved reasons for every applied adjustment. See [saved adjustment evidence](docs/self-hosting.md#automatic-sync-and-import-recovery)
 for the retained inputs and reasons.
 
@@ -495,3 +497,24 @@ See [automatic sync and import recovery](docs/self-hosting.md#automatic-sync-and
 for API endpoints, restart behavior, range semantics, and configuration limits. A synthetic
 loopback proof is available with `uv run python examples/sync_demo.py` and a disposable
 `TEST_DATABASE_URL`; it makes no live Garmin calls.
+
+### Daily recovery and step feedback
+
+Ordinary Garmin sync also stores today's available Training Readiness, HRV status, and sleep
+score. The app's Today screen shows them; Actions offers a preview of an easier workout for
+tomorrow when the [documented recovery rules](docs/training-rules.md#daily-recovery-proposal)
+trigger. Explicit confirmation is required, and Garmin push remains a separate action.
+
+The authenticated API provides `GET /readiness` (last 30 stored daily records),
+`GET /adjustments/daily` (today's preview), and `POST /adapt/daily` (default preview only).
+To confirm, send `apply: true` and the returned `proposal_fingerprint`. `/status` includes
+saved `daily_adjustments` with their reasons and before/after evidence. MCP adds read-only
+`readiness`, `propose_daily_adjustment`, and `activity(activity_id)` tools. A run detail and
+its `/compliance` match include stored step scores based on captured laps, with missing
+measurements distinct from failed targets.
+
+Synthetic recovery/compliance proof, using the disposable test database:
+
+```sh
+uv run python examples/recovery_demo.py
+```

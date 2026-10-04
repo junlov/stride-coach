@@ -34,6 +34,7 @@ from .garmin_auth import (
 from .mcp import create_server
 from .models import Adjustment, Record, RunDetail
 from .pairing import PairedToken, PairingCode, PairingExchange, PairingStore
+from .recovery_models import DailyAdaptRequest, DailyProposal, DailyReadiness
 from .service import (
     DEFAULT_TOKENS,
     AdaptRequest,
@@ -384,13 +385,37 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
     def load(service: Service):
         return service.load()
 
+    @app.get(
+        "/readiness",
+        response_model=list[DailyReadiness],
+        responses=errors,
+        operation_id="get_readiness",
+    )
+    def readiness(service: Service):
+        return service.readiness()
+
+    @app.get(
+        "/adjustments/daily",
+        response_model=DailyProposal,
+        responses=errors,
+        operation_id="propose_daily_adjustment",
+    )
+    def daily_proposal(service: Service):
+        return service.daily_adjustment(today=worker.now().date())
+
+    @app.post(
+        "/adapt/daily", response_model=DailyProposal, responses=errors, operation_id="adapt_daily"
+    )
+    def daily_adapt(body: DailyAdaptRequest, service: Service):
+        return service.daily_adjustment(body, today=worker.now().date())
+
     @app.post("/push", response_model=list[WriteResult], responses=errors, operation_id="push_plan")
     def push(body: PushRequest, service: Service):
         return service.push(body)
 
     @app.post("/sync", response_model=SyncResult, responses=errors, operation_id="sync_activities")
     def sync(body: SyncRequest, service: Service):
-        return service.sync(body)
+        return service.sync(body, today=worker.now().date())
 
     @app.get(
         "/sync/status", response_model=SyncStatus, responses=errors, operation_id="get_sync_status"

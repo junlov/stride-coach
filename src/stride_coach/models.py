@@ -5,7 +5,14 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .activity_models import CaptureStatus, HeartRateZone, RunLap, RunMetrics, RunStreams
+from .activity_models import (
+    CaptureStatus,
+    HeartRateZone,
+    RunCompliance,
+    RunLap,
+    RunMetrics,
+    RunStreams,
+)
 
 
 class Record(BaseModel):
@@ -54,6 +61,7 @@ class ActivityCore(Record):
 
 
 class RunDetail(ActivityCore):
+    step_compliance: RunCompliance | None = None
     metrics: RunMetrics | None = None
     raw_summary: dict | None = None
     laps: list[RunLap] | None = None

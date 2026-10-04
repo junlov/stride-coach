@@ -55,6 +55,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/adapt/daily": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Daily Adapt */
+        post: operations["adapt_daily"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/adjustments/daily": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Daily Proposal */
+        get: operations["propose_daily_adjustment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/adjustments/propose/{number}": {
         parameters: {
             query?: never;
@@ -259,6 +293,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Readiness */
+        get: operations["get_readiness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/remove": {
         parameters: {
             query?: never;
@@ -425,6 +476,7 @@ export interface components {
              * @default running
              */
             sport?: string;
+            step_compliance?: components["schemas"]["RunCompliance"] | null;
             streams?: components["schemas"]["RunStreams"] | null;
         };
         /** AdaptRequest */
@@ -527,6 +579,60 @@ export interface components {
             sessions: number;
             /** Warnings */
             warnings: string[];
+        };
+        /** DailyAdaptRequest */
+        DailyAdaptRequest: {
+            /**
+             * Apply
+             * @default false
+             */
+            apply?: boolean;
+            /** Proposal Fingerprint */
+            proposal_fingerprint?: string | null;
+        };
+        /** DailyProposal */
+        DailyProposal: {
+            after?: components["schemas"]["Workout"] | null;
+            /**
+             * Applied
+             * @default false
+             */
+            applied?: boolean;
+            before?: components["schemas"]["Workout"] | null;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /**
+             * Garmin Update Required
+             * @default false
+             */
+            garmin_update_required?: boolean;
+            /** Proposal Fingerprint */
+            proposal_fingerprint?: string | null;
+            readiness: components["schemas"]["DailyReadiness"] | null;
+            /** Reasons */
+            reasons: string[];
+        };
+        /** DailyReadiness */
+        DailyReadiness: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /**
+             * Fetched At
+             * Format: date-time
+             */
+            fetched_at: string;
+            /** Hrv Status */
+            hrv_status?: ("BALANCED" | "UNBALANCED" | "LOW" | "POOR" | "UNKNOWN") | null;
+            /** Sleep Score */
+            sleep_score?: number | null;
+            /** Training Readiness */
+            training_readiness?: number | null;
         };
         /** Error */
         Error: {
@@ -646,6 +752,7 @@ export interface components {
             activity_id: string;
             /** Method */
             method: string;
+            step_compliance?: components["schemas"]["RunCompliance"] | null;
             /** Workout Id */
             workout_id: string;
         };
@@ -748,6 +855,25 @@ export interface components {
              */
             dry_run?: boolean;
         };
+        /** RunCompliance */
+        RunCompliance: {
+            /** Missing Steps */
+            missing_steps: number;
+            /**
+             * Rule Version
+             * @default laps-v1
+             * @constant
+             */
+            rule_version?: "laps-v1";
+            /** Score */
+            score?: number | null;
+            /** Scored Steps */
+            scored_steps: number;
+            /** Steps */
+            steps: components["schemas"]["StepCompliance"][];
+            /** Workout Id */
+            workout_id: string;
+        };
         /** RunDetail */
         RunDetail: {
             /** Average Hr */
@@ -786,6 +912,7 @@ export interface components {
              * @default running
              */
             sport?: string;
+            step_compliance?: components["schemas"]["RunCompliance"] | null;
         };
         /** RunLap */
         RunLap: {
@@ -928,6 +1055,8 @@ export interface components {
         Status: {
             /** Adjustments */
             adjustments: components["schemas"]["Adjustment"][];
+            /** Daily Adjustments */
+            daily_adjustments?: components["schemas"]["DailyProposal"][];
             /** Plan Id */
             plan_id: string;
             /** Scheduled Workouts */
@@ -951,6 +1080,27 @@ export interface components {
             pace_max?: number | null;
             /** Pace Min */
             pace_min?: number | null;
+        };
+        /** StepCompliance */
+        StepCompliance: {
+            /** Actual Seconds */
+            actual_seconds?: number | null;
+            /** Duration In Range */
+            duration_in_range?: boolean | null;
+            /** Label */
+            label: string;
+            /** Missing */
+            missing?: string | null;
+            /** Planned Seconds */
+            planned_seconds: number;
+            /** Position */
+            position: number;
+            /** Score */
+            score?: number | null;
+            /** Target */
+            target?: ("pace" | "heart_rate") | null;
+            /** Target Score */
+            target_score?: number | null;
         };
         /** SyncAttempt */
         SyncAttempt: {
@@ -1066,6 +1216,28 @@ export interface components {
             metrics: components["schemas"]["Metrics"];
             /** Workouts */
             workouts: components["schemas"]["WorkoutView"][];
+        };
+        /** Workout */
+        Workout: {
+            /**
+             * Cutback
+             * @default false
+             */
+            cutback?: boolean;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Id */
+            id: string;
+            kind: components["schemas"]["Kind"];
+            /** Phase */
+            phase: string;
+            /** Steps */
+            steps: components["schemas"]["Step"][];
+            /** Week */
+            week: number;
         };
         /** WorkoutSummary */
         WorkoutSummary: {
@@ -1286,6 +1458,113 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    adapt_daily: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DailyAdaptRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyProposal"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    propose_daily_adjustment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyProposal"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             /** @description Bad Gateway */
@@ -1944,6 +2223,53 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_readiness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyReadiness"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             /** @description Bad Gateway */

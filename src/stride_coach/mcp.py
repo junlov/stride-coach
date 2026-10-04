@@ -93,6 +93,25 @@ def create_server(
         return await read(lambda coach: [m.model_dump(mode="json") for m in coach.load()])
 
     @server.tool(annotations=annotations)
+    async def readiness() -> list[dict]:
+        """Read the last 30 stored daily recovery records. Null readings are unavailable."""
+        return await read(lambda coach: [r.model_dump(mode="json") for r in coach.readiness()])
+
+    @server.tool(annotations=annotations)
+    async def activity(activity_id: str) -> dict:
+        """Read one stored run, laps, and step scores, including missing-data reasons."""
+        return await read(lambda coach: coach.activity(activity_id).model_dump(mode="json"))
+
+    @server.tool(annotations=annotations)
+    async def propose_daily_adjustment() -> dict:
+        """Preview tomorrow's recovery-based change. Never applies or contacts Garmin."""
+        return await read(
+            lambda coach: coach.daily_adjustment(today=datetime.now(zone).date()).model_dump(
+                mode="json"
+            )
+        )
+
+    @server.tool(annotations=annotations)
     async def propose_adjustment(number: int) -> dict:
         """Preview deterministic rules from local data; never apply or push changes.
 

@@ -154,10 +154,9 @@ Today, Week and Plan link to Actions. A missing-plan error links to Goal setup.
 Push and removal first send `dry_run: true, apply: false`. Only the separate **Confirm live**
 button sends `dry_run: false, apply: true`. Editing the week, cancelling, changing connections,
 or leaving the Actions screen invalidates the preview. Empty or failed previews cannot be
-confirmed. Applying an adjustment requires the target Monday and a sync covering the previous
-two complete weeks. Reductions can also affect later weeks; the server checks this when applying.
-
-Adjustment confirmation follows the [reviewed proposal contract](../README.md#weekly-loop).
+confirmed. Weekly adjustment eligibility and confirmation follow the
+[weekly loop](../README.md#weekly-loop). For daily changes, see
+[recovery and step feedback](#recovery-and-step-feedback).
 If the server rejects a stale proposal, tap **Preview adjustment** and review it again.
 Garmin push and removal recalculate operations on confirmation without an immutable preview identifier.
 Avoid concurrent changes from another client while reviewing those operations.
@@ -323,7 +322,9 @@ Missing measurements are labeled unavailable, separately from zero; an empty lap
 no laps recorded. Loading and failed reads use the shared loading and retry UI. Streams and
 routes are not displayed.
 The API still lacks an unmatched activity list, distance history, and heart-rate coverage minutes.
-It also lacks personalized workout explanations, per-workout adjustment diffs, downstream adjustment diffs, and adjustment timestamps.
+For daily changes, the API provides the before and after workouts described in the
+[daily recovery contract](../docs/training-rules.md#daily-recovery-proposal).
+It still lacks personalized workout explanations, weekly per-workout adjustment diffs, downstream adjustment diffs, and adjustment timestamps.
 The repeated-interval design, imports, exports and offline cache are outside this implementation.
 
 After a write fails with an uncertain result, Actions disables further operations. **Inspect
@@ -343,3 +344,17 @@ cancellation, scope edits and connection changes.
 
 `tests/run-detail.test.tsx` covers matched-run measurements on Today and Week, partial and
 missing sensors, zero values, loading, late responses after close, and failed reads with retry.
+
+## Recovery and step feedback
+
+Today shows the current server-day Training Readiness, HRV status, and sleep score, with
+unavailable readings labeled. A poor-recovery proposal links to Actions. Tap **Preview
+tomorrow's change** to review the current and proposed workout plus reasons, then **Confirm
+tomorrow’s change** to save it. Cancelling makes no change. A stale preview must be reviewed
+again. A saved change appears in Progress. Existing Garmin workouts require a separate
+**Preview Garmin push** and live confirmation to update the watch.
+
+Opening a matched run shows **Step compliance**, including scored/unavailable counts, each
+step's duration check, and its lap-average target result. See the
+[training rules](../docs/training-rules.md#step-compliance-from-captured-laps) for alignment
+limits and thresholds. Missing data is never presented as a failed step.

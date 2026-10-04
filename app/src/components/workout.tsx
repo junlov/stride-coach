@@ -16,7 +16,7 @@ export function pace(seconds: number) {
   const rounded = Math.round(seconds);
   return `${Math.floor(rounded / 60)}:${String(rounded % 60).padStart(2, "0")}`;
 }
-export const workoutMinutes = (workout: Schema<"WorkoutSummary">) =>
+export const workoutMinutes = (workout: Schema<"Workout">) =>
   workout.steps.reduce((sum, step) => sum + step.minutes, 0);
 export function WorkoutCard({
   workout,
@@ -24,7 +24,7 @@ export function WorkoutCard({
   match,
   children,
 }: {
-  workout: Schema<"WorkoutSummary">;
+  workout: Schema<"Workout"> | Schema<"WorkoutSummary">;
   hero?: boolean;
   children?: ReactNode;
   match?: Schema<"Match">;
@@ -37,7 +37,7 @@ export function WorkoutCard({
         {workout.cutback ? "Cutback" : workout.phase} · Week {workout.week}
       </Badge>
       <Heading>
-        {workout.day} · {workout.name}
+        {workout.day} · {"name" in workout ? workout.name : workout.kind}
       </Heading>
       {hero ? (
         <Hero value={Math.round(workoutMinutes(workout))} unit="min" />
@@ -153,6 +153,59 @@ function RunMeasurements({
           {run.average_hr == null && (
             <Muted>
               Missing heart-rate measurements do not mean zero training load.
+            </Muted>
+          )}
+          <Heading>Step compliance</Heading>
+          {run.step_compliance ? (
+            <>
+              <Copy>
+                {run.step_compliance.score == null
+                  ? "Score unavailable"
+                  : `${run.step_compliance.score.toFixed(0)}% across scored steps`}{" "}
+                · {run.step_compliance.scored_steps} scored ·{" "}
+                {run.step_compliance.missing_steps} unavailable
+              </Copy>
+              <Muted>
+                Lap averages estimate target compliance. Missing data is not a
+                failed step.
+              </Muted>
+              {run.step_compliance.steps.map((step) => (
+                <Notice
+                  key={step.position}
+                  title={`${step.position + 1}. ${step.label}`}
+                >
+                  <Copy>
+                    Score:{" "}
+                    {step.score == null
+                      ? "unavailable"
+                      : `${step.score.toFixed(0)}%`}
+                  </Copy>
+                  <Copy>
+                    Duration:{" "}
+                    {step.duration_in_range == null
+                      ? "unavailable"
+                      : step.duration_in_range
+                        ? "in range"
+                        : "outside range"}{" "}
+                    · {Math.round(step.planned_seconds)} planned seconds /{" "}
+                    {step.actual_seconds == null
+                      ? "unavailable"
+                      : Math.round(step.actual_seconds)}{" "}
+                    recorded
+                  </Copy>
+                  <Copy>
+                    Target:{" "}
+                    {step.target_score == null
+                      ? "unavailable"
+                      : `${step.target_score.toFixed(0)}% of lap time in range`}
+                  </Copy>
+                  {step.missing && <Muted>{step.missing}</Muted>}
+                </Notice>
+              ))}
+            </>
+          ) : (
+            <Muted>
+              Step scores unavailable. Sync the matched run to calculate them.
             </Muted>
           )}
           <Heading>Laps</Heading>

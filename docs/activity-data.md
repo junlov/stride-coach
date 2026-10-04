@@ -146,3 +146,12 @@ file keeps its exact bytes and is named using SHA-256 of the activity ID. Files 
 atomically with mode 600. Conflicting bytes for an existing ID fail capture rather than replace
 the original. Summary deletion does not automatically remove archives; retain them in private
 storage and account for them in backups. No personal originals belong in Git.
+
+## Stored step compliance
+
+Run detail (`GET /activities/{id}`) includes optional `step_compliance`: the matched workout,
+per-step duration and target checks, numeric scores, and explicit missing-data reasons.
+`/compliance` includes the same results inside each match. Read-only MCP `activity` and
+`compliance` expose these stored results without contacting Garmin. Imported score fields are
+not trusted; scores are computed from the plan and saved laps. See the
+[scoring contract](training-rules.md#step-compliance-from-captured-laps).

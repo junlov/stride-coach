@@ -22,6 +22,9 @@ TOOLS = {
     "today_workout",
     "current_week",
     "status",
+    "activity",
+    "readiness",
+    "propose_daily_adjustment",
 }
 
 

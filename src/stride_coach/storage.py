@@ -6,15 +6,20 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
+from .activity_models import RunCompliance, RunLap, StepCompliance
 from .activity_storage import save_details
 from .database import WRITE_LOCK, check_schema, connection_lock, database_url, make_engine, upgrade
 from .db_models import (
+    ActivityLapRow,
     ActivityRow,
     AdjustmentRow,
+    DailyAdjustmentRow,
     MatchRow,
     MetadataRow,
     PlanRow,
+    ReadinessRow,
     ScheduledRow,
+    StepComplianceRow,
     StepKind,
     StepRow,
     SyncAttemptRow,
@@ -24,6 +29,7 @@ from .db_models import (
     WriteOperation,
 )
 from .models import Activity, ActivityCore, Adjustment, Athlete, Fitness, Plan, Setup, Step, Workout
+from .recovery_models import DailyProposal, DailyReadiness
 from .sync_models import SyncAttempt, SyncStatus
 
 
@@ -203,14 +209,130 @@ class Store:
 
     def _refresh_matches(self, session):
         from .adaptation import match_activities
+        from .compliance import score_steps
 
         session.flush()
         session.execute(delete(MatchRow))
         if session.scalar(select(PlanRow.id)) is not None:
-            session.add_all(
-                MatchRow(**match)
-                for match in match_activities(self._plan(session), self._activities(session))
+            plan = self._plan(session)
+            workouts = {w.id: w for w in plan.workouts}
+            laps = {}
+            for row in session.scalars(select(ActivityLapRow).order_by(ActivityLapRow.position)):
+                laps.setdefault(row.activity_id, []).append(RunLap(**fields(row, RunLap)))
+            matches = match_activities(plan, self._activities(session))
+            session.add_all(MatchRow(**match) for match in matches)
+            session.flush()
+            for match in matches:
+                result = score_steps(
+                    workouts[match["workout_id"]], laps.get(match["activity_id"], [])
+                )
+                session.add_all(
+                    StepComplianceRow(workout_id=result.workout_id, **step.model_dump())
+                    for step in result.steps
+                )
+
+    def step_compliance(self) -> dict[str, RunCompliance]:
+        with self.transaction() as session:
+            scores = {}
+            for row in session.scalars(
+                select(StepComplianceRow).order_by(StepComplianceRow.position)
+            ):
+                scores.setdefault(row.workout_id, []).append(
+                    StepCompliance(**fields(row, StepCompliance))
+                )
+            result = {}
+            for row in session.scalars(select(MatchRow)):
+                steps = scores.get(row.workout_id, [])
+                if steps:
+                    known = [step.score for step in steps if step.score is not None]
+                    result[row.activity_id] = RunCompliance(
+                        workout_id=row.workout_id,
+                        score=sum(known) / len(known) if known else None,
+                        scored_steps=len(known),
+                        missing_steps=len(steps) - len(known),
+                        steps=steps,
+                    )
+            return result
+
+    def save_readiness(self, readiness: DailyReadiness):
+        with self.transaction() as session:
+            # Replace the entire snapshot so unavailable values cannot look freshly fetched.
+            session.merge(ReadinessRow(**readiness.model_dump()))
+
+    def readiness(self, day: date) -> DailyReadiness | None:
+        with self.transaction() as session:
+            row = session.get(ReadinessRow, day)
+            return DailyReadiness(**fields(row, DailyReadiness)) if row else None
+
+    def readiness_history(self, limit=30) -> list[DailyReadiness]:
+        with self.transaction() as session:
+            return [
+                DailyReadiness(**fields(row, DailyReadiness))
+                for row in session.scalars(
+                    select(ReadinessRow).order_by(ReadinessRow.day.desc()).limit(limit)
+                )
+            ]
+
+    @staticmethod
+    def _daily_proposal(row):
+        return (
+            DailyProposal(
+                **{
+                    key: getattr(row, key) for key in DailyProposal.model_fields if key != "applied"
+                },
+                applied=True,
             )
+            if row
+            else None
+        )
+
+    def daily_adjustment(self, workout_id):
+        with self.transaction() as session:
+            return self._daily_proposal(session.get(DailyAdjustmentRow, workout_id))
+
+    def daily_adjustment_by_fingerprint(self, fingerprint):
+        with self.transaction() as session:
+            return self._daily_proposal(
+                session.scalar(
+                    select(DailyAdjustmentRow).where(
+                        DailyAdjustmentRow.proposal_fingerprint == fingerprint
+                    )
+                )
+            )
+
+    def daily_adjustments(self):
+        with self.transaction() as session:
+            return [
+                self._daily_proposal(row)
+                for row in session.scalars(
+                    select(DailyAdjustmentRow).order_by(DailyAdjustmentRow.day)
+                )
+            ]
+
+    def apply_daily(self, proposal: DailyProposal):
+        workout = proposal.after
+        with self.transaction() as session:
+            if session.get(DailyAdjustmentRow, workout.id):
+                raise ValueError("This workout already has a confirmed daily change.")
+            session.get(WorkoutRow, workout.id).kind = workout.kind
+            session.execute(delete(StepRow).where(StepRow.workout_id == workout.id))
+            session.add_all(
+                StepRow(
+                    workout_id=workout.id,
+                    position=i,
+                    kind=step_kind(step.label),
+                    **step.model_dump(),
+                )
+                for i, step in enumerate(workout.steps)
+            )
+            session.add(
+                DailyAdjustmentRow(
+                    workout_id=workout.id,
+                    **proposal.model_dump(mode="json", exclude={"applied", "day"}),
+                    day=proposal.day,
+                )
+            )
+            self._refresh_matches(session)
 
     def initialize(self, plan: Plan):
         with self.lock(), self.transaction() as session:

@@ -9,7 +9,7 @@ from uuid import uuid4
 from pydantic import Field, computed_field
 
 from .activity_capture import capture_pending
-from .activity_models import BackfillResult
+from .activity_models import BackfillResult, RunCompliance
 from .activity_storage import read_detail, read_streams
 from .adaptation import adapt as adapt_week
 from .adaptation import propose, week_metrics
@@ -19,6 +19,8 @@ from .garmin import push as push_workouts
 from .garmin import remove as remove_workouts
 from .garmin_auth import DEFAULT_TOKENS as DEFAULT_TOKENS
 from .models import Activity, Adjustment, Fitness, Plan, Record, Setup, Workout
+from .recovery import adapt_daily
+from .recovery_models import DailyAdaptRequest, DailyProposal, DailyReadiness
 from .storage import Store
 from .sync_models import SyncAttempt, SyncStatus
 from .workout_text import workout_name
@@ -28,6 +30,7 @@ class Match(Record):
     workout_id: str
     activity_id: str
     method: str
+    step_compliance: RunCompliance | None = None
 
 
 class Metrics(Record):
@@ -109,6 +112,7 @@ class Status(Record):
     weeks: list[Metrics]
     adjustments: list[Adjustment]
     sync_status: SyncStatus | None = None
+    daily_adjustments: list[DailyProposal] = Field(default_factory=list)
 
 
 class Proposal(Record):
@@ -184,13 +188,23 @@ class Coach:
             workouts=[
                 WorkoutView(workout=w, minutes=w.minutes) for w in plan.workouts if w.week == number
             ],
-            metrics=Metrics(**week_metrics(plan, self.store.activities(), number)),
+            metrics=self._metrics(
+                plan, self.store.activities(), number, self.store.step_compliance()
+            ),
         )
+
+    @staticmethod
+    def _metrics(plan, activities, number, scores):
+        metrics = Metrics(**week_metrics(plan, activities, number))
+        for match in metrics.matches:
+            match.step_compliance = scores.get(match.activity_id)
+        return metrics
 
     def compliance(self) -> list[Metrics]:
         plan, activities = self.plan(), self.store.activities()
+        scores = self.store.step_compliance()
         return [
-            Metrics(**week_metrics(plan, activities, n))
+            self._metrics(plan, activities, n, scores)
             for n in sorted({w.week for w in plan.workouts})
         ]
 
@@ -234,6 +248,7 @@ class Coach:
             weeks=self.compliance(),
             adjustments=store.adjustments(),
             sync_status=store.sync_status(),
+            daily_adjustments=store.daily_adjustments(),
         )
 
     def push(self, request: PushRequest, today: date | None = None) -> list[WriteResult]:
@@ -292,6 +307,15 @@ class Coach:
                 if request.activities is not None:
                     runs = [a.model_copy(update={"source": "local"}) for a in runs]
                 self.store.save_sync(runs, begin.isoformat(), end.isoformat(), today=today)
+                if client and hasattr(client, "readiness"):
+                    try:
+                        readiness = DailyReadiness.model_validate(client.readiness(today))
+                        if readiness.day != today:
+                            raise ValueError("Recovery record must be for the requested day")
+                    except Exception:
+                        # Optional recovery endpoints cannot fail an otherwise successful sync.
+                        readiness = DailyReadiness(day=today, fetched_at=datetime.now(UTC))
+                    self.store.save_readiness(readiness)
                 attempt.result = "success"
                 attempt.activity_count = len(runs)
             except Exception:
@@ -315,7 +339,18 @@ class Coach:
         )
 
     def activity(self, activity_id: str):
-        return read_detail(self.store, activity_id)
+        result = read_detail(self.store, activity_id)
+        result.step_compliance = self.store.step_compliance().get(activity_id)
+        return result
+
+    def readiness(self) -> list[DailyReadiness]:
+        return self.store.readiness_history()
+
+    def daily_adjustment(
+        self, request: DailyAdaptRequest | None = None, today: date | None = None
+    ) -> DailyProposal:
+        request = request or DailyAdaptRequest()
+        return adapt_daily(self.store, today or date.today(), **request.model_dump())
 
     def activity_streams(self, activity_id: str):
         return read_streams(self.store, activity_id)

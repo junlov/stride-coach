@@ -315,6 +315,7 @@ def capture_pending(store, client, *, limit=20, include_legacy=False) -> Backfil
                 fit_name = archive_fit(activity_id, download) if gps else None
                 with store.transaction() as session:
                     save_details(session, activity, gps=gps)
+                    store._refresh_matches(session)
                 mark_attempt(store, activity_id, complete=True, fit_name=fit_name)
                 result.completed += 1
             except (
