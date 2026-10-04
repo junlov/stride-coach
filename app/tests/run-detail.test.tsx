@@ -209,3 +209,47 @@ test.each([404, 401, 503])(
     expect(await screen.findByText("Distance: 5.25 km")).toBeTruthy();
   },
 );
+
+test("step results show failures and missing targets distinctly", async () => {
+  await mount();
+  await screen.findByText("Review matched run");
+  server.mockResolvedValueOnce(
+    response({
+      ...detail,
+      step_compliance: {
+        workout_id: workout.id,
+        score: 0,
+        scored_steps: 1,
+        missing_steps: 1,
+        steps: [
+          {
+            position: 0,
+            label: "Tempo",
+            planned_seconds: 600,
+            actual_seconds: 300,
+            duration_in_range: false,
+            target_score: 0,
+            score: 0,
+          },
+          {
+            position: 1,
+            label: "Cool down",
+            planned_seconds: 600,
+            actual_seconds: 600,
+            duration_in_range: true,
+            target_score: null,
+            score: null,
+            missing: "Heart rate unavailable.",
+          },
+        ],
+      },
+    }),
+  );
+  await openDetail();
+  expect(await screen.findByText("Score: 0%")).toBeTruthy();
+  expect(screen.getByText("Score: unavailable")).toBeTruthy();
+  expect(screen.getByText("Heart rate unavailable.")).toBeTruthy();
+  expect(
+    screen.getByText("0% across scored steps · 1 scored · 1 unavailable"),
+  ).toBeTruthy();
+});

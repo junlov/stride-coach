@@ -76,6 +76,32 @@ class GarminClient:
 
         return fetch_detail(self, activity_id, gps=gps)
 
+    def readiness(self, day: date):
+        from .recovery import parse_readiness
+
+        def optional(method):
+            try:
+                return self._call(method, day.isoformat())
+            except Exception:
+                # Unsupported devices, absent fields, and provider failures are normal here.
+                # Never persist upstream exception text or prevent activity sync.
+                return None
+
+        training = optional(self.api.get_training_readiness)
+        hrv = optional(self.api.get_hrv_data)
+        sleep = None
+        try:
+            # The stored connection label may be a full name. Sleep needs Garmin's
+            # actual displayName identifier, obtained through the same read-only transport.
+            profile = self._call(self.api.connectapi, "/userprofile-service/userprofile/profile")
+            name = profile.get("displayName")
+            if isinstance(name, str) and name:
+                self.api.display_name = name
+                sleep = optional(self.api.get_sleep_data)
+        except Exception:
+            pass
+        return parse_readiness(day, training, hrv, sleep)
+
     def workouts(self) -> list[dict]:
         result = []
         for start in range(0, 10000, 100):

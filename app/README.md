@@ -343,3 +343,17 @@ cancellation, scope edits and connection changes.
 
 `tests/run-detail.test.tsx` covers matched-run measurements on Today and Week, partial and
 missing sensors, zero values, loading, late responses after close, and failed reads with retry.
+
+## Recovery and step feedback
+
+Today shows the current server-day Training Readiness, HRV status, and sleep score, with
+unavailable readings labeled. A poor-recovery proposal links to Actions. Tap **Preview
+tomorrow's change** to review the current and proposed workout plus reasons, then **Confirm
+tomorrow’s change** to save it. Cancelling makes no change. A stale preview must be reviewed
+again. A saved change appears in Progress. Existing Garmin workouts require a separate
+**Preview Garmin push** and live confirmation to update the watch.
+
+Opening a matched run shows **Step compliance**, including scored/unavailable counts, each
+step's duration check, and its lap-average target result. See the
+[training rules](../docs/training-rules.md#step-compliance-from-captured-laps) for alignment
+limits and thresholds. Missing data is never presented as a failed step.

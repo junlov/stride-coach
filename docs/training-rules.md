@@ -109,3 +109,76 @@ Scale the target and all later weeks by that factor. Retain all triggered reason
 Repeating an apply with its accepted proposal fingerprint returns the stored result without compounding reductions.
 See the [weekly loop](../README.md#weekly-loop) for the confirmation contract.
 A "harder" observation describes the recorded target deviation; it does not diagnose fatigue.
+
+## Step compliance from captured laps
+
+[`compliance.py`](../src/stride_coach/compliance.py) implements `laps-v1`. Plans currently use
+**duration-based steps**. Match runs with the existing date/type rule first; inferred matches
+remain labeled. For a multi-step workout, pair laps with steps in order only when the counts
+match. For one continuous step, combine all recorded laps. Different lap counts, absent laps,
+and absent target measurements produce **unavailable**, not a failed step. Automatic kilometre
+laps cannot reliably identify interval boundaries. Equal counts establish only an inferred
+alignment; the runner should review the lap table if the watch did not follow the workout.
+
+Each step has two checks, with equal weight:
+
+- Duration: 100 points within 90% to 110% of planned seconds, inclusive; otherwise zero.
+- Target: the percentage of recorded lap seconds whose average pace or HR is inside the
+  planned band, inclusive. Use pace when both pace limits exist, otherwise HR when both HR
+  limits exist. Derive pace from lap duration and distance when its average is absent.
+
+The step score is the mean of those checks. Missing target data leaves the combined score
+unavailable while preserving the duration check. The run score is the mean of its fully scored
+steps, accompanied by scored and unavailable counts. A partially scored run is not 100% proven
+compliant even if its available steps score 100. Zero HR and zero-distance laps without pace
+are unavailable target data. Lap averages cannot establish second-by-second time in zone.
+
+Scores are stored with the match and refreshed after sync, detail backfill, history import,
+plan creation, and confirmed adaptation. Existing databases gain scores on the next sync or
+backfill. They are feedback for the runner; this version does not feed them into weekly volume
+rules or infer run types.
+
+## Daily recovery proposal
+
+[`recovery.py`](../src/stride_coach/recovery.py) implements `recovery-v1`. Each ordinary Garmin
+sync reads **the current server-local day** once for Training Readiness, HRV status, and sleep
+score, independent of the requested activity date range. History import does not backfill
+recovery data. Each day stores its fetch timestamp and nullable, typed observations. A later
+sync replaces that day's entire snapshot, including unavailable values. Unsupported devices,
+missing fields, and provider errors never make the activity sync fail. No prior day's reading
+is substituted for today. Morning Training Readiness is preferred when Garmin identifies it;
+otherwise the first same-day reading is used. Mismatched provider dates are discarded.
+
+Any of these observations triggers poor recovery:
+
+| Today's observation | Threshold |
+| --- | --- |
+| Training Readiness | Less than 25 out of 100 |
+| Sleep score | Less than 50 out of 100 |
+| HRV status | `LOW` or `POOR` |
+
+Boundaries 25 and 50 do not trigger. `UNBALANCED`, `UNKNOWN`, unrecognized HRV statuses, and
+missing scores do not independently trigger. Retain all triggered reasons. These are
+conservative project rules, not individually validated medical or coaching prescriptions.
+
+Only **tomorrow's tempo or interval workout** can change. The preview replaces all its steps
+with an easy step at the same total duration, using the existing easy-target generator.
+It preserves the workout ID, date, week, and remote mapping. It never adds a workout,
+increases minutes, moves a rest day, or restores previously reduced volume.
+
+The daily preview is available on every day of the week. It is separate from the **Monday
+weekly adjustment window**, which still requires two complete weeks of sync coverage and
+retains its existing volume caps and propagation rules. Daily softening does not need that
+history because it only reduces tomorrow's intensity. A Monday weekly adjustment can still
+reduce the duration of a softened workout and later weeks. It never restores its hard type.
+
+Preview reads do not save a plan change. Confirmation must include the fingerprint of the
+reviewed preview; the server rechecks the day, complete plan, recovery snapshot, and Garmin
+mapping under the existing write lock. A fresh sync or intervening plan change requires a new
+preview. The plan edit and its reasons/before/after evidence commit together. Repeating an
+accepted fingerprint returns its saved result without changing the plan again.
+
+If the workout was already sent to Garmin, confirmation only changes the local plan. Review
+and confirm the existing Garmin push to update that same owned workout. The existing removal
+preview remains available separately and still covers all owned workouts. No recovery read,
+proposal, or local confirmation writes to Garmin automatically.

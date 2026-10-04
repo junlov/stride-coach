@@ -58,6 +58,9 @@ def test_mcp_lists_only_safe_tools_and_calls_them(store):
             "today_workout",
             "current_week",
             "status",
+            "readiness",
+            "activity",
+            "propose_daily_adjustment",
         }
         assert all(t.annotations.readOnlyHint for t in tools)
         before = store.plan()
@@ -113,7 +116,7 @@ def test_mcp_stdio_handshake_and_proposal(store):
             async with ClientSession(reader, writer) as session:
                 await session.initialize()
                 listed = await session.list_tools()
-                assert len(listed.tools) == 8
+                assert len(listed.tools) == 11
                 result = await session.call_tool("propose_adjustment", {"number": 2})
                 assert not result.isError
                 data = json.loads(result.content[0].text)

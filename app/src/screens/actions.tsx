@@ -17,10 +17,12 @@ import {
   Notice,
   NavLink,
 } from "../components/ui";
+import { WorkoutCard } from "../components/workout";
 import { GarminPayload } from "../components/garmin-payload";
 import { useConnection } from "../state/connection";
 
 type Preview =
+  | { kind: "daily"; proposal: Schema<"DailyProposal"> }
   | { kind: "adapt"; adjustment: Schema<"Adjustment">; week: number }
   | { kind: "push" | "remove"; writes: Schema<"WriteResult">[]; week?: number };
 function Writes({ results }: { results: Schema<"WriteResult">[] }) {
@@ -85,7 +87,9 @@ function ConnectedActions() {
       };
     }, [client, params.week]),
   );
-  async function run(action: "sync" | "adapt" | "push" | "remove" | "confirm") {
+  async function run(
+    action: "sync" | "adapt" | "daily" | "push" | "remove" | "confirm",
+  ) {
     if (!client || lock.current || unknown) return;
     lock.current = true;
     setBusy(true);
@@ -101,7 +105,9 @@ function ConnectedActions() {
     try {
       if (
         action === "sync" ||
-        (action === "confirm" && pending && pending.kind !== "adapt")
+        (action === "confirm" &&
+          pending &&
+          (pending.kind === "push" || pending.kind === "remove"))
       ) {
         const connection = await client.garminStatus();
         if (!active()) return;
@@ -121,7 +127,17 @@ function ConnectedActions() {
         if (mounted.current) refresh();
       } else if (action === "confirm" && pending) {
         writeStarted = true;
-        if (pending.kind === "adapt") {
+        if (pending.kind === "daily") {
+          const result = await client.adaptDaily({
+            apply: true,
+            proposal_fingerprint: pending.proposal.proposal_fingerprint,
+          });
+          if (active()) {
+            setMessage(
+              `Tomorrow's change ${result.applied ? "applied" : "returned"}. ${result.reasons.join(" ")}${result.garmin_update_required ? " Review a Garmin push below to update the workout on your watch." : ""}`,
+            );
+          }
+        } else if (pending.kind === "adapt") {
           const result = await client.adapt({
             week: pending.week,
             apply: true,
@@ -150,6 +166,9 @@ function ConnectedActions() {
           }
         }
         if (mounted.current) refresh();
+      } else if (action === "daily") {
+        const proposal = await client.proposeDaily();
+        if (active()) setPreview({ kind: "daily", proposal });
       } else if (action !== "confirm") {
         const number = week.trim() === "" ? undefined : Number(week);
         if (
@@ -240,6 +259,19 @@ function ConnectedActions() {
           />
         </Card>
         <Card>
+          <Heading>Tomorrow&apos;s recovery check</Heading>
+          <Muted>
+            Review today&apos;s recovery data and a possible easier workout for
+            tomorrow. Confirmation changes your local plan. Sending it to Garmin
+            is a separate preview and confirmation.
+          </Muted>
+          <Button
+            label="Preview tomorrow's change"
+            onPress={() => void run("daily")}
+            disabled={busy || unknown}
+          />
+        </Card>
+        <Card>
           <Field
             label="Week (blank pushes all future weeks)"
             value={week}
@@ -311,8 +343,16 @@ function ConnectedActions() {
                     : "No sync coverage recorded"}
                 </Muted>
                 <Copy>
-                  {inspection.adjustments.length} saved plan adjustments
+                  {inspection.adjustments.length +
+                    (inspection.daily_adjustments?.length ?? 0)}{" "}
+                  saved plan adjustments
                 </Copy>
+                {inspection.daily_adjustments?.map((item) => (
+                  <Copy key={item.proposal_fingerprint}>
+                    {item.after?.day}: confirmed {item.before?.kind} to{" "}
+                    {item.after?.kind}. {item.reasons.join(" ")}
+                  </Copy>
+                ))}
                 <Muted>
                   The API does not return an authoritative Garmin workout list.
                   Compare in Garmin before continuing.
@@ -379,11 +419,50 @@ function ConnectedActions() {
           <Card>
             <Badge>Review · not applied</Badge>
             <Heading>
-              {preview.kind === "adapt"
+              {preview.kind === "adapt" || preview.kind === "daily"
                 ? "Proposed adjustment"
                 : "Garmin dry-run preview"}
             </Heading>
-            {preview.kind === "adapt" ? (
+            {preview.kind === "daily" ? (
+              <>
+                <Copy>Recovery day: {preview.proposal.day}</Copy>
+                <Copy>
+                  Training Readiness:{" "}
+                  {preview.proposal.readiness?.training_readiness ??
+                    "unavailable"}{" "}
+                  · Sleep score:{" "}
+                  {preview.proposal.readiness?.sleep_score ?? "unavailable"} ·
+                  HRV: {preview.proposal.readiness?.hrv_status ?? "unavailable"}
+                </Copy>
+                {preview.proposal.reasons.map((reason) => (
+                  <Copy key={reason}>{reason}</Copy>
+                ))}
+                {preview.proposal.before && (
+                  <>
+                    <Heading>Currently planned</Heading>
+                    <WorkoutCard workout={preview.proposal.before} />
+                  </>
+                )}
+                {preview.proposal.after && (
+                  <>
+                    <Heading>Proposed workout</Heading>
+                    <WorkoutCard workout={preview.proposal.after} />
+                  </>
+                )}
+                <Muted>
+                  Confirm today. A new sync, a plan change, or a new day
+                  requires another preview. Weekly volume rules and the Monday
+                  adjustment window stay unchanged.
+                </Muted>
+                {preview.proposal.garmin_update_required && (
+                  <Copy>
+                    This workout is already tracked on Garmin. After confirming,
+                    review a Garmin push to update it. Garmin removal remains a
+                    separate action.
+                  </Copy>
+                )}
+              </>
+            ) : preview.kind === "adapt" ? (
               <>
                 <Metrics
                   items={[
@@ -468,7 +547,7 @@ function ConnectedActions() {
                 </Muted>
               )}
               <Muted>
-                {preview.kind === "adapt"
+                {preview.kind === "adapt" || preview.kind === "daily"
                   ? "Confirm after review. If training data changes, preview and review the new proposal before confirming."
                   : "Confirm only after reviewing. Current server state is recalculated and changes from another client can change the result."}
               </Muted>
@@ -476,17 +555,21 @@ function ConnectedActions() {
             <Button
               variant={preview.kind === "remove" ? "danger" : "primary"}
               label={
-                preview.kind === "adapt"
-                  ? "Confirm adjustment"
-                  : preview.kind === "push"
-                    ? "Confirm live Garmin push"
-                    : "Confirm live Garmin removal"
+                preview.kind === "daily"
+                  ? "Confirm tomorrow’s change"
+                  : preview.kind === "adapt"
+                    ? "Confirm adjustment"
+                    : preview.kind === "push"
+                      ? "Confirm live Garmin push"
+                      : "Confirm live Garmin removal"
               }
               onPress={() => void run("confirm")}
               disabled={
                 busy ||
                 unknown ||
-                (preview.kind !== "adapt" && preview.writes.length === 0)
+                ((preview.kind === "push" || preview.kind === "remove") &&
+                  preview.writes.length === 0) ||
+                (preview.kind === "daily" && !preview.proposal.after)
               }
             />
             <Button

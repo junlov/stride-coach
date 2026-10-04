@@ -71,6 +71,17 @@ export default function InsightsScreen() {
             ))}
           </Card>
         )}
+        {query.data?.status.daily_adjustments?.map((item) => (
+          <Card key={item.proposal_fingerprint}>
+            <Heading>Why {item.after?.day} changed</Heading>
+            <Copy>
+              {item.before?.kind} to {item.after?.kind}, at the same duration
+            </Copy>
+            {item.reasons.map((reason) => (
+              <Copy key={reason}>{reason}</Copy>
+            ))}
+          </Card>
+        ))}
         {query.data?.status.adjustments
           .filter((item) => item.applied)
           .map((item) => (

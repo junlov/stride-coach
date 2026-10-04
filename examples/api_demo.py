@@ -39,6 +39,9 @@ async def prove_mcp(base_url: str, token: str):
                     "today_workout": {},
                     "current_week": {},
                     "status": {},
+                    "readiness": {},
+                    "propose_daily_adjustment": {},
+                    "activity": {"activity_id": "synthetic-demo"},
                 }
                 assert {tool.name for tool in tools} == set(expected)
                 assert all(tool.annotations.readOnlyHint for tool in tools)
@@ -49,7 +52,7 @@ async def prove_mcp(base_url: str, token: str):
                     result = await session.call_tool(name, {"apply": True})
                     assert result.isError, name
                 print(
-                    "mcp: Streamable HTTP handshake, 8 read-only tools called, "
+                    "mcp: Streamable HTTP handshake, 11 read-only tools called, "
                     "5 write names rejected"
                 )
 
@@ -125,7 +128,23 @@ def main():
                 response.raise_for_status()
                 assert response.json()["scheduled_workouts"] == 0
                 print("status: HTTP 200, zero scheduled Garmin workouts")
-                before = response.json()
+                imported = client.post(
+                    "/sync",
+                    json={
+                        "since": str(today),
+                        "until": str(today),
+                        "activities": [
+                            {
+                                "id": "synthetic-demo",
+                                "day": str(today),
+                                "distance_km": 3,
+                                "duration_min": 20,
+                            }
+                        ],
+                    },
+                )
+                imported.raise_for_status()
+                before = client.get("/status").json()
                 unauthorized = client.post("/mcp/", headers={"Authorization": "Bearer invalid"})
                 assert unauthorized.status_code == 401
                 print("mcp auth: invalid bearer rejected with HTTP 401")

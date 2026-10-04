@@ -1,3 +1,4 @@
+import { DailyRecovery } from "../components/daily-recovery";
 import { SyncStatus } from "../components/sync-status";
 import { Client } from "../api/client";
 import {
@@ -55,6 +56,7 @@ export default function TodayScreen() {
     >
       <ConnectionGate>
         <SyncStatus />
+        <DailyRecovery />
         <QueryState {...query} />
         {data && (
           <>

@@ -128,6 +128,11 @@ export function createClient(
       request<Result<"get_activity_streams">>(
         `/activities/${encodeURIComponent(id)}/streams`,
       ),
+    readiness: () => request<Result<"get_readiness">>("/readiness"),
+    proposeDaily: () =>
+      request<Result<"propose_daily_adjustment">>("/adjustments/daily"),
+    adaptDaily: (body: Schema<"DailyAdaptRequest">) =>
+      request<Result<"adapt_daily">>("/adapt/daily", body),
     load: () => request<Result<"get_load">>("/load"),
     compliance: () => request<Result<"get_compliance">>("/compliance"),
     goal: (body: Schema<"GoalRequest">) =>

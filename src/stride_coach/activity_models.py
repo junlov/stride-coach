@@ -10,6 +10,27 @@ class DetailRecord(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
 
+class StepCompliance(DetailRecord):
+    position: int
+    label: str
+    planned_seconds: float
+    actual_seconds: float | None = None
+    duration_in_range: bool | None = None
+    target: Literal["pace", "heart_rate"] | None = None
+    target_score: float | None = Field(default=None, ge=0, le=100)
+    score: float | None = Field(default=None, ge=0, le=100)
+    missing: str | None = None
+
+
+class RunCompliance(DetailRecord):
+    workout_id: str
+    rule_version: Literal["laps-v1"] = "laps-v1"
+    score: float | None = None
+    scored_steps: int
+    missing_steps: int
+    steps: list[StepCompliance]
+
+
 class RunMetrics(DetailRecord):
     moving_time_s: float | None = Field(default=None, ge=0)
     elapsed_time_s: float | None = Field(default=None, ge=0)

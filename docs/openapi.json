@@ -137,6 +137,16 @@
             "title": "Sport",
             "type": "string"
           },
+          "step_compliance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunCompliance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "streams": {
             "anyOf": [
               {
@@ -368,6 +378,169 @@
           "warnings"
         ],
         "title": "Created",
+        "type": "object"
+      },
+      "DailyAdaptRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "apply": {
+            "default": false,
+            "title": "Apply",
+            "type": "boolean"
+          },
+          "proposal_fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal Fingerprint"
+          }
+        },
+        "title": "DailyAdaptRequest",
+        "type": "object"
+      },
+      "DailyProposal": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Workout"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "applied": {
+            "default": false,
+            "title": "Applied",
+            "type": "boolean"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Workout"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "garmin_update_required": {
+            "default": false,
+            "title": "Garmin Update Required",
+            "type": "boolean"
+          },
+          "proposal_fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal Fingerprint"
+          },
+          "readiness": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DailyReadiness"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          }
+        },
+        "required": [
+          "day",
+          "readiness",
+          "reasons"
+        ],
+        "title": "DailyProposal",
+        "type": "object"
+      },
+      "DailyReadiness": {
+        "additionalProperties": false,
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "fetched_at": {
+            "format": "date-time",
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "hrv_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "BALANCED",
+                  "UNBALANCED",
+                  "LOW",
+                  "POOR",
+                  "UNKNOWN"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hrv Status"
+          },
+          "sleep_score": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sleep Score"
+          },
+          "training_readiness": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Training Readiness"
+          }
+        },
+        "required": [
+          "day",
+          "fetched_at"
+        ],
+        "title": "DailyReadiness",
         "type": "object"
       },
       "Error": {
@@ -732,6 +905,16 @@
             "title": "Method",
             "type": "string"
           },
+          "step_compliance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunCompliance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "workout_id": {
             "title": "Workout Id",
             "type": "string"
@@ -971,6 +1154,55 @@
         "title": "RemoveRequest",
         "type": "object"
       },
+      "RunCompliance": {
+        "additionalProperties": false,
+        "properties": {
+          "missing_steps": {
+            "title": "Missing Steps",
+            "type": "integer"
+          },
+          "rule_version": {
+            "const": "laps-v1",
+            "default": "laps-v1",
+            "title": "Rule Version",
+            "type": "string"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "scored_steps": {
+            "title": "Scored Steps",
+            "type": "integer"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/StepCompliance"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "workout_id": {
+            "title": "Workout Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workout_id",
+          "scored_steps",
+          "missing_steps",
+          "steps"
+        ],
+        "title": "RunCompliance",
+        "type": "object"
+      },
       "RunDetail": {
         "additionalProperties": false,
         "properties": {
@@ -1101,6 +1333,16 @@
             "default": "running",
             "title": "Sport",
             "type": "string"
+          },
+          "step_compliance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunCompliance"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -1841,6 +2083,13 @@
             "title": "Adjustments",
             "type": "array"
           },
+          "daily_adjustments": {
+            "items": {
+              "$ref": "#/components/schemas/DailyProposal"
+            },
+            "title": "Daily Adjustments",
+            "type": "array"
+          },
           "plan_id": {
             "title": "Plan Id",
             "type": "string"
@@ -1953,6 +2202,104 @@
           "minutes"
         ],
         "title": "Step",
+        "type": "object"
+      },
+      "StepCompliance": {
+        "additionalProperties": false,
+        "properties": {
+          "actual_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Seconds"
+          },
+          "duration_in_range": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration In Range"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "missing": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Missing"
+          },
+          "planned_seconds": {
+            "title": "Planned Seconds",
+            "type": "number"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pace",
+                  "heart_rate"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          },
+          "target_score": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Score"
+          }
+        },
+        "required": [
+          "position",
+          "label",
+          "planned_seconds"
+        ],
+        "title": "StepCompliance",
         "type": "object"
       },
       "SyncAttempt": {
@@ -2645,6 +2992,132 @@
           }
         ],
         "summary": "Adapt"
+      }
+    },
+    "/adapt/daily": {
+      "post": {
+        "operationId": "adapt_daily",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DailyAdaptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyProposal"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        },
+        "security": [
+          {
+            "CoachBearer": []
+          }
+        ],
+        "summary": "Daily Adapt"
+      }
+    },
+    "/adjustments/daily": {
+      "get": {
+        "operationId": "propose_daily_adjustment",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyProposal"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        },
+        "security": [
+          {
+            "CoachBearer": []
+          }
+        ],
+        "summary": "Daily Proposal"
       }
     },
     "/adjustments/propose/{number}": {
@@ -3429,6 +3902,63 @@
           }
         ],
         "summary": "Push"
+      }
+    },
+    "/readiness": {
+      "get": {
+        "operationId": "get_readiness",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DailyReadiness"
+                  },
+                  "title": "Response Get Readiness",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        },
+        "security": [
+          {
+            "CoachBearer": []
+          }
+        ],
+        "summary": "Readiness"
       }
     },
     "/remove": {

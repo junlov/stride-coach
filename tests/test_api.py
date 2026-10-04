@@ -1,5 +1,5 @@
 import json
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -104,6 +104,11 @@ def test_api_sync_propose_apply_and_repeat(api, setup, monkeypatch):
             return setup.start + timedelta(weeks=1)
 
     monkeypatch.setattr(service, "date", Clock)
+    monkeypatch.setattr(
+        api.app.state.sync_worker,
+        "now",
+        lambda: datetime.combine(Clock.today(), datetime.min.time(), UTC),
+    )
     create_goal(api, setup)
     response = api.post("/adapt", json={"week": 2}, headers=HEADERS)
     assert response.status_code == 400 and "Sync" in response.json()["detail"]
