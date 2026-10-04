@@ -1,0 +1,98 @@
+{
+  "workoutName": "Easy Run 40 min",
+  "description": "Build endurance at an easy effort where you can chat comfortably. Aim for the targets shown in each step during the running efforts.\nstride-coach:v1:synthetic-easy",
+  "sportType": {
+    "sportTypeId": 1,
+    "sportTypeKey": "running"
+  },
+  "estimatedDurationInSecs": 2400,
+  "workoutSegments": [
+    {
+      "segmentOrder": 1,
+      "sportType": {
+        "sportTypeId": 1,
+        "sportTypeKey": "running"
+      },
+      "workoutSteps": [
+        {
+          "type": "ExecutableStepDTO",
+          "stepOrder": 1,
+          "description": "36 min easy run at 138 to 154 bpm. Keep it conversational.",
+          "stepType": {
+            "stepTypeId": 3,
+            "stepTypeKey": "interval"
+          },
+          "endCondition": {
+            "conditionTypeId": 2,
+            "conditionTypeKey": "time"
+          },
+          "endConditionValue": 2160.0,
+          "targetType": {
+            "workoutTargetTypeId": 4,
+            "workoutTargetTypeKey": "heart.rate.zone"
+          },
+          "targetValueOne": 138,
+          "targetValueTwo": 154
+        },
+        {
+          "type": "RepeatGroupDTO",
+          "stepOrder": 2,
+          "stepType": {
+            "stepTypeId": 6,
+            "stepTypeKey": "repeat"
+          },
+          "numberOfIterations": 4,
+          "endCondition": {
+            "conditionTypeId": 7,
+            "conditionTypeKey": "iterations"
+          },
+          "endConditionValue": 4,
+          "skipLastRestStep": false,
+          "smartRepeat": false,
+          "workoutSteps": [
+            {
+              "type": "ExecutableStepDTO",
+              "stepOrder": 3,
+              "description": "20 sec at 5:30 to 6:05 /km. Quick, light steps.",
+              "stepType": {
+                "stepTypeId": 3,
+                "stepTypeKey": "interval"
+              },
+              "endCondition": {
+                "conditionTypeId": 2,
+                "conditionTypeKey": "time"
+              },
+              "endConditionValue": 20.0,
+              "targetType": {
+                "workoutTargetTypeId": 6,
+                "workoutTargetTypeKey": "pace.zone"
+              },
+              "targetValueOne": 2.73972602739726,
+              "targetValueTwo": 3.0303030303030303
+            },
+            {
+              "type": "ExecutableStepDTO",
+              "stepOrder": 4,
+              "description": "40 sec easy jog at 125 to 144 bpm. Relax your shoulders.",
+              "stepType": {
+                "stepTypeId": 4,
+                "stepTypeKey": "recovery"
+              },
+              "endCondition": {
+                "conditionTypeId": 2,
+                "conditionTypeKey": "time"
+              },
+              "endConditionValue": 40.0,
+              "targetType": {
+                "workoutTargetTypeId": 4,
+                "workoutTargetTypeKey": "heart.rate.zone"
+              },
+              "targetValueOne": 125,
+              "targetValueTwo": 144
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

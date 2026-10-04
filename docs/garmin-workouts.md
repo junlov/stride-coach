@@ -2,8 +2,8 @@
 
 Names lead with the session type and its duration or main set. Easy and long runs use total
 time. Tempo and interval sessions use the working efforts, excluding warmup, cooldown and
-recoveries. Run-walk sessions use total time, including walking. The plan engine, durations,
-targets and executable step structure are unchanged.
+recoveries. Run-walk sessions use total time, including walking. Structured repeat groups and distance steps use the same formatter, with expanded working
+efforts for names. See [training rules](training-rules.md) for duration and target rules.
 
 `src/stride_coach/workout_text.py` is the shared formatter. API workout summaries expose
 `name` to the app; Garmin push previews and uploads use the same value. Names are computed
@@ -44,7 +44,7 @@ This synthetic easy run illustrates the actual upload shape:
     "workoutSteps": [{
       "type": "ExecutableStepDTO",
       "stepOrder": 1,
-      "description": "40 min easy run at 130 to 145 bpm",
+      "description": "40 min easy run at 130 to 145 bpm. Keep it conversational.",
       "stepType": {"stepTypeId": 3, "stepTypeKey": "interval"},
       "endCondition": {"conditionTypeId": 2, "conditionTypeKey": "time"},
       "endConditionValue": 2400,
@@ -79,3 +79,13 @@ Preview first, then use the existing explicit apply flow to update eligible work
 Tests use synthetic responses and block outbound Garmin calls. `examples/offline_demo.py`
 executes the real CLI preview and checks that the view and payload names match, with no
 Garmin credentials or writes. Live Garmin rendering has not been verified.
+
+## Structured steps and coaching notes
+
+API workout summaries expose `step_descriptions` from the same formatter used by the Garmin
+builder. Notes include the end condition, primary target, optional cadence and a short cue.
+Distance is in meters, Lap steps say "press Lap" with a time estimate, and groups show the
+repeat count and whether to skip the last recovery. Notes use a conservative 200-character
+budget, below the [212-character note limit reported on Garmin's forum](https://forums.garmin.com/sports-fitness/cycling/f/edge-530/209957/display-step-notes).
+The client library does not validate note length; this budget is an application limit, not
+an assertion that every Garmin device displays all 200 characters.

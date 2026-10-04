@@ -20,14 +20,15 @@ function stepSummary(value: unknown, index: number): string {
   const condition = record(step.endCondition).conditionTypeKey;
   const amount = step.endConditionValue;
   const duration =
-    condition === "lap.button" ? "press Lap" :
-    typeof amount === "number" && Number.isFinite(amount)
-      ? condition === "time"
-        ? `${amount / 60} min`
-        : condition === "distance"
-          ? `${amount} m`
-          : "Duration unavailable"
-      : "Duration unavailable";
+    condition === "lap.button"
+      ? "press Lap"
+      : typeof amount === "number" && Number.isFinite(amount)
+        ? condition === "time"
+          ? `${amount / 60} min`
+          : condition === "distance"
+            ? `${amount} m`
+            : "Duration unavailable"
+        : "Duration unavailable";
   const target = record(step.targetType).workoutTargetTypeKey;
   const low = step.targetValueOne;
   const high = step.targetValueTwo;
@@ -45,9 +46,12 @@ function stepSummary(value: unknown, index: number): string {
   if (target === "heart.rate.zone" && typeof step.zoneNumber === "number") {
     targetText = `Zone ${step.zoneNumber}`;
   }
-  const cadence = record(step.secondaryTargetType).workoutTargetTypeKey === "cadence"
-    && typeof step.secondaryTargetValueOne === "number" && typeof step.secondaryTargetValueTwo === "number"
-    ? ` · ${step.secondaryTargetValueOne} to ${step.secondaryTargetValueTwo} spm` : "";
+  const cadence =
+    record(step.secondaryTargetType).workoutTargetTypeKey === "cadence" &&
+    typeof step.secondaryTargetValueOne === "number" &&
+    typeof step.secondaryTargetValueTwo === "number"
+      ? ` · ${step.secondaryTargetValueOne} to ${step.secondaryTargetValueTwo} spm`
+      : "";
   return `${index + 1}. ${label}: ${duration} · ${targetText}${cadence}`;
 }
 

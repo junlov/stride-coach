@@ -5,7 +5,18 @@ import math
 from datetime import timedelta
 from statistics import median
 
-from .models import Activity, Fitness, Goal, Kind, Plan, RepeatGroup, Setup, Step, Workout, executable_steps
+from .models import (
+    Activity,
+    Fitness,
+    Goal,
+    Kind,
+    Plan,
+    RepeatGroup,
+    Setup,
+    Step,
+    Workout,
+    executable_steps,
+)
 
 
 def vdot(distance_km: float, minutes: float) -> float:
@@ -56,7 +67,9 @@ def training_days(count: int, long_day: int) -> list[int]:
     return sorted((long_day + offset) % 7 for offset in offsets[count])
 
 
-def make_steps(kind: Kind, minutes: float, fitness: Fitness, setup: Setup, week: int) -> list[Step | RepeatGroup]:
+def make_steps(
+    kind: Kind, minutes: float, fitness: Fitness, setup: Setup, week: int
+) -> list[Step | RepeatGroup]:
     def step(label: str, duration: float, effort: str = "easy") -> Step:
         bands = {
             "easy": (0.60, 0.72),
@@ -87,10 +100,16 @@ def make_steps(kind: Kind, minutes: float, fitness: Fitness, setup: Setup, week:
     if kind == Kind.RUN_WALK:
         # Increase run fraction slowly: 8% time growth times 1% stays below 10%.
         fraction = min(0.7, 0.33 * 1.01 ** (week - 1))
-        return [RepeatGroup(label="Run / walk", repetitions=6, steps=[
-            step("Run gently", minutes / 6 * fraction),
-            step("Walk", minutes / 6 * (1 - fraction), "walk"),
-        ])]
+        return [
+            RepeatGroup(
+                label="Run / walk",
+                repetitions=6,
+                steps=[
+                    step("Run gently", minutes / 6 * fraction),
+                    step("Walk", minutes / 6 * (1 - fraction), "walk"),
+                ],
+            )
+        ]
     if kind in (Kind.TEMPO, Kind.INTERVALS):
         if kind == Kind.TEMPO:
             main = step("Steady tempo", minutes * 0.5, "tempo")
@@ -98,32 +117,49 @@ def make_steps(kind: Kind, minutes: float, fitness: Fitness, setup: Setup, week:
             work = step("Controlled interval", minutes * 0.08, "intervals")
             recovery = step("Easy recovery", minutes * 0.045, "recovery")
             if fitness.easy_pace:
-                for part, pace in [(work, fitness.easy_pace * 0.75),
-                                   (recovery, fitness.easy_pace * 1.08)]:
+                for part, pace in [
+                    (work, fitness.easy_pace * 0.75),
+                    (recovery, fitness.easy_pace * 1.08),
+                ]:
                     distance = math.floor(part.minutes * 60000 / pace / 100) * 100
                     if distance >= 100:
                         part.end_condition = "distance"
                         part.distance_m = distance
                         part.minutes = distance * pace / 60000
-            main = RepeatGroup(label="Intervals", repetitions=4, skip_last_rest=True, steps=[work, recovery])
+            main = RepeatGroup(
+                label="Intervals", repetitions=4, skip_last_rest=True, steps=[work, recovery]
+            )
         remainder = (minutes - main.minutes) / 2
         warmup, cooldown = step("Warm up", remainder), step("Cool down", remainder)
         warmup.end_condition = cooldown.end_condition = "lap"
         return [warmup, main, cooldown]
     if kind == Kind.EASY and minutes >= 20 and fitness.easy_pace:
         # Reallocate four minutes, preserving the existing weekly time budget.
-        return [step("Easy", minutes - 4), RepeatGroup(label="Strides", repetitions=4,
-            steps=[step("Relaxed stride", 1 / 3, "intervals"),
-                   step("Easy recovery", 2 / 3, "recovery")])]
+        return [
+            step("Easy", minutes - 4),
+            RepeatGroup(
+                label="Strides",
+                repetitions=4,
+                steps=[
+                    step("Relaxed stride", 1 / 3, "intervals"),
+                    step("Easy recovery", 2 / 3, "recovery"),
+                ],
+            ),
+        ]
     return [step(kind.value.title(), minutes, "recovery" if kind == Kind.RECOVERY else "easy")]
 
 
 def generate_plan(setup: Setup, runs: list[Activity]) -> Plan:
     fitness = estimate_fitness(runs, setup)
-    cadences = [a.metrics.average_cadence_spm for a in runs
-                if a.sport == "running" and 0 < (setup.start - a.day).days <= 28
-                and a.metrics and a.metrics.average_cadence_spm
-                and 100 <= a.metrics.average_cadence_spm <= 230]
+    cadences = [
+        a.metrics.average_cadence_spm
+        for a in runs
+        if a.sport == "running"
+        and 0 < (setup.start - a.day).days <= 28
+        and a.metrics
+        and a.metrics.average_cadence_spm
+        and 100 <= a.metrics.average_cadence_spm <= 230
+    ]
     cadence = round(median(cadences)) if len(cadences) >= 3 else None
     plan_id = hashlib.sha256(setup.model_dump_json().encode()).hexdigest()[:16]
     weeks = math.ceil((setup.race_date - setup.start).days / 7)

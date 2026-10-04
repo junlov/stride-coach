@@ -108,12 +108,15 @@ class Step(Record):
     hr_min: int | None = Field(default=None, gt=0)
     hr_max: int | None = Field(default=None, gt=0)
 
-
     @model_validator(mode="after")
     def valid_end_condition(self):
         if (self.end_condition == "distance") != (self.distance_m is not None):
             raise ValueError("Distance steps require distance_m; other steps must omit it")
-        for low, high in [(self.pace_min, self.pace_max), (self.hr_min, self.hr_max), (self.cadence_min, self.cadence_max)]:
+        for low, high in [
+            (self.pace_min, self.pace_max),
+            (self.hr_min, self.hr_max),
+            (self.cadence_min, self.cadence_max),
+        ]:
             if (low is None) != (high is None) or (low is not None and low > high):
                 raise ValueError("Targets need an ordered pair of bounds")
         if self.pace_min is not None and (self.hr_min is not None or self.hr_zone is not None):

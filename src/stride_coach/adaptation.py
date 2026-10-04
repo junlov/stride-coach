@@ -5,7 +5,7 @@ import json
 import math
 from datetime import date, timedelta
 
-from .models import executable_steps, Activity, Adjustment, Athlete, Kind, Plan
+from .models import Activity, Adjustment, Athlete, Kind, Plan, executable_steps
 from .storage import Store
 
 

@@ -2407,6 +2407,14 @@
             "title": "Phase",
             "type": "string"
           },
+          "step_descriptions": {
+            "items": {
+              "type": "string"
+            },
+            "readOnly": true,
+            "title": "Step Descriptions",
+            "type": "array"
+          },
           "steps": {
             "items": {
               "anyOf": [
@@ -2433,6 +2441,7 @@
           "phase",
           "kind",
           "steps",
+          "step_descriptions",
           "name"
         ],
         "title": "WorkoutSummary",

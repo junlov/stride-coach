@@ -84,3 +84,31 @@ def store(database, plan):
     db.initialize(plan)
     yield db
     db.close()
+
+
+@pytest.fixture
+def legacy_store(database, plan):
+    """Pre-structure plan for upgrade tests, using only the old timed-step contract."""
+    from stride_coach.models import RepeatGroup, Step
+
+    for workout in plan.workouts:
+        leaves = []
+        for block in workout.steps:
+            children = (
+                block.steps * block.repetitions if isinstance(block, RepeatGroup) else [block]
+            )
+            if isinstance(block, RepeatGroup) and block.skip_last_rest:
+                children = children[:-1]
+            leaves.extend(
+                Step(
+                    **step.model_dump(
+                        include={"label", "minutes", "pace_min", "pace_max", "hr_min", "hr_max"}
+                    )
+                )
+                for step in children
+            )
+        workout.steps = leaves
+    db = Store(database)
+    db.initialize(plan)
+    yield db
+    db.close()

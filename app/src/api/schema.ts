@@ -748,6 +748,20 @@ export interface components {
              */
             dry_run?: boolean;
         };
+        /** RepeatGroup */
+        RepeatGroup: {
+            /** Label */
+            label: string;
+            /** Repetitions */
+            repetitions: number;
+            /**
+             * Skip Last Rest
+             * @default false
+             */
+            skip_last_rest?: boolean;
+            /** Steps */
+            steps: components["schemas"]["Step"][];
+        };
         /** RunDetail */
         RunDetail: {
             /** Average Hr */
@@ -939,18 +953,37 @@ export interface components {
         };
         /** Step */
         Step: {
+            /** Cadence Max */
+            cadence_max?: number | null;
+            /** Cadence Min */
+            cadence_min?: number | null;
+            /** Distance M */
+            distance_m?: number | null;
+            /**
+             * End Condition
+             * @default time
+             * @enum {string}
+             */
+            end_condition?: "time" | "distance" | "lap";
             /** Hr Max */
             hr_max?: number | null;
             /** Hr Min */
             hr_min?: number | null;
+            /** Hr Zone */
+            hr_zone?: number | null;
             /** Label */
             label: string;
-            /** Minutes */
+            /**
+             * Minutes
+             * @description Estimated minutes, including distance and Lap steps
+             */
             minutes: number;
             /** Pace Max */
             pace_max?: number | null;
             /** Pace Min */
             pace_min?: number | null;
+            /** Preferred Hr Zone */
+            preferred_hr_zone?: number | null;
         };
         /** SyncAttempt */
         SyncAttempt: {
@@ -1086,8 +1119,10 @@ export interface components {
             readonly name: string;
             /** Phase */
             phase: string;
+            /** Step Descriptions */
+            readonly step_descriptions: string[];
             /** Steps */
-            steps: components["schemas"]["Step"][];
+            steps: (components["schemas"]["Step"] | components["schemas"]["RepeatGroup"])[];
             /** Week */
             week: number;
         };

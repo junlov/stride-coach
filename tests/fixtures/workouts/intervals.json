@@ -1,0 +1,116 @@
+{
+  "workoutName": "Reps 4x500 m",
+  "description": "Practice faster running with controlled efforts and easy recoveries. Aim for 5:30 to 6:05 /km during the running efforts.\nstride-coach:v1:synthetic-intervals",
+  "sportType": {
+    "sportTypeId": 1,
+    "sportTypeKey": "running"
+  },
+  "estimatedDurationInSecs": 2400,
+  "workoutSegments": [
+    {
+      "segmentOrder": 1,
+      "sportType": {
+        "sportTypeId": 1,
+        "sportTypeKey": "running"
+      },
+      "workoutSteps": [
+        {
+          "type": "ExecutableStepDTO",
+          "stepOrder": 1,
+          "description": "Warm up easy; press Lap (11:47 min estimated) at 138 to 154 bpm. Start gently.",
+          "stepType": {
+            "stepTypeId": 1,
+            "stepTypeKey": "warmup"
+          },
+          "endCondition": {
+            "conditionTypeId": 1,
+            "conditionTypeKey": "lap.button"
+          },
+          "targetType": {
+            "workoutTargetTypeId": 4,
+            "workoutTargetTypeKey": "heart.rate.zone"
+          },
+          "targetValueOne": 138,
+          "targetValueTwo": 154
+        },
+        {
+          "type": "RepeatGroupDTO",
+          "stepOrder": 2,
+          "stepType": {
+            "stepTypeId": 6,
+            "stepTypeKey": "repeat"
+          },
+          "numberOfIterations": 4,
+          "endCondition": {
+            "conditionTypeId": 7,
+            "conditionTypeKey": "iterations"
+          },
+          "endConditionValue": 4,
+          "skipLastRestStep": true,
+          "smartRepeat": false,
+          "workoutSteps": [
+            {
+              "type": "ExecutableStepDTO",
+              "stepOrder": 3,
+              "description": "500 m at 5:30 to 6:05 /km. Finish smooth.",
+              "stepType": {
+                "stepTypeId": 3,
+                "stepTypeKey": "interval"
+              },
+              "endCondition": {
+                "conditionTypeId": 3,
+                "conditionTypeKey": "distance"
+              },
+              "endConditionValue": 500,
+              "targetType": {
+                "workoutTargetTypeId": 6,
+                "workoutTargetTypeKey": "pace.zone"
+              },
+              "targetValueOne": 2.73972602739726,
+              "targetValueTwo": 3.0303030303030303
+            },
+            {
+              "type": "ExecutableStepDTO",
+              "stepOrder": 4,
+              "description": "200 m easy jog at 125 to 144 bpm. Relax your shoulders.",
+              "stepType": {
+                "stepTypeId": 4,
+                "stepTypeKey": "recovery"
+              },
+              "endCondition": {
+                "conditionTypeId": 3,
+                "conditionTypeKey": "distance"
+              },
+              "endConditionValue": 200,
+              "targetType": {
+                "workoutTargetTypeId": 4,
+                "workoutTargetTypeKey": "heart.rate.zone"
+              },
+              "targetValueOne": 125,
+              "targetValueTwo": 144
+            }
+          ]
+        },
+        {
+          "type": "ExecutableStepDTO",
+          "stepOrder": 5,
+          "description": "Cool down; press Lap (11:47 min estimated) at 138 to 154 bpm. Let breathing settle.",
+          "stepType": {
+            "stepTypeId": 2,
+            "stepTypeKey": "cooldown"
+          },
+          "endCondition": {
+            "conditionTypeId": 1,
+            "conditionTypeKey": "lap.button"
+          },
+          "targetType": {
+            "workoutTargetTypeId": 4,
+            "workoutTargetTypeKey": "heart.rate.zone"
+          },
+          "targetValueOne": 138,
+          "targetValueTwo": 154
+        }
+      ]
+    }
+  ]
+}

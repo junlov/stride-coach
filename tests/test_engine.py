@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from stride_coach.engine import estimate_fitness, generate_plan, make_steps, training_days, vdot
-from stride_coach.models import Activity, Athlete, Goal, Kind, Setup, RepeatGroup, executable_steps
+from stride_coach.models import Activity, Athlete, Goal, Kind, RepeatGroup, Setup, executable_steps
 
 
 def volumes(plan):
@@ -121,7 +121,10 @@ def test_return_running_minutes_progression(setup):
     plan = generate_plan(setup, [])
     running = defaultdict(float)
     for workout in plan.workouts:
-        running[workout.week] += sum(block.repetitions * sum(s.minutes for s in block.steps if s.label == "Run gently")
-                                      for block in workout.steps if isinstance(block, RepeatGroup))
+        running[workout.week] += sum(
+            block.repetitions * sum(s.minutes for s in block.steps if s.label == "Run gently")
+            for block in workout.steps
+            if isinstance(block, RepeatGroup)
+        )
     values = list(running.values())
     assert all(b <= a * 1.1 for a, b in zip(values, values[1:], strict=False))

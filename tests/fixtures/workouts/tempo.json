@@ -1,0 +1,78 @@
+{
+  "workoutName": "Tempo 20 min",
+  "description": "Practice a steady, comfortably hard effort that stays controlled. Aim for 6:05 to 6:44 /km during the running efforts.\nstride-coach:v1:synthetic-tempo",
+  "sportType": {
+    "sportTypeId": 1,
+    "sportTypeKey": "running"
+  },
+  "estimatedDurationInSecs": 2400,
+  "workoutSegments": [
+    {
+      "segmentOrder": 1,
+      "sportType": {
+        "sportTypeId": 1,
+        "sportTypeKey": "running"
+      },
+      "workoutSteps": [
+        {
+          "type": "ExecutableStepDTO",
+          "stepOrder": 1,
+          "description": "Warm up easy; press Lap (10 min estimated) at 138 to 154 bpm. Start gently.",
+          "stepType": {
+            "stepTypeId": 1,
+            "stepTypeKey": "warmup"
+          },
+          "endCondition": {
+            "conditionTypeId": 1,
+            "conditionTypeKey": "lap.button"
+          },
+          "targetType": {
+            "workoutTargetTypeId": 4,
+            "workoutTargetTypeKey": "heart.rate.zone"
+          },
+          "targetValueOne": 138,
+          "targetValueTwo": 154
+        },
+        {
+          "type": "ExecutableStepDTO",
+          "stepOrder": 2,
+          "description": "20 min at 6:05 to 6:44 /km. Stay controlled.",
+          "stepType": {
+            "stepTypeId": 3,
+            "stepTypeKey": "interval"
+          },
+          "endCondition": {
+            "conditionTypeId": 2,
+            "conditionTypeKey": "time"
+          },
+          "endConditionValue": 1200.0,
+          "targetType": {
+            "workoutTargetTypeId": 6,
+            "workoutTargetTypeKey": "pace.zone"
+          },
+          "targetValueOne": 2.4752475247524752,
+          "targetValueTwo": 2.73972602739726
+        },
+        {
+          "type": "ExecutableStepDTO",
+          "stepOrder": 3,
+          "description": "Cool down; press Lap (10 min estimated) at 138 to 154 bpm. Let breathing settle.",
+          "stepType": {
+            "stepTypeId": 2,
+            "stepTypeKey": "cooldown"
+          },
+          "endCondition": {
+            "conditionTypeId": 1,
+            "conditionTypeKey": "lap.button"
+          },
+          "targetType": {
+            "workoutTargetTypeId": 4,
+            "workoutTargetTypeKey": "heart.rate.zone"
+          },
+          "targetValueOne": 138,
+          "targetValueTwo": 154
+        }
+      ]
+    }
+  ]
+}

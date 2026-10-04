@@ -11,21 +11,34 @@ from .database import WRITE_LOCK, check_schema, connection_lock, database_url, m
 from .db_models import (
     ActivityRow,
     AdjustmentRow,
+    GarminZoneRow,
     MatchRow,
     MetadataRow,
     PlanRow,
+    RepeatRow,
     ScheduledRow,
     StepKind,
     StepRow,
-    RepeatRow,
-    GarminZoneRow,
     SyncAttemptRow,
     WeekRow,
     WorkoutRow,
     WriteIntentRow,
     WriteOperation,
 )
-from .models import GarminHeartRateZone, RepeatGroup, executable_steps, Activity, ActivityCore, Adjustment, Athlete, Fitness, Plan, Setup, Step, Workout
+from .models import (
+    Activity,
+    ActivityCore,
+    Adjustment,
+    Athlete,
+    Fitness,
+    GarminHeartRateZone,
+    Plan,
+    RepeatGroup,
+    Setup,
+    Step,
+    Workout,
+    executable_steps,
+)
 from .sync_models import SyncAttempt, SyncStatus
 
 
@@ -142,11 +155,18 @@ class Store:
         if row is None:
             raise ValueError("No plan. Run stride-coach init first.")
         steps = {}
-        groups = {(group.workout_id, group.position): group
-                  for group in session.scalars(select(RepeatRow))}
-        zones = {zone.zone: zone for zone in session.scalars(select(GarminZoneRow).where(
-            GarminZoneRow.fetched_at >= datetime.now(UTC) - timedelta(days=7)
-        ))}
+        groups = {
+            (group.workout_id, group.position): group
+            for group in session.scalars(select(RepeatRow))
+        }
+        zones = {
+            zone.zone: zone
+            for zone in session.scalars(
+                select(GarminZoneRow).where(
+                    GarminZoneRow.fetched_at >= datetime.now(UTC) - timedelta(days=7)
+                )
+            )
+        }
         children = {}
         for leaf in session.scalars(select(StepRow).order_by(StepRow.position)):
             step = Step(**fields(leaf, Step))
@@ -167,8 +187,12 @@ class Store:
             for index, entry in enumerate(target):
                 if isinstance(entry, tuple):
                     group = groups[entry]
-                    target[index] = RepeatGroup(label=group.label, repetitions=group.repetitions,
-                        skip_last_rest=group.skip_last_rest, steps=children[entry])
+                    target[index] = RepeatGroup(
+                        label=group.label,
+                        repetitions=group.repetitions,
+                        skip_last_rest=group.skip_last_rest,
+                        steps=children[entry],
+                    )
         workouts = [
             Workout(
                 **{key: getattr(w, key) for key in Workout.model_fields if key != "steps"},
@@ -199,8 +223,9 @@ class Store:
     def save_garmin_zones(self, zones: list[GarminHeartRateZone]):
         with self.lock(), self.transaction() as session:
             session.execute(delete(GarminZoneRow))
-            session.add_all(GarminZoneRow(**zone.model_dump(), fetched_at=datetime.now(UTC))
-                            for zone in zones)
+            session.add_all(
+                GarminZoneRow(**zone.model_dump(), fetched_at=datetime.now(UTC)) for zone in zones
+            )
 
     def plan(self) -> Plan:
         with self.transaction() as session:
@@ -232,11 +257,23 @@ class Store:
             for block in workout.steps:
                 group_position = position if isinstance(block, RepeatGroup) else None
                 if group_position is not None:
-                    session.add(RepeatRow(workout_id=workout.id, position=position,
-                        **block.model_dump(exclude={"steps"})))
+                    session.add(
+                        RepeatRow(
+                            workout_id=workout.id,
+                            position=position,
+                            **block.model_dump(exclude={"steps"}),
+                        )
+                    )
                 for step in executable_steps([block]):
-                    session.add(StepRow(**step.model_dump(), workout_id=workout.id,
-                        position=position, group_position=group_position, kind=step_kind(step.label)))
+                    session.add(
+                        StepRow(
+                            **step.model_dump(),
+                            workout_id=workout.id,
+                            position=position,
+                            group_position=group_position,
+                            kind=step_kind(step.label),
+                        )
+                    )
                     position += 1
         session.flush()
 
@@ -371,7 +408,7 @@ class Store:
                     select(StepRow).join(WorkoutRow).where(WorkoutRow.plan_id == plan.id)
                 )
             }
-            # Adaptation only changes durations. Keep workout identity and every remote ledger row.
+            # Scale time and distance while keeping workout identity and every remote ledger row.
             for workout in plan.workouts:
                 for position, step in enumerate(executable_steps(workout.steps)):
                     row = steps[workout.id, position]

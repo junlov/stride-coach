@@ -14,14 +14,14 @@ from .activity_storage import read_detail, read_streams
 from .adaptation import adapt as adapt_week
 from .adaptation import propose, week_metrics
 from .engine import generate_plan
-from .garmin import GarminError, GarminClient
+from .garmin import GarminClient, GarminError
 from .garmin import push as push_workouts
 from .garmin import remove as remove_workouts
 from .garmin_auth import DEFAULT_TOKENS as DEFAULT_TOKENS
 from .models import Activity, Adjustment, Fitness, Plan, Record, Setup, Workout
 from .storage import Store
 from .sync_models import SyncAttempt, SyncStatus
-from .workout_text import workout_name
+from .workout_text import step_summary, workout_name
 
 
 class Match(Record):
@@ -50,6 +50,11 @@ class Load(Record):
 
 
 class WorkoutSummary(Workout):
+    @computed_field
+    @property
+    def step_descriptions(self) -> list[str]:
+        return [step_summary(step) for step in self.steps]
+
     @computed_field
     @property
     def name(self) -> str:

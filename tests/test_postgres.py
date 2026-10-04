@@ -173,7 +173,8 @@ def test_restart_retains_unresolved_write_and_adaptation(store):
         reopened.close()
 
 
-def test_upgrade_preserves_data_and_unknown_revision_is_refused(store, tmp_path):
+def test_upgrade_preserves_data_and_unknown_revision_is_refused(legacy_store, tmp_path):
+    store = legacy_store
     plan = store.plan()
     with store.connection.begin():
         command.downgrade(migration_config(store.connection), "0001")

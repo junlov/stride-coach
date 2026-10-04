@@ -21,6 +21,7 @@ export const workout: Schema<"WorkoutSummary"> = {
   week: 1,
   phase: "base",
   kind: "easy",
+  step_descriptions: ["Easy running: 30.0 min · 120 to 140 bpm"],
   steps: [{ label: "Easy running", minutes: 30, hr_min: 120, hr_max: 140 }],
 };
 export const plan: Schema<"PlanView"> = {

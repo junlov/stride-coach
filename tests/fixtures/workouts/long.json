@@ -1,0 +1,40 @@
+{
+  "workoutName": "Long Run 40 min",
+  "description": "Build staying power with a relaxed, conversational effort throughout. Aim for 138 to 154 bpm during the running efforts.\nstride-coach:v1:synthetic-long",
+  "sportType": {
+    "sportTypeId": 1,
+    "sportTypeKey": "running"
+  },
+  "estimatedDurationInSecs": 2400,
+  "workoutSegments": [
+    {
+      "segmentOrder": 1,
+      "sportType": {
+        "sportTypeId": 1,
+        "sportTypeKey": "running"
+      },
+      "workoutSteps": [
+        {
+          "type": "ExecutableStepDTO",
+          "stepOrder": 1,
+          "description": "40 min easy run at 138 to 154 bpm. Stay relaxed.",
+          "stepType": {
+            "stepTypeId": 3,
+            "stepTypeKey": "interval"
+          },
+          "endCondition": {
+            "conditionTypeId": 2,
+            "conditionTypeKey": "time"
+          },
+          "endConditionValue": 2400.0,
+          "targetType": {
+            "workoutTargetTypeId": 4,
+            "workoutTargetTypeKey": "heart.rate.zone"
+          },
+          "targetValueOne": 138,
+          "targetValueTwo": 154
+        }
+      ]
+    }
+  ]
+}
