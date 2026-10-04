@@ -59,8 +59,8 @@ If it fails, tap **Check plan status** to retry the read before submitting the g
 The **Import past runs** step uses `HistoryImport` through the `ImportPastRunsStep` slot in
 `src/screens/onboarding.tsx`. The same controls in Settings show progress and offer **Resume import**
 after a connection failure. Imports run on the server and resume after server restarts.
-The app triggers a read-only sync on open or resume; the server enforces a six-hour interval by
-default and silently skips disconnected Garmin accounts.
+The app requests an activity sync on open or resume.
+See [automatic sync behavior](../docs/self-hosting.md#automatic-sync-and-import-recovery) for intervals and disconnected accounts.
 
 In **Settings**, **Manage connection** opens the server form. Test and save a changed URL or
 bearer token there. **Forget connection** opens a confirmation showing what will be removed.
@@ -128,8 +128,10 @@ or leaving the Actions screen invalidates the preview. Empty or failed previews 
 confirmed. Applying an adjustment requires the target Monday and a sync covering the previous
 two complete weeks. Reductions can also affect later weeks; the server checks this when applying.
 
-The API recalculates operations on confirmation. It has no immutable preview identifier.
-Avoid concurrent changes from another client while reviewing.
+Adjustment confirmation follows the [reviewed proposal contract](../README.md#weekly-loop).
+If the server rejects a stale proposal, tap **Preview adjustment** and review it again.
+Garmin push and removal recalculate operations on confirmation without an immutable preview identifier.
+Avoid concurrent changes from another client while reviewing those operations.
 For failed writes, follow the [recovery guidance](#runner-design-and-api-limits) before another attempt.
 The app shows errors, including 401 and timeouts, on screen. Read screens offer Retry and reload on focus or app resume.
 Today and Week also reload at local midnight.

@@ -1,8 +1,8 @@
 # Self-hosting Stride Coach
 
 Run one API instance and PostgreSQL 17. The server owns the Garmin connection, including
-login, MFA, and bounded token renewal. There is no background sync: **Sync** pulls the latest
-runs when requested. The mobile app connects to the API over HTTPS.
+login, MFA, and bounded token renewal. See [automatic sync and import recovery](#automatic-sync-and-import-recovery)
+for scheduled activity reads. The mobile app connects to the API over HTTPS.
 
 ## Install with Compose
 
@@ -46,7 +46,7 @@ transaction-mode pooling cannot preserve the advisory locks used across committe
 | `STRIDE_COACH_TOKENS` | Dedicated session volume path, default `/data/garmin` in Compose |
 | `STRIDE_COACH_SYNC_ENABLED` | Daily automatic Garmin reads, `true` by default; `false` disables the daily schedule only |
 | `STRIDE_COACH_SYNC_TIME` | Daily `HH:MM` time in `TZ`, default `06:00`; catches up once after startup if due |
-| `STRIDE_COACH_SYNC_OPEN_HOURS` | Minimum interval between app-open sync attempts, default `6` hours, shared across devices |
+| `STRIDE_COACH_SYNC_OPEN_HOURS` | Minimum interval between app-open sync attempts, default `6` hours (range 0.1 to 720), shared across devices |
 | `STRIDE_COACH_IMPORT_PAGE_DELAY` | Minimum delay between history pages, default `1` second (range 0.1 to 60) |
 | `TZ` | Athlete's IANA timezone, default `UTC`; determines local coaching dates |
 | `PORT` | Compose host port, default `8000`; container port stays `8000` |
@@ -85,10 +85,8 @@ docker compose exec api python -m stride_coach.cli garmin login
 docker compose exec api python -m stride_coach.cli garmin status
 ```
 
-Before creating your plan, use **Import past runs** after connecting Garmin or in **Settings**.
-Choose 12 weeks, 6 calendar months, or everything. Wait for Complete to include the imported
-runs in your initial fitness estimate, then create the goal. You can also import from the CLI
-with `sync --since YYYY-MM-DD --until YYYY-MM-DD`. Garmin push and removal remain previews until you explicitly
+Follow the [mobile onboarding guide](../app/README.md#connect-your-server) to import past runs before creating your plan.
+For CLI imports, follow [plan and review](../README.md#plan-and-review). Garmin push and removal remain previews until you explicitly
 confirm a live action. Never use real Garmin writes for deployment healthchecks.
 
 Garmin's API is unofficial. The synthetic install proof does not establish live login acceptance
@@ -324,7 +322,8 @@ and its volumes. No existing `.env` settings or Garmin credentials are used.
 
 One in-process worker starts with the HTTP server. Keep the server running for daily sync and
 history imports; CLI and MCP invocations do not start a scheduler. Daily sync runs after the
-configured local time, at most once that day when a regular sync has already been attempted.
+configured local time unless a regular sync was already attempted that day.
+Disabling the daily schedule leaves explicit history imports and app-open sync available.
 App open/resume requests `POST /sync/open`; the server skips silently without stored Garmin
 credentials or while another writer holds the PostgreSQL advisory lock. The server persists
 attempt times to enforce the configured interval across app restarts and devices. A failed
@@ -340,7 +339,8 @@ Automatic sync only reads activities. It never pushes/removes workouts or applie
 `{"range":"everything"}` and returns a durable job immediately. Everything requests all available
 Garmin history from 1970 onward. Ranges are anchored to the request's local date. The worker
 fetches ascending pages of 100 activities with the configured delay. Activity upserts and the
-page cursor commit together. Restarting the server resumes a running import. A request failure
+page cursor commit together. History imports update or insert returned runs without removing absent runs.
+For detail capture timing, see [run data storage](activity-data.md). Restarting the server resumes a running import. A request failure
 pauses the job; **Resume import** retries its last uncommitted page after reconnecting if needed.
 Repeated requests for the current range return the same job; selecting another range after it
 finishes starts another idempotent import. Only one import is active at a time. Garmin does not

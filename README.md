@@ -14,8 +14,8 @@ Claude Code can discuss your local plan through MCP using your existing Claude C
 
 Stride Coach creates a plan, shows today's workout, imports completed Garmin runs, and
 explains weekly adjustments. Uploads require your confirmation. You own the single-user
-server and its data. It does not provide medical advice, multi-user accounts, background
-sync, a web UI, or support for other watch vendors.
+server and its data. It does not provide medical advice, multi-user accounts, a web UI,
+or support for other watch vendors.
 
 Allow about 15 minutes **after** installing Docker with Compose, Git, Python 3, and a compatible
 mobile app, and preparing an HTTPS hostname/proxy. Image downloads, DNS, app builds, Apple
@@ -135,7 +135,7 @@ A recent marked effort provides a VDOT-style estimate. Garmin averages are not a
 classified as maximal efforts. Without one, the engine uses recent easy paces or HR targets.
 `sync --activities PATH --since DATE --until DATE` imports normalized data offline.
 
-Each successful sync replaces stored activities within the inclusive date range,
+Each successful regular sync replaces stored activities within the inclusive date range,
 including removal of activities absent from the result.
 For an offline import, supply the complete activity list for that range.
 An empty list clears that range.
@@ -260,8 +260,8 @@ Tools: `plan`, `week`, `compliance`, `load`, `propose_adjustment`.
 Ask Claude Code: "Review my last week, explain compliance and load, and propose next week's
 adjustment." The MCP tools open PostgreSQL transactions read-only, never invoke Garmin, and make no LLM calls.
 It exposes training data to your MCP client, so use a client/account you trust with that data.
-Proposals are previews and may include an incomplete week. Actual application remains the
-CLI's explicit `adapt WEEK --apply`, with date and sync checks. MCP cannot upload, remove, or apply.
+Proposals are previews and can include an incomplete week. Follow the [weekly loop](#weekly-loop)
+to apply a reviewed proposal. MCP cannot upload, remove, or apply.
 
 ## JSON API for a phone client
 
@@ -330,7 +330,8 @@ No route accepts a filesystem path from a remote client.
 The committed [OpenAPI 3.1 schema](docs/openapi.json) is the mobile client handoff. It includes
 stable operation IDs, enums, request/response models, and the `CoachBearer` security scheme.
 Regenerate it after API changes with `uv run python examples/export_openapi.py`; tests fail
-if it differs from the application. The API has no background polling or automatic writes.
+if it differs from the application. See [automatic sync](docs/self-hosting.md#automatic-sync-and-import-recovery)
+for background activity reads. Garmin writes require explicit confirmation.
 
 ## iOS and Android app
 
@@ -376,12 +377,9 @@ a goal, use **Import past runs** after Connect Garmin (also in Settings): choose
 Imports continue on the server, survive restarts, and offer Resume after a connection error.
 Reconnect Garmin if token renewal fails; no password login is retried automatically.
 
-Configure `STRIDE_COACH_SYNC_ENABLED=true`, `STRIDE_COACH_SYNC_TIME=06:00` (in `TZ`),
-`STRIDE_COACH_SYNC_OPEN_HOURS=6`, and `STRIDE_COACH_IMPORT_PAGE_DELAY=1` seconds in `.env`.
-Disabling the daily schedule leaves explicit history imports and app-open sync available.
 Sync reads runs only. Applying a proposed adjustment still requires explicit confirmation;
-**Progress** shows the saved reasons for every applied adjustment. The API preserves its inputs
-as well, so later activity changes do not rewrite the original explanation.
+**Progress** shows the saved reasons for every applied adjustment. See [saved adjustment evidence](docs/self-hosting.md#automatic-sync-and-import-recovery)
+for the retained inputs and reasons.
 
 See [automatic sync and import recovery](docs/self-hosting.md#automatic-sync-and-import-recovery)
 for API endpoints, restart behavior, range semantics, and configuration limits. A synthetic

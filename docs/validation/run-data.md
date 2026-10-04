@@ -63,10 +63,8 @@ and original FIT size. The proof script makes the measurements reproducible.
 
 ## Integration notes
 
-- Detail migration `0003_run_data` descends from `0002`. If the scheduling lane also adds a
-  migration from `0002`, serialize those migrations or add an Alembic merge before combining.
-- Scheduler integration calls `capture_pending(store, client)` after saving summaries. The
-  current hook lives in `Coach.sync`; no scheduler/history-import code is added here.
+- The migration chain is defined in [packaged revisions](../../src/stride_coach/migrations/versions/).
+- See [run capture timing](../activity-data.md) for regular sync and history import behavior.
 - GPS opt-out skips raw payloads and originals rather than pretending an unchanged FIT has
   no GPS. It is prospective; existing files/backups remain.
 - Summary lists still power coaching without loading streams. No classifier is implemented.
