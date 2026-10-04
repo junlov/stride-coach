@@ -12,9 +12,9 @@ import {
   Heading,
   Muted,
   Page,
-} from "../components/setup-ui";
+} from "../components/ui";
 import { useConnection } from "../state/connection";
-import { useTheme } from "../setup-theme";
+import { useTheme } from "../theme";
 import GoalScreen from "./goal";
 
 // Extension slot: Import past runs. Hidden until a server-backed step is supplied.
@@ -119,7 +119,7 @@ export function OnboardingScreen({
 export function FirstRunGate({ children }: React.PropsWithChildren) {
   const { loading, onboarding, finishOnboarding } = useConnection();
   const [returnToToday, setReturnToToday] = useState(false);
-  const c = useTheme();
+  const { colors: c, dark } = useTheme();
   if (loading)
     return (
       <ActivityIndicator
@@ -130,7 +130,7 @@ export function FirstRunGate({ children }: React.PropsWithChildren) {
   if (onboarding)
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: c.background }}>
-        <StatusBar style={c.background === "#101e27" ? "light" : "dark"} />
+        <StatusBar style={dark ? "light" : "dark"} />
         <OnboardingScreen
           onComplete={() => {
             setReturnToToday(true);

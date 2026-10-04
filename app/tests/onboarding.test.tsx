@@ -11,7 +11,7 @@ import { ConnectionProvider } from "../src/state/connection";
 import { FirstRunGate } from "../src/screens/onboarding";
 import SettingsScreen from "../src/screens/settings";
 import TodayScreen from "../src/screens/today";
-import { palettes } from "../src/setup-theme";
+import { palettes } from "../src/theme";
 import { connection, mockServer, response, status } from "./fixtures";
 
 let server: ReturnType<typeof mockServer>;
@@ -109,7 +109,7 @@ describe.each(["light", "dark"] as const)(
         await press("Confirm new plan");
         await screen.findByText("Plan created");
         await press("Go to Today");
-        await screen.findByText("Today");
+        await screen.findByRole("header", { name: "Your next stride" });
         expect(calls("/goal")).toHaveLength(1);
         const goalRequest = (server as jest.Mock).mock.calls.find(([url]) =>
           String(url).endsWith("/goal"),
@@ -125,6 +125,70 @@ describe.each(["light", "dark"] as const)(
           JSON.stringify(connection),
           { keychainAccessible: "device" },
         );
+      },
+    );
+
+    test.each(["committed", "status unavailable", "not committed"])(
+      "lost goal response recovers only after status confirms a plan: %s",
+      async (outcome) => {
+        jest.mocked(SecureStore.getItemAsync).mockResolvedValue(null);
+        const transport = server.getMockImplementation()!;
+        let attempted = false;
+        let statusUnavailable = outcome === "status unavailable";
+        server.mockImplementation(async (input) => {
+          const path = new URL(String(input)).pathname;
+          if (path === "/goal") {
+            attempted = true;
+            throw new Error("Response lost");
+          }
+          if (path === "/status") {
+            if (attempted && statusUnavailable) throw new Error("Offline");
+            if (!attempted || outcome === "not committed")
+              return response(
+                { detail: "No plan. Run stride-coach init first." },
+                400,
+              );
+          }
+          return transport(input);
+        });
+        await mount(
+          <FirstRunGate>
+            <Native.Text>Today destination</Native.Text>
+          </FirstRunGate>,
+        );
+        await enterServer();
+        await press("Save connection");
+        await press("Skip Garmin for now");
+        await field("Start Monday (YYYY-MM-DD)", "2026-10-05");
+        await field("Race or completion date (YYYY-MM-DD)", "2026-12-06");
+        await press("Review goal");
+        await press("Confirm new plan");
+        if (outcome !== "committed") {
+          await waitFor(() =>
+            expect(
+              screen.getByRole("button", { name: "Check plan status" }),
+            ).toBeEnabled(),
+          );
+          expect(screen.queryByText("Go to Today")).toBeNull();
+          expect(
+            screen.getByLabelText("Start Monday (YYYY-MM-DD)").props.value,
+          ).toBe("2026-10-05");
+          statusUnavailable = false;
+          await press("Check plan status");
+        }
+        if (outcome === "not committed") {
+          await screen.findByText("No plan. Run stride-coach init first.");
+          expect(screen.queryByText("Go to Today")).toBeNull();
+          await press("Review goal");
+          await screen.findByText("Review your goal");
+        } else {
+          await screen.findByText(
+            "Your server confirms an existing plan. Continue to Today.",
+          );
+          await press("Go to Today");
+          await screen.findByText("Today destination");
+        }
+        expect(calls("/goal")).toHaveLength(1);
       },
     );
 

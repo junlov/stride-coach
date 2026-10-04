@@ -5,17 +5,17 @@ import {
   Card,
   Choice,
   Copy,
+  ConnectionGate,
   ErrorMessage,
   Field,
   Heading,
   Muted,
   Page,
-} from "../components/setup-ui";
-import { ConnectionGate } from "../components/ui";
+} from "../components/ui";
 import { Link } from "expo-router";
 import { validDate } from "../dates";
 import { useConnection } from "../state/connection";
-import { useTheme } from "../setup-theme";
+import { useTheme } from "../theme";
 const goals: Schema<"Goal">[] = [
   "5k",
   "10k",
@@ -43,7 +43,7 @@ export default function GoalScreen({
   onComplete,
 }: { onComplete?: () => void } = {}) {
   const { client, refresh } = useConnection();
-  const c = useTheme();
+  const { colors: c } = useTheme();
   const [goal, setGoal] = useState<Schema<"Goal">>("5k");
   const [start, setStart] = useState("");
   const [race, setRace] = useState("");
@@ -53,6 +53,8 @@ export default function GoalScreen({
   const [max, setMax] = useState("190");
   const [review, setReview] = useState<Schema<"Setup"> | null>(null);
   const [result, setResult] = useState<Schema<"Created"> | null>(null);
+  const [existingPlan, setExistingPlan] = useState(false);
+  const [needsRecovery, setNeedsRecovery] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
@@ -97,18 +99,36 @@ export default function GoalScreen({
       athlete: { resting_hr: +resting, max_hr: +max },
     });
   }
-  async function submit() {
-    if (!client || !review || lock.current) return;
+  async function readExistingPlan() {
+    await client!.status();
+    setExistingPlan(true);
+    setNeedsRecovery(false);
+    setError(null);
+    refresh();
+  }
+  async function submit(checkStatus = false) {
+    if (!client || (!checkStatus && !review) || lock.current) return;
     lock.current = true;
     setBusy(true);
     setError(null);
     try {
-      setResult(await client.goal({ setup: review }));
+      if (checkStatus) await readExistingPlan();
+      else {
+        setResult(await client.goal({ setup: review! }));
+        refresh();
+      }
       setReview(null);
-      refresh();
     } catch (e) {
       setError((e as Error).message);
       setReview(null);
+      setNeedsRecovery(true);
+      if (!checkStatus) {
+        try {
+          await readExistingPlan();
+        } catch {
+          setError((e as Error).message);
+        }
+      }
     } finally {
       lock.current = false;
       setBusy(false);
@@ -118,7 +138,7 @@ export default function GoalScreen({
     <Page
       eyebrow={review ? "Initial plan · 2 of 2" : "Initial plan · 1 of 2"}
       title={
-        result
+        result || existingPlan
           ? "Your plan is ready."
           : review
             ? "A plan that fits your week."
@@ -126,15 +146,23 @@ export default function GoalScreen({
       }
     >
       <ConnectionGate>
-        {result ? (
+        {result || existingPlan ? (
           <Card>
-            <Heading>Plan created</Heading>
-            <Copy>
-              {result.sessions} sessions · {result.fitness.source}
-            </Copy>
-            {result.warnings.map((warning) => (
-              <Muted key={warning}>{warning}</Muted>
-            ))}
+            {result ? (
+              <>
+                <Heading>Plan created</Heading>
+                <Copy>
+                  {result.sessions} sessions · {result.fitness.source}
+                </Copy>
+                {result.warnings.map((warning) => (
+                  <Muted key={warning}>{warning}</Muted>
+                ))}
+              </>
+            ) : (
+              <Copy>
+                Your server confirms an existing plan. Continue to Today.
+              </Copy>
+            )}
             {onComplete ? (
               <Button label="Go to Today" onPress={onComplete} />
             ) : (
@@ -257,6 +285,14 @@ export default function GoalScreen({
           </Card>
         )}
         <ErrorMessage message={error} />
+        {needsRecovery && !result && !existingPlan && (
+          <Button
+            label="Check plan status"
+            variant="secondary"
+            disabled={busy}
+            onPress={() => void submit(true)}
+          />
+        )}
       </ConnectionGate>
     </Page>
   );

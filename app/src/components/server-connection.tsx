@@ -9,7 +9,7 @@ import {
   Field,
   Heading,
   Muted,
-} from "./setup-ui";
+} from "./ui";
 
 export function isMissingPlan(error: unknown) {
   return (

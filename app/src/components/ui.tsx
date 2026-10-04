@@ -141,17 +141,22 @@ export function Button({
   onPress,
   disabled = false,
   variant = "primary",
+  selected,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   variant?: "primary" | "secondary" | "danger";
+  selected?: boolean;
 }) {
   const { colors } = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
+      accessibilityState={{
+        disabled,
+        ...(selected === undefined ? {} : { selected }),
+      }}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
@@ -405,5 +410,48 @@ export function NavLink({
     >
       {label}
     </Link>
+  );
+}
+
+export function Choice<T extends string>({
+  label,
+  value,
+  options,
+  names,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: T;
+  options: readonly T[];
+  names: Record<T, string>;
+  onChange: (value: T) => void;
+  disabled?: boolean;
+}) {
+  const [expanded, setExpanded] = React.useState(false);
+  return (
+    <View style={{ gap: 7 }}>
+      <Muted>{label}</Muted>
+      <Button
+        label={`${label}: ${names[value]} ${expanded ? "▴" : "▾"}`}
+        variant="secondary"
+        disabled={disabled}
+        onPress={() => setExpanded(!expanded)}
+      />
+      {expanded &&
+        options.map((option) => (
+          <Button
+            key={option}
+            label={names[option]}
+            selected={option === value}
+            variant={option === value ? "primary" : "secondary"}
+            disabled={disabled}
+            onPress={() => {
+              onChange(option);
+              setExpanded(false);
+            }}
+          />
+        ))}
+    </View>
   );
 }

@@ -9,7 +9,7 @@ import {
   Heading,
   Muted,
   Page,
-} from "../components/setup-ui";
+} from "../components/ui";
 import { useConnection } from "../state/connection";
 
 export default function SettingsScreen() {

@@ -56,7 +56,7 @@ server-backed import flow. The current wizard makes no import or Garmin sync req
 In **Settings**, **Manage connection** opens the server form. Test and save a changed URL or
 bearer token there. **Forget connection** opens a confirmation showing what will be removed.
 The onboarding and settings screens follow the phone’s light or dark appearance using
-`src/setup-theme.ts` and `src/components/setup-ui.tsx`. Expo system UI enables appearance changes in
+`src/theme/index.ts` and `src/components/ui.tsx`. Expo system UI enables appearance changes in
 Android builds, as described in [Expo’s color theme guide](https://docs.expo.dev/develop/user-interface/color-themes/).
 
 **Refresh Garmin status** shows the connected account (when available) and access-token expiry.
