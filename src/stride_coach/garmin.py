@@ -247,6 +247,21 @@ def owned_remote(client, inventory: list[dict], workout: Workout) -> dict | None
     return owned[0] if owned else None
 
 
+def reconcile_cached_remote(store: Store, workout_id: str, inventory: list[dict], events: list[dict]):
+    cached = store.scheduled(workout_id)
+    if not cached or pending(store, f"create:{workout_id}"):
+        return cached
+    remote_id = cached["remote_id"]
+    if any(str(item["workoutId"]) == remote_id for item in inventory) or any(
+        item.get("itemType") == "workout" and str(item.get("workoutId")) == remote_id
+        for item in events
+    ):
+        return cached
+    store.forget_remote(workout_id)
+    pending(store, f"schedule:{workout_id}", False)
+    return None
+
+
 def push(
     store: Store,
     workouts: list[Workout],
@@ -272,7 +287,8 @@ def push(
             payload = workout_payload(workout)
             digest = fingerprint(payload)
             remote = owned_remote(client, inventory, workout)
-            cached = store.scheduled(workout.id)
+            calendar = client.calendar(workout.day)
+            cached = reconcile_cached_remote(store, workout.id, inventory, calendar)
             create_key, schedule_key = f"create:{workout.id}", f"schedule:{workout.id}"
             action = "skipped"
             if remote:
@@ -293,7 +309,6 @@ def push(
                 store.save_remote(workout.id, remote_id, digest, False)
                 pending(store, create_key, False)
                 action = "created"
-            calendar = client.calendar(workout.day)
             scheduled = any(
                 str(item.get("workoutId")) == remote_id
                 and item.get("date") == workout.day.isoformat()
@@ -408,6 +423,8 @@ def reconcile_calendar(store: Store, client, today: date, *, apply=False, previe
             for item in client.calendar(date(year, month, 1)):
                 if item.get("itemType") == "workout":
                     events[str(item["id"])] = item
+        for workout in plan.workouts:
+            reconcile_cached_remote(store, workout.id, inventory, list(events.values()))
         changes = []
         for workout in desired:
             remote = owned.get(workout.id)
@@ -458,11 +475,12 @@ def reconcile_calendar(store: Store, client, today: date, *, apply=False, previe
                 reason = "No longer in the plan"
             elif workout.day >= end:
                 reason = "Outside the Garmin window"
-            elif workout.day < today and past and workout_id not in completed:
+            elif workout.day < today and workout_id not in completed:
                 # A missing local activity alone is not proof of non-completion.
                 coverage = store.sync_window(complete=True)
+                missed_dates = {workout.day.isoformat()} | {e["date"] for e in past}
                 if coverage and all(
-                    coverage["since"] <= e["date"] <= coverage["until"] for e in past
+                    coverage["since"] <= day <= coverage["until"] for day in missed_dates
                 ):
                     reason = "Past workout without a completed run in synced history"
             if reason:
