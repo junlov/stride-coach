@@ -101,7 +101,8 @@ See [API limits](#runner-design-and-api-limits) for excluded features.
 ## Generated API contract
 
 `src/api/schema.ts` is generated from `../docs/openapi.json`. Do not edit it by hand.
-`src/api/client.ts` provides typed operations, bearer auth, error handling, and a 15-second timeout.
+`src/api/client.ts` provides typed operations, bearer auth, error handling, and a default 15-second timeout.
+See [run capture timing](../docs/activity-data.md) for the longer sync timeout.
 
 ```sh
 npm run generate:api
@@ -158,13 +159,13 @@ require an Apple Developer membership. You do not need the maintainer's Expo acc
 
 Before running EAS, edit **your fork's** `app/app.json`:
 
-| Field under `expo` | Change |
-| --- | --- |
-| `owner` | Replace `junlov` with your Expo username or organization |
-| `extra.eas.projectId` | Delete this property, then let `eas init` generate your own ID |
-| `android.package` | Replace `org.stridecoach.app` with your unique reverse-domain identifier |
-| `ios.bundleIdentifier` | Replace `org.stridecoach.app` with your unique reverse-domain identifier |
-| `name`, `slug`, `scheme` | Choose names and a URL scheme for your copy |
+| Field under `expo`       | Change                                                                   |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `owner`                  | Replace `junlov` with your Expo username or organization                 |
+| `extra.eas.projectId`    | Delete this property, then let `eas init` generate your own ID           |
+| `android.package`        | Replace `org.stridecoach.app` with your unique reverse-domain identifier |
+| `ios.bundleIdentifier`   | Replace `org.stridecoach.app` with your unique reverse-domain identifier |
+| `name`, `slug`, `scheme` | Choose names and a URL scheme for your copy                              |
 
 **The committed project ID `1292c8fc-a736-43a2-be85-a0fb899f9475` belongs to the maintainer.
 It must be replaced, not reused.** Keep `extra.router` and the other configuration intact.
@@ -239,10 +240,10 @@ missing-heart-rate runs make the known TRIMP subtotal incomplete, not zero. Plan
 shows the server's saved adjustment totals and reasons. Apply still requires server-side
 eligibility checks and does not send Garmin workouts.
 
-The current API does not return recorded activity measurements or unmatched activity rows,
-activity provenance/laps/routes, distance history, heart-rate coverage minutes, personalized
-workout explanations, per-workout adjustment diffs, downstream adjustment diffs or adjustment
-timestamps. The UI discloses these gaps and renders the available totals, steps and reasons.
+The [run detail API](../docs/activity-data.md#streams-and-read-api) exposes stored measurements by activity ID.
+The current screens do not use these endpoints. They render the available totals, steps and reasons.
+The API still lacks an unmatched activity list, distance history, and heart-rate coverage minutes.
+It also lacks personalized workout explanations, per-workout adjustment diffs, downstream adjustment diffs, and adjustment timestamps.
 The repeated-interval design, imports, exports and offline cache are outside this implementation.
 
 After a write fails with an uncertain result, Actions disables further operations. **Inspect

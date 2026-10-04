@@ -4,7 +4,9 @@ Every Garmin sync stores the summary immediately, then captures detail for up to
 running activities. This is separate from the scheduler and history-import window. Detail
 failure does not discard the summary or prevent its use for plan matching and training load.
 The sync response's `details` reports completed, failed, and remaining captures. A failed batch
-stops at the first error to avoid hammering Garmin; the next sync or backfill retries it.
+stops at the first error to avoid hammering Garmin. Later batches prioritize runs with fewer
+capture attempts, then activity date and ID. A failed run remains retryable without blocking
+unattempted runs indefinitely.
 
 ```sh
 stride-coach backfill-details --limit 20
@@ -14,14 +16,18 @@ stride-coach backfill-details --include-legacy --limit 20
 
 Repeat until `remaining` is zero. Legacy records have no provider provenance. Use
 `--include-legacy` only if those records' IDs are Garmin activity IDs. Imported records with
-source metadata are excluded. A run with no downloadable original stays retryable; inspect
-its capture status before repeatedly retrying. Other sports can retain summaries only.
+local source metadata are excluded. If Garmin later returns the same ID, its summary changes
+the stored source to Garmin and makes the imported run eligible for capture. Omitted detail
+sections remain stored.
+
+A run with no downloadable original stays retryable.
+Inspect its capture status before another retry. Other sports can retain summaries only.
 
 Each request waits `STRIDE_COACH_DETAIL_DELAY_SECONDS` (default 1 second, minimum 0.1,
 maximum 60). The database write lock serializes captures between API and CLI instances.
 There is no automatic immediate retry. Completed activities are skipped on subsequent syncs.
-A crash resumes at the first incomplete activity, which may repeat that activity's reads.
-An original already saved before a crash is reused without a duplicate file.
+After a crash, later batches use the same attempt ordering and can repeat incomplete activity reads.
+An identical original saved before a crash is reused without a duplicate file.
 A 20-run batch makes up to 100 requests, so sync can take minutes. The app client allows
 three minutes; if it times out, check run capture status or resume from the CLI.
 

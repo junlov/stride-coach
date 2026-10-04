@@ -34,7 +34,8 @@ or [build your own installable copy](app/README.md#build-your-own-app-copy).
 
    Edit `.env`: put the first secret in `STRIDE_COACH_API_TOKEN`, the second in
    `POSTGRES_PASSWORD`, and set `TZ` to your IANA timezone (for example `America/Sao_Paulo`).
-   Keep both secrets private.
+   Keep both secrets private. Before the first sync, review the
+   [run data privacy controls](docs/activity-data.md#original-files-and-privacy).
 
 2. Start the server with one command and check readiness:
 
@@ -321,6 +322,8 @@ Run one server instance using the same PostgreSQL database and session directory
 | `GET /garmin/status` | Connection state, optional display name, access-token expiry (Unix seconds); may renew once |
 | `POST /garmin/logout` | Delete stored Garmin tokens and cancel pending MFA |
 | `GET /openapi.json` | Authenticated generated client contract |
+
+See [run data storage and import](docs/activity-data.md) for activity detail endpoints, normalized imports, and resumable backfill.
 
 All command bodies are JSON. For example, `POST /push` with `{"week": 1}` previews a week.
 An explicit `apply: true` is required for writes, and conflicting `dry_run: true` is rejected.

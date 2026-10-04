@@ -121,7 +121,9 @@ export function createClient(
     activity: (id: string) =>
       request<Result<"get_activity">>(`/activities/${encodeURIComponent(id)}`),
     activityStreams: (id: string) =>
-      request<Result<"get_activity_streams">>(`/activities/${encodeURIComponent(id)}/streams`),
+      request<Result<"get_activity_streams">>(
+        `/activities/${encodeURIComponent(id)}/streams`,
+      ),
     load: () => request<Result<"get_load">>("/load"),
     compliance: () => request<Result<"get_compliance">>("/compliance"),
     goal: (body: Schema<"GoalRequest">) =>
