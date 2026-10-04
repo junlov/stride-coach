@@ -34,10 +34,7 @@
       ]
     ],
     "scheme": "stride-coach",
-    "platforms": [
-      "ios",
-      "android"
-    ],
+    "platforms": ["ios", "android"],
     "extra": {
       "router": {},
       "eas": {

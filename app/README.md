@@ -52,7 +52,9 @@ storage, server configuration, MFA worker requirements, upstream login limitatio
 Both server settings are saved together in `expo-secure-store`. **Forget connection** removes the
 saved server URL/bearer token and clears connected screen state. It does not disconnect Garmin
 on the server. Garmin email, password, and MFA code are never put in SecureStore. Tokens are never put in URLs, analytics,
-logs, source files, or build configuration. Changing connections invalidates pending previews.
+logs, source files, or build configuration.
+Saving or forgetting a connection clears pending previews, recovery inspection, acknowledgement, and the selected week.
+The app ignores late responses from the previous connection.
 
 A physical phone's `localhost` is the phone itself. Use the server's HTTPS address for phones.
 For local simulator development only, HTTP loopback is accepted: `http://127.0.0.1:8000` for an
@@ -62,15 +64,24 @@ Keep the server timezone aligned with the athlete's local timezone.
 
 ## Screens and actions
 
+Today, Week, Plan, Progress and Settings are the primary tabs.
+Today, Week and Plan link to Actions. A missing-plan error links to Goal setup.
+
 - **Today:** local-calendar current week and today's workouts, with rest-day and before/after-plan states.
   The app reads `/status` and `/plan` to identify the week, then `/weeks/{number}`.
+- Week: seven days of rest, planned sessions and inferred matches, with previous/next navigation.
+  The view starts at the current week, or the first available week when the current week is absent.
+  An unavailable selection uses the same fallback.
 - **Plan:** weeks with workouts, expandable into workout steps, target pace, and heart-rate ranges.
 - **Goal:** distance, Monday start, completion date, weekly frequency, long-run day, and heart rates.
   The server remains authoritative for validation and uses activities already stored there.
 - **Progress:** `/load` and `/compliance`, including missing-heart-rate notices.
 - **Actions:** sync Garmin activities into the server; review adjustment reasons before applying;
-  preview a selected week or all future workouts before pushing to Garmin. Removal previews
-  **all** workouts owned by the server, independent of the week field.
+  preview a selected week or all future workouts before pushing to Garmin.
+  Push previews show workout names, dates, step durations or distances, and targets.
+  Show payload details reveals the raw payload.
+  Removal previews list ownership candidates across all weeks, including workouts never uploaded.
+  These counts do not establish how many remote workouts exist. Live removal affects only matching Garmin workouts.
 - **Settings:** secure server connection storage, an explicit server test, and Garmin login/MFA, status, and disconnect.
 
 Push and removal first send `dry_run: true, apply: false`. Only the separate **Confirm live**
@@ -79,12 +90,13 @@ or leaving the Actions screen invalidates the preview. Empty or failed previews 
 confirmed. Applying an adjustment requires the target Monday and a sync covering the previous
 two complete weeks. Reductions can also affect later weeks; the server checks this when applying.
 
-The API recalculates operations on confirmation; it has no immutable preview identifier. Avoid
-concurrent changes from another client while reviewing. The app never retries writes automatically.
-If a connection fails during a write, inspect the server state before trying again. Errors,
-including 401 and timeouts, are shown on screen. Read screens offer Retry and reload on focus or app resume.
-Today also reloads at local midnight.
-There is no offline workout cache, background sync, notification service, or multi-user account.
+The API recalculates operations on confirmation. It has no immutable preview identifier.
+Avoid concurrent changes from another client while reviewing.
+For failed writes, follow the [recovery guidance](#runner-design-and-api-limits) before another attempt.
+The app shows errors, including 401 and timeouts, on screen. Read screens offer Retry and reload on focus or app resume.
+Today and Week also reload at local midnight.
+There is no background sync, notification service, or multi-user account.
+See [API limits](#runner-design-and-api-limits) for excluded features.
 
 ## Generated API contract
 
@@ -170,10 +182,8 @@ entered after installation, not embedded in EAS secrets or JavaScript bundles.
 Runner screens follow the approved slate/green Open Design board. `src/theme/index.ts`
 owns the light/dark palette, spacing and type scale; `useTheme()` follows device appearance.
 `expo-system-ui` enables automatic appearance in Android builds. Shared primitives remain
-in `src/components/ui.tsx`. Today, Week, Plan, Progress and Settings are the primary tabs;
-Today and Plan link to Actions, and a missing-plan error links to Goal setup.
+in `src/components/ui.tsx`. See [Screens and actions](#screens-and-actions) for navigation.
 
-The seven-day Week view labels rest, planned sessions and inferred matches separately.
 A match detail shows the server's activity ID and matching method, without asserting an
 athlete-confirmed association. Progress charts use `/compliance` planned/recorded minutes;
 missing-heart-rate runs make the known TRIMP subtotal incomplete, not zero. Plan history
