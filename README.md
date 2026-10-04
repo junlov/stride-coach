@@ -55,13 +55,10 @@ or [build your own installable copy](app/README.md#build-your-own-app-copy).
    npm start -- --go
    ```
 
-4. In **Settings**, enter your HTTPS server URL and the `.env` API token. Tap **Test connection**
-   and **Save connection**. A new server has no plan yet; that is expected.
-5. Tap **Connect Garmin**, enter your Garmin credentials, and complete MFA if requested.
-   Open **Goal**, choose your distance, Monday start, goal date, and running days, then create
-   the plan. See [goal constraints](#plan-and-review). To use recent history for the initial
-   estimate, follow the [first-run sync instructions](docs/self-hosting.md#first-run-and-garmin)
-   before creating the goal.
+4. Follow the [mobile connection guide](app/README.md#connect-your-server) with your HTTPS server URL and the `.env` API token.
+5. Continue through Garmin connection and goal setup in that guide. See [goal constraints](#plan-and-review).
+   To use recent history for the initial estimate, follow the
+   [first-run sync instructions](docs/self-hosting.md#first-run-and-garmin) before creating the goal.
 6. Review **Today** and **Plan**. Preview a workout before confirming any Garmin upload.
    Use the [first live check](#garmin-authentication-and-first-live-check) for watch delivery.
 

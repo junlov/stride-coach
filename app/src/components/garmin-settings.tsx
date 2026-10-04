@@ -2,15 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import { Client, Schema } from "../api/client";
 import { useQuery } from "../state/query";
-import {
-  Button,
-  Card,
-  Copy,
-  ErrorMessage,
-  Field,
-  Heading,
-  Muted,
-} from "./ui";
+import { Button, Card, Copy, ErrorMessage, Field, Heading, Muted } from "./ui";
 
 export function GarminSettings({
   client,

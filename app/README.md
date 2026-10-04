@@ -49,6 +49,10 @@ connection, the next launch opens the main app: **Set a running goal** in the em
 continues setup, and Garmin remains available in Settings. Wizard progress and Garmin
 credentials are not persisted.
 
+If plan creation fails or times out, the app reads server status to find an existing plan.
+If that read succeeds, tap **Go to Today**.
+If it fails, tap **Check plan status** to retry the read before submitting the goal again.
+
 The **Import past runs** step is hidden by default. `ImportPastRunsStep` in
 `src/screens/onboarding.tsx` is the extension slot immediately after Garmin for a future
 server-backed import flow. The current wizard makes no import or Garmin sync requests.
@@ -190,13 +194,13 @@ require an Apple Developer membership. You do not need the maintainer's Expo acc
 
 Before running EAS, edit **your fork's** `app/app.json`:
 
-| Field under `expo` | Change |
-| --- | --- |
-| `owner` | Replace `junlov` with your Expo username or organization |
-| `extra.eas.projectId` | Delete this property, then let `eas init` generate your own ID |
-| `android.package` | Replace `org.stridecoach.app` with your unique reverse-domain identifier |
-| `ios.bundleIdentifier` | Replace `org.stridecoach.app` with your unique reverse-domain identifier |
-| `name`, `slug`, `scheme` | Choose names and a URL scheme for your copy |
+| Field under `expo`       | Change                                                                   |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `owner`                  | Replace `junlov` with your Expo username or organization                 |
+| `extra.eas.projectId`    | Delete this property, then let `eas init` generate your own ID           |
+| `android.package`        | Replace `org.stridecoach.app` with your unique reverse-domain identifier |
+| `ios.bundleIdentifier`   | Replace `org.stridecoach.app` with your unique reverse-domain identifier |
+| `name`, `slug`, `scheme` | Choose names and a URL scheme for your copy                              |
 
 **The committed project ID `1292c8fc-a736-43a2-be85-a0fb899f9475` belongs to the maintainer.
 It must be replaced, not reused.** Keep `extra.router` and the other configuration intact.
@@ -249,8 +253,8 @@ after the owner's submission and Apple's processing. Users install a TestFlight 
 an invitation in TestFlight. An IPA is not a universal iPhone download. Store listings and
 submission are outside this guide. EAS build completion alone does not prove device installation.
 
-After installing either preview app, open **Settings**, connect your server, and follow the
-[connection steps](#connect-your-server). For a development build instead, use the
+After installing either preview app, follow the [connection steps](#connect-your-server).
+For a development build instead, use the
 `development` profile and start Metro with `npm start -- --dev-client`.
 
 The Expo build-properties plugin enables SDK 57's scene lifecycle support for iOS builds using

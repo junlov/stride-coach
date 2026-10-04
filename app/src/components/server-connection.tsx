@@ -1,15 +1,7 @@
 import { useRef, useState } from "react";
 import { ApiError, createClient } from "../api/client";
 import { useConnection } from "../state/connection";
-import {
-  Button,
-  Card,
-  Copy,
-  ErrorMessage,
-  Field,
-  Heading,
-  Muted,
-} from "./ui";
+import { Button, Card, Copy, ErrorMessage, Field, Heading, Muted } from "./ui";
 
 export function isMissingPlan(error: unknown) {
   return (

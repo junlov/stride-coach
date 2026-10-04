@@ -5,14 +5,7 @@ import { ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GarminSettings } from "../components/garmin-settings";
 import { ServerConnection } from "../components/server-connection";
-import {
-  Button,
-  Card,
-  Copy,
-  Heading,
-  Muted,
-  Page,
-} from "../components/ui";
+import { Button, Card, Copy, Heading, Muted, Page } from "../components/ui";
 import { useConnection } from "../state/connection";
 import { useTheme } from "../theme";
 import GoalScreen from "./goal";
