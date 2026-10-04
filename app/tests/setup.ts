@@ -8,6 +8,8 @@ jest.mock("expo-secure-store", () => ({
 jest.mock("expo-router", () => {
   const ReactModule = jest.requireActual<typeof React>("react");
   return {
+    useRootNavigationState: () => ({ key: "test-root" }),
+    useRouter: () => ({ replace: jest.fn() }),
     useFocusEffect: (effect: React.EffectCallback) =>
       ReactModule.useEffect(effect, [effect]),
     useLocalSearchParams: () => ({}),

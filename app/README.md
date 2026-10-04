@@ -29,22 +29,46 @@ profile below. SDK 58 is not used while it is on npm's prerelease channel.
    Configure the same long bearer token on the server and phone.
 2. Put the server behind HTTPS with a trusted certificate. Point the phone at a URL such as
    `https://coach.example.com`, optionally with a reverse-proxy path prefix.
-3. Open **Settings**, enter the URL and token, tap **Test connection**, then **Save connection**.
-   The test calls `/status` with the entered values, even before saving. A server with no plan
-   will tell you to open Goal setup after saving.
-4. In the **Garmin** section, tap **Connect Garmin** after entering your Garmin email and password.
-   The app sends them once over the authenticated HTTPS connection and clears the password field
-   immediately. If requested, enter the MFA code Garmin sends. The server's challenge expires after five minutes.
-   After a server restart or a failed completion, start a new explicit login.
-5. Open **Goal** to create the initial plan. The server supports one plan per database. For a
-   later goal, the operator must configure a fresh database; the app cannot replace the plan.
+3. On a fresh install, the first-run wizard opens automatically. Enter the server URL and
+   bearer token, tap **Test connection**, then **Save connection**. Saving is enabled only after
+   an authenticated test passes. Changing either field requires another test. A server without
+   a plan is a valid connection and proceeds to goal setup.
+4. Choose **Connect Garmin** after entering your Garmin email and password, or **Skip Garmin
+   for now**. The app sends credentials once over the authenticated connection and clears the
+   password immediately. If requested, enter the MFA code Garmin sends. The challenge expires
+   after five minutes. After a failed completion, use **Restart Garmin sign-in** for a new
+   explicit login. You can also connect later in **Settings**.
+5. Choose your goal, Monday start, race or completion date, weekly running days, long-run day,
+   and heart rates. **Review goal** shows the exact constraints before **Confirm new plan**
+   creates it. Review any starting-fitness warnings, then tap **Go to Today**. If the server
+   already has a plan, the wizard opens that plan instead of attempting to replace it.
+
+The server supports one plan per database. For a later goal, the operator must configure a
+fresh database; the app cannot replace the plan. If setup is interrupted after saving the
+connection, the next launch opens the main app: **Set a running goal** in the empty-plan state
+continues setup, and Garmin remains available in Settings. Wizard progress and Garmin
+credentials are not persisted.
+
+The **Import past runs** step is hidden by default. `ImportPastRunsStep` in
+`src/screens/onboarding.tsx` is the extension slot immediately after Garmin for a future
+server-backed import flow. The current wizard makes no import or Garmin sync requests.
+
+In **Settings**, **Manage connection** opens the server form. Test and save a changed URL or
+bearer token there. **Forget connection** opens a confirmation showing what will be removed.
+The onboarding and settings screens follow the phone’s light or dark appearance using
+`src/theme.ts` and `src/components/setup-ui.tsx`. Expo system UI enables appearance changes in
+Android builds, as described in [Expo’s color theme guide](https://docs.expo.dev/develop/user-interface/color-themes/).
 
 **Refresh Garmin status** shows the connected account (when available) and access-token expiry.
-**Disconnect Garmin** deletes tokens from the server and cancels pending login. It does not erase
+**Disconnect Garmin** opens a confirmation; only **Confirm disconnect** deletes tokens from
+the server and cancels pending login. It does not erase
 synced runs or Garmin workouts. Sync and live Garmin actions prompt you to connect when needed;
 local previews still work without a Garmin connection. Login is never automatically retried.
 After a failed or timed-out request, refresh Garmin status before another login attempt.
 The server renews access tokens once per request when needed, without using your password.
+Connected settings show activity coverage from `/status` separately from the Garmin session.
+The API does not expose a last-successful-sync timestamp or distinguish expired sessions from
+all other disconnections, so the app does not invent either value.
 
 See the root [Garmin guide](../README.md#garmin-authentication-and-first-live-check) for container
 storage, server configuration, MFA worker requirements, upstream login limitations, and CLI commands.
@@ -122,7 +146,11 @@ newer versions use React 19.3's reconciler.
 Jest uses `jest-expo` and React Native Testing Library with an in-memory mocked HTTP transport
 and mocked SecureStore. Tests run offline and never access Garmin or real credentials. GitHub
 Actions checks generated-type drift, typecheck, lint, tests, and both native bundle exports
-alongside the existing Python jobs.
+alongside the existing Python jobs. `tests/onboarding.test.tsx` walks a fresh install through
+Today with both Garmin login and skip paths, and exercises the settings states in both themes.
+`tests/routing.test.tsx` uses the real Expo navigator to check that a Settings deep link still
+finishes onboarding on Today. The existing screen tests cover preview invalidation when the
+server changes and ensure credentials are never saved.
 
 For a real local HTTP proof, install the root Python dependencies (`uv sync --locked`), start
 the [disposable PostgreSQL](../docs/self-hosting.md#local-offline-tests-and-synthetic-proof),

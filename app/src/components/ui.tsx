@@ -19,6 +19,7 @@ import {
   useTheme,
 } from "../theme";
 import { useConnection } from "../state/connection";
+import { EmptyPlan } from "./empty-plan";
 // Legacy exports remain compatible with settings and goal screens.
 export const colors = palettes.dark;
 export const styles = StyleSheet.create({
@@ -246,6 +247,7 @@ export function QueryState({
   const { colors } = useTheme();
   const auth = !!error && /Authentication failed/i.test(error);
   const outage = !!error && /Cannot reach|too long|50[0234]/i.test(error);
+  if (error && /^No plan\./i.test(error)) return <EmptyPlan />;
   return (
     <>
       {loading && (

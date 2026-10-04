@@ -165,6 +165,7 @@ test("adapt shows reasons before applying and sync reports results", async () =>
 });
 test("settings test uses unsaved values, saves securely, and can forget them", async () => {
   await mount(<SettingsScreen />);
+  await fireEvent.press(await screen.findByText("Manage connection"));
   await waitFor(() =>
     expect(screen.getByLabelText("Server URL").props.value).toBe(
       connection.serverUrl,
@@ -197,6 +198,7 @@ test("settings test uses unsaved values, saves securely, and can forget them", a
     ),
   );
   await fireEvent.press(screen.getByText("Forget connection"));
+  await fireEvent.press(screen.getByText("Forget server connection"));
   await waitFor(() => expect(SecureStore.deleteItemAsync).toHaveBeenCalled());
 });
 test("secure storage failure remains visible and does not claim a save", async () => {
@@ -204,11 +206,14 @@ test("secure storage failure remains visible and does not claim a save", async (
     .mocked(SecureStore.setItemAsync)
     .mockRejectedValueOnce(new Error("locked"));
   await mount(<SettingsScreen />);
+  await fireEvent.press(await screen.findByText("Manage connection"));
   await waitFor(() =>
     expect(screen.getByLabelText("Server URL").props.value).toBe(
       connection.serverUrl,
     ),
   );
+  await fireEvent.press(screen.getByText("Test connection"));
+  await screen.findByText("Your server is reachable.");
   await fireEvent.press(screen.getByText("Save connection"));
   expect(
     await screen.findByText(
@@ -272,10 +277,13 @@ test("switching servers clears the old action preview", async () => {
   );
   await fireEvent.press(await screen.findByText("Preview Garmin push"));
   await screen.findByText("Confirm live Garmin push");
+  await fireEvent.press(await screen.findByText("Manage connection"));
   await fireEvent.changeText(
     screen.getByLabelText("Server URL"),
     "https://second.example.test",
   );
+  await fireEvent.press(screen.getByText("Test connection"));
+  await screen.findByText("Your server is reachable.");
   await fireEvent.press(screen.getByText("Save connection"));
   await waitFor(() =>
     expect(screen.queryByText("Confirm live Garmin push")).toBeNull(),
@@ -401,6 +409,7 @@ test("Garmin login clears password immediately and completes MFA without persist
   ]);
   expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByText("Disconnect Garmin"));
+  await fireEvent.press(screen.getByText("Confirm disconnect"));
   await screen.findByText("Garmin is not connected.");
   expect(bodies("/garmin/logout")).toEqual([{}]);
 });
@@ -467,20 +476,24 @@ test.each(["connected", "disconnected", "renewal failure"])(
     );
     await fireEvent.press(screen.getByText("Connect Garmin"));
     await screen.findByText("Connected to Garmin.");
-    server.mockResolvedValueOnce(
-      outcome === "renewal failure"
+    const fallback = server.getMockImplementation()!;
+    server.mockImplementation(async (input) => {
+      if (!String(input).endsWith("/garmin/status")) return fallback(input);
+      return outcome === "renewal failure"
         ? response({ detail: "Reconnect Garmin in Settings." }, 502)
         : response({
             connected: outcome === "connected",
             display_name: "Refreshed Runner",
-          }),
-    );
-    const onChange = jest
+          });
+    });
+    const listeners = jest
       .mocked(AppState.addEventListener)
-      .mock.calls.at(-1)![1];
+      .mock.calls.map(([, listener]) => listener);
     await act(async () => {
-      onChange("background");
-      onChange("active");
+      listeners.forEach((onChange) => {
+        onChange("background");
+        onChange("active");
+      });
     });
     await screen.findByText(
       outcome === "renewal failure"

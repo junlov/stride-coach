@@ -15,6 +15,8 @@ type State = {
   error: string | null;
   revision: number;
   connectionVersion: number;
+  onboarding: boolean;
+  finishOnboarding: () => void;
   refresh: () => void;
   save: (value: Connection) => Promise<void>;
   clear: () => Promise<void>;
@@ -26,14 +28,19 @@ export function ConnectionProvider({ children }: React.PropsWithChildren) {
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const [connectionVersion, setConnectionVersion] = useState(0);
+  const [onboarding, setOnboarding] = useState(false);
   useEffect(() => {
     let active = true;
     (async () => {
       try {
         const raw = await SecureStore.getItemAsync(KEY);
         const saved = raw ? normalizeConnection(JSON.parse(raw)) : null;
-        if (active) setConnection(saved);
+        if (active) {
+          setConnection(saved);
+          setOnboarding(!saved);
+        }
       } catch {
+        if (active) setOnboarding(true);
         if (active)
           setError(
             "Could not read saved settings. Enter and save your connection again.",
@@ -57,6 +64,8 @@ export function ConnectionProvider({ children }: React.PropsWithChildren) {
     error,
     revision,
     connectionVersion,
+    onboarding,
+    finishOnboarding: () => setOnboarding(false),
     refresh: () => setRevision((n) => n + 1),
     save: async (input) => {
       const normalized = normalizeConnection(input);
@@ -71,6 +80,7 @@ export function ConnectionProvider({ children }: React.PropsWithChildren) {
     clear: async () => {
       await SecureStore.deleteItemAsync(KEY);
       setConnection(null);
+      setOnboarding(true);
       setConnectionVersion((n) => n + 1);
       setError(null);
       setRevision((n) => n + 1);

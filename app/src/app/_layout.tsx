@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { Text } from "react-native";
 import { ConnectionProvider } from "../state/connection";
 import { useTheme } from "../theme";
+import { FirstRunGate } from "../screens/onboarding";
 
 function Navigation() {
   const { colors } = useTheme();
@@ -75,7 +76,9 @@ export default function RootLayout() {
   return (
     <ConnectionProvider>
       <StatusBar style="auto" />
-      <Navigation />
+      <FirstRunGate>
+        <Navigation />
+      </FirstRunGate>
     </ConnectionProvider>
   );
 }
