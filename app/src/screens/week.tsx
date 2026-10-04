@@ -12,8 +12,13 @@ import {
 } from "../components/ui";
 import { shiftDay, WeekDays, WeekSummary } from "../components/week";
 import { localDay, weekForDate } from "../dates";
+import { useConnection } from "../state/connection";
 import { useQuery } from "../state/query";
 export default function WeekScreen() {
+  const { connectionVersion } = useConnection();
+  return <ConnectedWeek key={connectionVersion} />;
+}
+function ConnectedWeek() {
   const [selected, setSelected] = useState<number | null>(null);
   const load = useCallback(
     async (client: Client) => {
@@ -23,7 +28,12 @@ export default function WeekScreen() {
       ]);
       const weeks = status.weeks.map((w) => w.week).sort((a, b) => a - b);
       const current = weekForDate(plan.setup.start);
-      const number = selected ?? (weeks.includes(current) ? current : weeks[0]);
+      const number =
+        selected !== null && weeks.includes(selected)
+          ? selected
+          : weeks.includes(current)
+            ? current
+            : weeks[0];
       return {
         plan,
         status,

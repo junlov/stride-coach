@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import { ApiError, Schema } from "../api/client";
 import {
@@ -16,6 +16,7 @@ import {
   Notice,
   NavLink,
 } from "../components/ui";
+import { GarminPayload } from "../components/garmin-payload";
 import { useConnection } from "../state/connection";
 
 type Preview =
@@ -32,6 +33,7 @@ function Writes({ results }: { results: Schema<"WriteResult">[] }) {
             {item.date ?? "No date"}
             {item.workout_id ? ` · ${item.workout_id}` : ""}
           </Copy>
+          {item.payload && <GarminPayload payload={item.payload} />}
           {item.remote_id && <Muted>Garmin ID: {item.remote_id}</Muted>}
           {item.ownership_tag && <Muted>{item.ownership_tag}</Muted>}
         </Card>
@@ -40,6 +42,10 @@ function Writes({ results }: { results: Schema<"WriteResult">[] }) {
   );
 }
 export default function ActionsScreen() {
+  const { connectionVersion } = useConnection();
+  return <ConnectedActions key={connectionVersion} />;
+}
+function ConnectedActions() {
   const { client, refresh } = useConnection();
   const params = useLocalSearchParams<{ week?: string }>();
   const [week, setWeek] = useState(
@@ -56,6 +62,13 @@ export default function ActionsScreen() {
   const [applied, setApplied] = useState<Schema<"Adjustment"> | null>(null);
   const lock = useRef(false);
   const generation = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   useFocusEffect(
     useCallback(() => {
       if (!client) return;
@@ -82,7 +95,7 @@ export default function ActionsScreen() {
     const pending = preview;
     setPreview(null);
     const version = generation.current;
-    const active = () => generation.current === version;
+    const active = () => mounted.current && generation.current === version;
     let writeStarted = false;
     try {
       if (
@@ -104,7 +117,7 @@ export default function ActionsScreen() {
           setMessage(
             `Synced ${result.synced} activities from ${result.since} through ${result.until}.`,
           );
-        refresh();
+        if (mounted.current) refresh();
       } else if (action === "confirm" && pending) {
         writeStarted = true;
         if (pending.kind === "adapt") {
@@ -132,7 +145,7 @@ export default function ActionsScreen() {
             setMessage("Server action completed. Review each result below.");
           }
         }
-        refresh();
+        if (mounted.current) refresh();
       } else if (action !== "confirm") {
         const number = week.trim() === "" ? undefined : Number(week);
         if (
@@ -173,7 +186,7 @@ export default function ActionsScreen() {
         e.status !== undefined &&
         e.status >= 400 &&
         e.status < 500;
-      if (writeStarted && !rejected) {
+      if (mounted.current && writeStarted && !rejected) {
         setUnknown(true);
         setInspection(null);
       }
@@ -184,7 +197,7 @@ export default function ActionsScreen() {
       }
     } finally {
       lock.current = false;
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   }
   async function inspect() {
@@ -196,12 +209,14 @@ export default function ActionsScreen() {
     const version = generation.current;
     try {
       const state = await client.status();
-      if (version === generation.current) setInspection(state);
+      if (mounted.current && version === generation.current)
+        setInspection(state);
     } catch (e) {
-      if (version === generation.current) setError((e as Error).message);
+      if (mounted.current && version === generation.current)
+        setError((e as Error).message);
     } finally {
       lock.current = false;
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   }
   return (
@@ -417,9 +432,10 @@ export default function ActionsScreen() {
                 {preview.kind === "remove" && (
                   <Notice title="Across all weeks">
                     <Copy>
-                      This includes every workout owned by this server. The week
-                      field does not limit removal. Your plan and recorded
-                      activities remain.
+                      These ownership candidates include planned workouts that
+                      were never uploaded. Only matching Garmin workouts will be
+                      removed. The week field does not limit removal. Your plan
+                      and recorded activities remain.
                     </Copy>
                   </Notice>
                 )}
@@ -433,7 +449,7 @@ export default function ActionsScreen() {
             <Notice
               title={
                 preview.kind === "remove"
-                  ? `Remove ${preview.writes.length} owned workouts?`
+                  ? `Remove Garmin matches for ${preview.writes.length} ownership candidates?`
                   : preview.kind === "push"
                     ? `Send ${preview.writes.length} workouts?`
                     : "Confirm plan adjustment"

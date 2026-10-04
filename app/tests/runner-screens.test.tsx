@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -7,8 +8,8 @@ import {
 } from "@testing-library/react-native";
 import * as SecureStore from "expo-secure-store";
 import { useColorScheme } from "react-native";
-import { ConnectionProvider } from "../src/state/connection";
-import { Page, Copy } from "../src/components/ui";
+import { ConnectionProvider, useConnection } from "../src/state/connection";
+import { Page, Copy, Button } from "../src/components/ui";
 import { palettes } from "../src/theme";
 import WeekScreen from "../src/screens/week";
 import ActionsScreen from "../src/screens/actions";
@@ -20,6 +21,7 @@ import {
   connection,
   metrics,
   mockServer,
+  plan,
   response,
   status,
   workout,
@@ -223,4 +225,194 @@ test("the API's empty push rejection becomes an empty state without confirmation
   await fireEvent.press(await screen.findByText("Preview Garmin push"));
   expect(await screen.findByText("Nothing to send.")).toBeTruthy();
   expect(screen.queryByText("Confirm live Garmin push")).toBeNull();
+});
+
+function ConnectionControls() {
+  const { save, clear, refresh } = useConnection();
+  return (
+    <>
+      <Button
+        label="Switch server"
+        onPress={() =>
+          void save({ ...connection, serverUrl: "https://second.example.test" })
+        }
+      />
+      <Button label="Forget server" onPress={() => void clear()} />
+      <Button label="Refresh plan" onPress={refresh} />
+    </>
+  );
+}
+
+test("recovery inspection and acknowledgement reset when a connection is forgotten", async () => {
+  await mount(
+    <>
+      <ActionsScreen />
+      <ConnectionControls />
+    </>,
+  );
+  await fireEvent.press(await screen.findByText("Preview Garmin push"));
+  await screen.findByText("Confirm live Garmin push");
+  server
+    .mockResolvedValueOnce(response({ connected: true }))
+    .mockRejectedValueOnce(new Error("timeout"));
+  await fireEvent.press(screen.getByText("Confirm live Garmin push"));
+  await fireEvent.press(await screen.findByText("Inspect current state"));
+  await screen.findByText("I checked the current state");
+  await fireEvent.press(screen.getByText("Forget server"));
+  await fireEvent.press(screen.getByText("Switch server"));
+  expect(screen.queryByText("I checked the current state")).toBeNull();
+  expect(screen.queryByText("Current server state")).toBeNull();
+  expect(screen.queryByText("The result is unknown.")).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Preview Garmin push" }),
+  ).toBeEnabled();
+});
+
+test("a late failed write from the old connection cannot block the new connection", async () => {
+  await mount(
+    <>
+      <ActionsScreen />
+      <ConnectionControls />
+    </>,
+  );
+  await fireEvent.press(await screen.findByText("Preview Garmin push"));
+  await screen.findByText("Confirm live Garmin push");
+  let reject!: (error: Error) => void;
+  server
+    .mockResolvedValueOnce(response({ connected: true }))
+    .mockImplementationOnce(
+      () =>
+        new Promise<Response>((_, fail) => {
+          reject = fail;
+        }),
+    );
+  await fireEvent.press(screen.getByText("Confirm live Garmin push"));
+  await waitFor(() => expect(reject).toBeDefined());
+  await fireEvent.press(screen.getByText("Switch server"));
+  await act(async () => {
+    reject(new Error("timeout"));
+  });
+  expect(screen.queryByText("The result is unknown.")).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Preview Garmin push" }),
+  ).toBeEnabled();
+});
+
+test("week selection resets across connections and falls back when the plan loses a week", async () => {
+  server = mockServer({
+    "/status": { ...status, weeks: [metrics, { ...metrics, week: 2 }] },
+    "/weeks/2": { workouts: [], metrics: { ...metrics, week: 2 } },
+  });
+  await mount(
+    <>
+      <WeekScreen />
+      <ConnectionControls />
+    </>,
+  );
+  await fireEvent.press(await screen.findByText("Next week"));
+  await screen.findByText("Week 2");
+  await fireEvent.press(screen.getByText("Switch server"));
+  await screen.findByText("Week 1");
+  await fireEvent.press(screen.getByText("Next week"));
+  await screen.findByText("Week 2");
+  server.mockClear();
+  server
+    .mockResolvedValueOnce(response(plan))
+    .mockResolvedValueOnce(response(status));
+  await fireEvent.press(screen.getByText("Refresh plan"));
+  await screen.findByText("Week 1");
+  expect(writes("/weeks/2")).toHaveLength(0);
+  expect(screen.getByRole("button", { name: "Next week" })).toBeDisabled();
+});
+
+test("push preview shows workout content, converts pace, and keeps raw details optional", async () => {
+  const payload = {
+    workoutName: "SC synthetic easy",
+    workoutSegments: [
+      {
+        workoutSteps: [
+          {
+            description: "Warm up",
+            endCondition: { conditionTypeKey: "time" },
+            endConditionValue: 600,
+            targetType: { workoutTargetTypeKey: "heart.rate.zone" },
+            targetValueOne: 120,
+            targetValueTwo: 140,
+          },
+          {
+            description: "Run",
+            endCondition: { conditionTypeKey: "distance" },
+            endConditionValue: 1000,
+            targetType: { workoutTargetTypeKey: "pace.zone" },
+            targetValueOne: 1000 / 360,
+            targetValueTwo: 1000 / 300,
+          },
+        ],
+      },
+    ],
+  };
+  server = mockServer({
+    "/push": [{ action: "preview", date: "2026-10-05", payload }],
+  });
+  await mount(<ActionsScreen />);
+  await fireEvent.press(await screen.findByText("Preview Garmin push"));
+  await screen.findByText("SC synthetic easy");
+  expect(screen.getByText("2026-10-05")).toBeTruthy();
+  expect(screen.getByText("1. Warm up: 10 min · 120 to 140 bpm")).toBeTruthy();
+  expect(screen.getByText("2. Run: 1000 m · 5:00 to 6:00 /km")).toBeTruthy();
+  expect(screen.queryByText(JSON.stringify(payload, null, 2))).toBeNull();
+  await fireEvent.press(screen.getByText("Show payload details"));
+  expect(screen.getByText(JSON.stringify(payload, null, 2))).toBeTruthy();
+  await fireEvent.press(screen.getByText("Hide payload details"));
+  expect(screen.queryByText(JSON.stringify(payload, null, 2))).toBeNull();
+});
+
+test("removal preview counts ownership candidates rather than remote workouts", async () => {
+  server = mockServer({
+    "/remove": [
+      { action: "preview-remove", ownership_tag: "stride-coach:synthetic" },
+    ],
+  });
+  await mount(<ActionsScreen />);
+  await fireEvent.press(await screen.findByText("Preview Garmin removal"));
+  expect(
+    await screen.findByText(
+      "Remove Garmin matches for 1 ownership candidates?",
+    ),
+  ).toBeTruthy();
+  expect(screen.getByText(/never uploaded/)).toBeTruthy();
+});
+
+test("a late inspection cannot populate recovery state on the new server", async () => {
+  await mount(
+    <>
+      <ActionsScreen />
+      <ConnectionControls />
+    </>,
+  );
+  await fireEvent.press(await screen.findByText("Preview Garmin push"));
+  await screen.findByText("Confirm live Garmin push");
+  server
+    .mockResolvedValueOnce(response({ connected: true }))
+    .mockRejectedValueOnce(new Error("timeout"));
+  await fireEvent.press(screen.getByText("Confirm live Garmin push"));
+  await screen.findByText("Inspect current state");
+  let resolve!: (value: Response) => void;
+  server.mockImplementationOnce(
+    () =>
+      new Promise<Response>((done) => {
+        resolve = done;
+      }),
+  );
+  await fireEvent.press(screen.getByText("Inspect current state"));
+  await waitFor(() => expect(resolve).toBeDefined());
+  await fireEvent.press(screen.getByText("Switch server"));
+  await act(async () => {
+    resolve(response({ ...status, scheduled_workouts: 99 }));
+  });
+  expect(screen.queryByText("Current server state")).toBeNull();
+  expect(screen.queryByText("I checked the current state")).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Preview Garmin push" }),
+  ).toBeEnabled();
 });
