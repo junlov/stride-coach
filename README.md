@@ -344,38 +344,9 @@ uv run stride-coach serve --host 127.0.0.1 --port 8000
 
 ### Pair your phone without typing the token
 
-Keep the server running. For Compose, run:
-
-```sh
-docker compose exec api stride-coach pair --server https://coach.example.com
-```
-
-For a plain install, open a second shell with the same `STRIDE_COACH_API_TOKEN`
-environment as the running server:
-
-```sh
-uv run stride-coach pair --server https://coach.example.com
-# If the local API uses another port:
-uv run stride-coach pair --server https://coach.example.com --api-url http://127.0.0.1:8001
-```
-
-Replace the hostname with the HTTPS address reachable from your phone. The CLI contacts
-`http://127.0.0.1:8000` by default, including inside the Compose API container.
-Set `STRIDE_COACH_PUBLIC_URL` to omit `--server`, and `STRIDE_COACH_PAIR_API_URL`
-to override the CLI's local endpoint. The command never starts another server.
-
-In the first-run wizard or **Settings > Manage connection**, tap **Scan to connect**.
-Scan the terminal QR, check the server address, then tap **Connect to server**. You can also
-scan with the phone's camera to open an installed app, or select **Enter pairing code** and
-enter the displayed server URL and code. Manual URL and bearer-token entry remains available.
-Custom `stridecoach://` links require a rebuilt development or installed app; Expo Go users
-can scan from inside the app. See the [app guide](app/README.md#pair-with-a-qr-code).
-
-The QR contains only the server URL and a random code, never the API token. Treat the QR
-and code as secrets until used: each works once and expires after ten minutes. The server
-stores only code hashes and returns the existing API token over the exchange connection;
-the app saves it in device secure storage. Generate another code if it expires or a response
-is lost. See [pairing operations](docs/self-hosting.md#phone-pairing) for limits and proxy logging.
+Pairing transfers the server token to your phone without manual token entry.
+Follow the [mobile pairing guide](app/README.md#pair-with-a-qr-code) to scan a QR code or enter a pairing code.
+For CLI commands, environment variables, and security limits, see [phone pairing](docs/self-hosting.md#phone-pairing).
 
 ### API authentication and HTTPS
 

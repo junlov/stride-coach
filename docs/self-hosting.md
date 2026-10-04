@@ -92,16 +92,15 @@ uv run stride-coach pair --server https://coach.example.com --api-url http://127
 ```
 
 Use your own HTTPS hostname. `--server` is the address embedded in the QR for the phone;
-`--api-url` is the endpoint the CLI contacts. A phone's localhost points at the phone.
-You may set `STRIDE_COACH_PUBLIC_URL` in `.env` for Compose or the plain install's environment
+`--api-url` is the endpoint the CLI contacts. Its default is `http://127.0.0.1:8000`, including inside the Compose API container.
+A phone's localhost points at the phone.
+You can set `STRIDE_COACH_PUBLIC_URL` in `.env` for Compose or the plain install's environment
 and omit `--server`. The CLI authenticates code creation with the existing API token.
 It must reach the server; it does not write codes directly to the database or start a server.
 
-Use **Scan to connect** in onboarding or **Settings > Manage connection**, then confirm the
-server address. **Enter pairing code** accepts the printed code if scanning is unavailable.
-The phone camera can open the `stridecoach://pair` link in a rebuilt installed app.
-Manual token entry is still available. See the [app guide](../app/README.md#pair-with-a-qr-code).
+Follow the [mobile pairing guide](../app/README.md#pair-with-a-qr-code) to connect the phone.
 
+The QR contains the server URL and a random code, never the API token. Keep the QR and code private until used.
 Codes contain 96 random bits, expire after ten minutes, and are removed atomically when used.
 PostgreSQL stores SHA-256 hashes, never raw codes or API tokens. Codes are bound to the current
 API token, so changing it invalidates outstanding codes. Expired rows are cleared when a new
@@ -109,18 +108,19 @@ code is issued. Multiple outstanding codes are allowed. Exchange attempts, inclu
 bodies, share a limit of 20 per minute across the single-user server. The next window opens one
 minute after the first attempt in the current window. A limit response is HTTP 429 with
 `Retry-After: 60`; wait a minute and retry. The budget persists across process restarts and
-cannot be bypassed with forwarded IP headers. A busy or attacked exchange may temporarily
+cannot be bypassed with forwarded IP headers. A busy or attacked exchange can temporarily
 prevent pairing; authenticated API operations remain available.
 
 Pairing responses use `Cache-Control: no-store`. Keep access logs disabled as
 in `stride-coach serve`; never log pairing request/response bodies, Authorization headers,
 terminal QR output, or deep links. Configure proxies and tracing accordingly. Use HTTPS between
 the phone and proxy, and a private or encrypted proxy-to-API connection. If an exchange response
-is lost after consumption, generate a new code. A failed phone secure-storage save can be retried
-in the same pairing screen without exchanging the code again.
+is lost after consumption or the code expires, generate a new code.
+For secure-storage failures on the phone, follow the [mobile recovery steps](../app/README.md#pair-with-a-qr-code).
 
-Pairing shares the existing single-user token. Per-device tokens, token revocation, and accounts
-remain follow-ups; forgetting a connection only clears that phone's secure storage.
+The exchange returns the existing single-user API token. The app saves it in device secure storage.
+Pairing does not create accounts or per-device tokens. Forgetting a connection only clears that phone's secure storage.
+To revoke access, [rotate the shared token](../README.md#api-authentication-and-https) and reconnect all clients.
 
 ## First run and Garmin
 

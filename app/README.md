@@ -49,16 +49,7 @@ profile below. SDK 58 is not used while it is on npm's prerelease channel.
 
 ### Pair with a QR code
 
-Keep the server running. On its computer, use one of these commands with your HTTPS hostname:
-
-```sh
-# Compose, from the repository root:
-docker compose exec api stride-coach pair --server https://coach.example.com
-# Plain install, in a shell with the server's STRIDE_COACH_API_TOKEN:
-uv run stride-coach pair --server https://coach.example.com
-# Plain install with a non-default local port:
-uv run stride-coach pair --server https://coach.example.com --api-url http://127.0.0.1:8001
-```
+Keep the server running. On its computer, [generate a pairing code](../docs/self-hosting.md#phone-pairing) with your HTTPS hostname.
 
 The terminal shows a QR code and a plain-text code. Tap **Scan to connect** in the wizard or
 **Settings > Manage connection**, allow camera access, and scan the terminal. Confirm that the
@@ -69,8 +60,8 @@ the previous connection and clears connected screen state and pending previews.
 If camera access is denied or unavailable, close the scanner and choose **Enter pairing code**
 to enter the URL and 24-character code. Manual URL and token fields also remain available.
 Invalid, expired, and already-used codes show an error and do not change the saved connection.
-Generate a fresh code after ten minutes or after a lost exchange response. For a rate-limit
-message, wait one minute. If secure storage fails after exchange, retry **Connect to server**
+For expired codes, lost responses, or rate limits, follow [pairing recovery](../docs/self-hosting.md#phone-pairing).
+If secure storage fails after exchange, retry **Connect to server**
 without leaving that screen; the token is retained only in memory for that retry.
 
 An installed app also opens `stridecoach://pair?server=...&code=...` links scanned by the phone's
@@ -80,9 +71,7 @@ permission. The existing `stride-coach` scheme remains supported for existing ro
 can use the in-app scanner but cannot register this app's custom scheme. Camera scanning needs
 a physical device; emulator workflows can use **Enter pairing code**.
 
-The QR never contains the API token. It holds a one-time, ten-minute code, so keep it private.
-No accounts or per-device tokens are created; every paired phone uses the server's existing token.
-See [pairing operations](../docs/self-hosting.md#phone-pairing) for server behavior and limits.
+Keep the QR and code private. See [pairing operations](../docs/self-hosting.md#phone-pairing) for credential handling and server limits.
 
 The server supports one plan per database. For a later goal, the operator must configure a
 fresh database; the app cannot replace the plan. If setup is interrupted after saving the
