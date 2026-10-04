@@ -8,7 +8,10 @@ import {
   Muted,
   Page,
   QueryState,
+  Metrics,
+  NavLink,
 } from "../components/ui";
+import { WeekDays, shiftDay } from "../components/week";
 import { WorkoutCard } from "../components/workout";
 import { localDay, weekForDate } from "../dates";
 import { useQuery } from "../state/query";
@@ -33,8 +36,22 @@ export default function TodayScreen() {
   const todayWorkouts =
     data?.week?.workouts.filter(({ workout }) => workout.day === data.today) ??
     [];
+  const next = data?.plan.workouts
+    .filter((w) => w.day > data.today)
+    .sort((a, b) => a.day.localeCompare(b.day))[0];
   return (
-    <Page title="Your next stride">
+    <Page
+      title={
+        !data?.week
+          ? "Your next stride"
+          : todayWorkouts.length
+            ? todayWorkouts.every(({ workout }) => workout.kind === "easy")
+              ? "Make room for easy."
+              : "Make room for running."
+            : "Recovery is training, too."
+      }
+      eyebrow="Your daily coach"
+    >
       <ConnectionGate>
         <QueryState {...query} />
         {data && (
@@ -42,11 +59,11 @@ export default function TodayScreen() {
             <Muted>
               {data.today} · {data.plan.setup.goal}
             </Muted>
-            <Card>
-              <Heading>Today</Heading>
-              {todayWorkouts.length ? (
-                <Copy>Your workout is ready below.</Copy>
-              ) : (
+            {todayWorkouts.length ? (
+              <Muted>Your workout is ready below.</Muted>
+            ) : (
+              <Card>
+                <Heading>No run planned</Heading>
                 <Copy>
                   {data.number < 1
                     ? `Your plan starts ${data.plan.setup.start}.`
@@ -56,11 +73,40 @@ export default function TodayScreen() {
                         ? "No workouts scheduled this week."
                         : "Rest day. Make room for recovery."}
                 </Copy>
-              )}
-            </Card>
+              </Card>
+            )}
+            {!todayWorkouts.length && next && (
+              <Card>
+                <Heading>Up next · {next.day}</Heading>
+                <Copy>
+                  {next.kind} ·{" "}
+                  {Math.round(
+                    next.steps.reduce((n, step) => n + step.minutes, 0),
+                  )}{" "}
+                  min
+                </Copy>
+              </Card>
+            )}
             {todayWorkouts.map(({ workout }) => (
-              <WorkoutCard key={workout.id} workout={workout} />
+              <WorkoutCard
+                key={workout.id}
+                workout={workout}
+                hero
+                match={data.week?.metrics.matches.find(
+                  (m) => m.workout_id === workout.id,
+                )}
+              >
+                <NavLink
+                  primary
+                  href={{
+                    pathname: "/actions",
+                    params: { week: String(data.number) },
+                  }}
+                  label="Send this week to Garmin"
+                />
+              </WorkoutCard>
             ))}
+            <NavLink href="/week" label="See this week" />
             <Muted>
               {data.status.scheduled_workouts} workouts scheduled in Garmin ·{" "}
               {data.status.sync
@@ -75,12 +121,26 @@ export default function TodayScreen() {
                   {data.week.metrics.matched_sessions}/
                   {data.week.metrics.planned_sessions} sessions
                 </Copy>
-                {data.week.workouts.map(({ workout }) => (
-                  <WorkoutCard key={workout.id} workout={workout} />
-                ))}
+                <Metrics
+                  items={[
+                    {
+                      value: Math.round(data.week.metrics.completed_minutes),
+                      label: "recorded min",
+                    },
+                    {
+                      value: Math.round(data.week.metrics.planned_minutes),
+                      label: "planned min",
+                    },
+                  ]}
+                />
+                <WeekDays
+                  week={data.week}
+                  start={shiftDay(data.plan.setup.start, (data.number - 1) * 7)}
+                  today={data.today}
+                />
               </>
             )}
-            <Button label="Refresh" onPress={query.retry} />
+            <Button variant="secondary" label="Refresh" onPress={query.retry} />
           </>
         )}
       </ConnectionGate>

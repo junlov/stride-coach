@@ -10,6 +10,7 @@ jest.mock("expo-router", () => {
   return {
     useFocusEffect: (effect: React.EffectCallback) =>
       ReactModule.useEffect(effect, [effect]),
+    useLocalSearchParams: () => ({}),
     Link: jest.requireActual("react-native").Text,
   };
 });

@@ -9,15 +9,21 @@ import {
   Muted,
   Page,
   QueryState,
+  Badge,
+  NavLink,
+  Notice,
 } from "../components/ui";
 import { WorkoutCard } from "../components/workout";
 import { useQuery } from "../state/query";
-const loadPlan = (client: Client) => client.plan();
+async function loadPlan(client: Client) {
+  const [plan, status] = await Promise.all([client.plan(), client.status()]);
+  return { ...plan, status };
+}
 export default function PlanScreen() {
   const query = useQuery(loadPlan);
   const [expanded, setExpanded] = useState<number | null>(null);
   return (
-    <Page title="Your plan">
+    <Page title="Build your staying power." eyebrow="Your plan">
       <ConnectionGate>
         <QueryState {...query} />
         {query.data && (
@@ -41,6 +47,10 @@ export default function PlanScreen() {
               );
               return (
                 <Card key={number}>
+                  <Badge>
+                    {workouts[0]?.phase}
+                    {workouts.some((w) => w.cutback) ? " · Cutback" : ""}
+                  </Badge>
                   <Heading>Week {number}</Heading>
                   <Muted>
                     {workouts.length} sessions ·{" "}
@@ -58,6 +68,7 @@ export default function PlanScreen() {
                     min
                   </Muted>
                   <Button
+                    variant="secondary"
                     label={`${expanded === number ? "Hide" : "View"} week ${number}`}
                     onPress={() =>
                       setExpanded(expanded === number ? null : number)
@@ -70,6 +81,29 @@ export default function PlanScreen() {
                 </Card>
               );
             })}
+            <NavLink href="/actions" label="Manage Garmin workouts" />
+            <Heading>Why the plan changed</Heading>
+            {query.data.status.adjustments.length === 0 && (
+              <Muted>No saved adjustments yet.</Muted>
+            )}
+            {query.data.status.adjustments.map((adjustment, i) => (
+              <Notice
+                key={i}
+                title={`Week ${adjustment.week} · ${adjustment.applied ? "Applied" : "Proposed"}`}
+              >
+                <Copy>
+                  {adjustment.before_minutes.toFixed(0)} →{" "}
+                  {adjustment.after_minutes.toFixed(0)} min
+                </Copy>
+                {adjustment.reasons.map((reason) => (
+                  <Copy key={reason}>{reason}</Copy>
+                ))}
+                <Muted>
+                  Adjusting the plan does not send Garmin workouts. Review
+                  Garmin changes separately.
+                </Muted>
+              </Notice>
+            ))}
           </>
         )}
       </ConnectionGate>

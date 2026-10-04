@@ -164,3 +164,39 @@ The Expo build-properties plugin enables SDK 57's scene lifecycle support for iO
 Xcode 27. See [SDK 57 release notes](https://expo.dev/changelog/sdk-57) and the
 [EAS build guide](https://docs.expo.dev/build/introduction/). Server URL and bearer token are
 entered after installation, not embedded in EAS secrets or JavaScript bundles.
+
+## Runner design and API limits
+
+Runner screens follow the approved slate/green Open Design board. `src/theme/index.ts`
+owns the light/dark palette, spacing and type scale; `useTheme()` follows device appearance.
+`expo-system-ui` enables automatic appearance in Android builds. Shared primitives remain
+in `src/components/ui.tsx`. Today, Week, Plan, Progress and Settings are the primary tabs;
+Today and Plan link to Actions, and a missing-plan error links to Goal setup.
+
+The seven-day Week view labels rest, planned sessions and inferred matches separately.
+A match detail shows the server's activity ID and matching method, without asserting an
+athlete-confirmed association. Progress charts use `/compliance` planned/recorded minutes;
+missing-heart-rate runs make the known TRIMP subtotal incomplete, not zero. Plan history
+shows the server's saved adjustment totals and reasons. Apply still requires server-side
+eligibility checks and does not send Garmin workouts.
+
+The current API does not return recorded activity measurements or unmatched activity rows,
+activity provenance/laps/routes, distance history, heart-rate coverage minutes, personalized
+workout explanations, per-workout adjustment diffs, downstream adjustment diffs or adjustment
+timestamps. The UI discloses these gaps and renders the available totals, steps and reasons.
+The repeated-interval design, imports, exports and offline cache are outside this implementation.
+
+After a write fails with an uncertain result, Actions disables further operations. **Inspect
+current state** reads `/status`; failed inspection keeps the controls disabled. The runner
+must also inspect Garmin directly and acknowledge the check before requesting a new preview.
+The API exposes a server-owned workout count, not an authoritative remote list or operation
+receipt, so inspection cannot automatically establish whether a Garmin write completed.
+Explicit server rejection (4xx) clears the preview and displays the reason instead. Nothing
+retries or queues writes. Uncertainty is held in screen memory, not an offline cache; after an
+app restart, follow the same inspect-before-retry rule.
+
+`tests/runner-screens.test.tsx` covers the J2 Today-to-Garmin entry point and the J3 applied
+reason history, plus seven-day matching, progress accessibility, unavailable data, both
+appearances, authentication recovery, eligibility rejection and unknown-write inspection.
+The existing screen tests continue to prove explicit apply, empty/failed previews,
+cancellation, scope edits and connection changes.
