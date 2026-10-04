@@ -14,8 +14,9 @@ Applied plan changes and their adjustment record commit in one transaction.
 request/response models. CLI, FastAPI, and MCP are thin transports over `service.Coach`.
 `mcp.py` uses PostgreSQL read-only transactions and exposes only read-only operations.
 It checks schema compatibility but never applies migrations.
-`api.py` authenticates before opening a request-scoped PostgreSQL connection; HTTP requests never
-share connections. The generated `docs/openapi.json` is the mobile-client contract.
+Data routes authenticate before opening a request-scoped PostgreSQL connection.
+The public health probe opens its own connection without authentication. HTTP requests never share connections.
+The generated `docs/openapi.json` is the mobile-client contract.
 
 ```mermaid
 flowchart LR
@@ -35,14 +36,15 @@ flowchart LR
 pinned garth SSO functions. A password is submitted once per explicit request, without retries.
 Pending MFA state lives in memory for five minutes; submitted request bodies are scrubbed from
 garth's retained response before keeping a challenge. Passwords are never persisted.
-The CLI and authenticated HTTP routes share this manager; MCP remains read-only and offline.
+The CLI and authenticated HTTP routes share this manager. MCP only reads PostgreSQL and never contacts Garmin.
 A PostgreSQL session advisory lock and atomic private-file replacement protect token persistence. A generation
 marker prevents a pending login or an older session from restoring tokens after logout or a
 new connection. Unmarked nonempty stores and shared Garmin paths are refused.
 `StoredSession` wraps both proactive and implicit garth renewal with one attempt per request.
 HTTP retries are disabled. Upstream exceptions and request validation inputs are sanitized.
 Use one API process/worker because MFA challenges are not shared between workers. See the
-README Garmin section for volume setup, security boundaries, and upstream compatibility limits.
+[self-hosting guide](self-hosting.md) for volume setup and the
+[README Garmin section](../README.md#garmin-authentication-and-first-live-check) for security boundaries and upstream compatibility limits.
 
 Workout upload and activity reads use python-garminconnect public methods. The pinned release
 lacks scheduling, update, and delete helpers, so these use its garth transport with upstream
@@ -92,9 +94,8 @@ inferred matches are labeled. Normalized imports can supply a `kind`. Best-effor
 must be supplied explicitly; it is never guessed from an ordinary activity title.
 
 The CLI's JSON output is intended for inspection and scripts. The MCP process reserves
-stdout for stdio protocol traffic. Tests replace network entry points with failures and
-use synthetic data. `examples/offline_demo.py` is an executable demonstration of the local
-loop. No live Garmin write belongs in tests or CI.
+stdout for stdio protocol traffic. See the [test setup](self-hosting.md#local-offline-tests-and-synthetic-proof)
+for PostgreSQL requirements and synthetic demos. No live Garmin write belongs in tests or CI.
 
 ## HTTP authentication and concurrency
 
