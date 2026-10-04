@@ -14,6 +14,10 @@ Applied plan changes and their adjustment record commit in one transaction.
 request/response models. CLI, FastAPI, and MCP are thin transports over `service.Coach`.
 `mcp.py` uses PostgreSQL read-only transactions and exposes only read-only operations.
 It checks schema compatibility but never applies migrations.
+FastAPI mounts the same tools at `/mcp/` using stateless Streamable HTTP and owns the MCP
+session-manager lifespan. Middleware checks the API bearer token on every MCP request,
+including mount redirects, and rejects browser Origins outside the configured CORS list.
+The HTTPS proxy handles public host routing. The local stdio entry point remains available.
 Data routes authenticate before opening a request-scoped PostgreSQL connection.
 The public health probe opens its own connection without authentication. HTTP requests never share connections.
 The generated `docs/openapi.json` is the mobile-client contract.
@@ -23,7 +27,9 @@ flowchart LR
     CLI[CLI] --> Service[Shared Coach service]
     Phone[Mobile client] -->|HTTPS + bearer| API[FastAPI]
     API --> Service
-    Claude[Claude Code] --> MCP[MCP read tools and previews]
+    Claude[Claude] -->|HTTPS + bearer /mcp/| API
+    API --> MCP[MCP read tools and previews]
+    Local[Local MCP client] -->|stdio| MCP
     MCP --> Service
     Service --> Engine[Deterministic rules]
     Service --> DB[(PostgreSQL)]

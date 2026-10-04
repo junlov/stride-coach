@@ -1,18 +1,36 @@
-"""Stdio MCP transport over the same service as CLI and HTTP."""
+"""Read-only stdio and Streamable HTTP MCP over the shared coaching service."""
 
 import argparse
 import os
 from contextlib import contextmanager
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 
 from .service import Coach
 from .storage import Store
 
 
-def create_server(database_url: str | None = None) -> FastMCP:
-    server = FastMCP("stride-coach")
+def create_server(
+    database_url: str | None = None, *, timezone: str | None = None, remote_http: bool = False
+) -> FastMCP:
+    zone = ZoneInfo(timezone or os.getenv("TZ", "UTC"))
+    server = FastMCP(
+        "stride-coach",
+        stateless_http=True,
+        json_response=True,
+        streamable_http_path="/",
+        # The mounted API enforces bearer auth and exact Origins before MCP runs.
+        # Its HTTPS proxy owns host routing, so localhost-only SDK defaults do not apply.
+        transport_security=(
+            TransportSecuritySettings(enable_dns_rebinding_protection=False)
+            if remote_http
+            else None
+        ),
+    )
     annotations = ToolAnnotations(
         readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
     )
@@ -36,6 +54,28 @@ def create_server(database_url: str | None = None) -> FastMCP:
         """Read one week's workouts and measured completion."""
         with read() as coach:
             return coach.week(number).model_dump(mode="json")
+
+    @server.tool(annotations=annotations)
+    def today_workout() -> dict:
+        """Read today's workouts in the server timezone, or an explicit rest/outside-plan status."""
+        with read() as coach:
+            return coach.today_workout(datetime.now(zone).date()).model_dump(mode="json")
+
+    @server.tool(annotations=annotations)
+    def current_week() -> dict:
+        """Read this week's workouts and measured completion; null week/view outside the plan."""
+        with read() as coach:
+            return coach.current_week(datetime.now(zone).date()).model_dump(mode="json")
+
+    @server.tool(annotations=annotations)
+    def status() -> dict:
+        """Read stored sync coverage and applied plan changes with their saved reasons.
+
+        Sync is a covered date range, not the time of the last sync attempt. Null means
+        no stored coverage. Adjustments are saved changes, not new proposals. Never syncs.
+        """
+        with read() as coach:
+            return coach.status().model_dump(mode="json")
 
     @server.tool(annotations=annotations)
     def compliance() -> list[dict]:

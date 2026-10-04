@@ -30,6 +30,7 @@ from .garmin_auth import (
     GarminMFA,
     GarminStatus,
 )
+from .mcp import create_server
 from .models import Adjustment, Plan, Record, RunDetail
 from .service import (
     DEFAULT_TOKENS,
@@ -143,6 +144,8 @@ class Error(Record):
 
 def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
     url = config.database_url.get_secret_value()
+    mcp = create_server(url, timezone=config.timezone, remote_http=True)
+    mcp_app = mcp.streamable_http_app()
     connection = GarminConnection(config.tokens, database_url=url)
     if client_factory is GarminClient:
         from functools import partial
@@ -159,7 +162,8 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
             with connection.vault.locked():
                 pass
             worker.start()
-            yield
+            async with mcp.session_manager.run():
+                yield
         except SQLAlchemyError:
             raise RuntimeError(
                 "Database startup failed. Check DATABASE_URL and PostgreSQL."
@@ -202,6 +206,26 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
             yield Coach(store, config.tokens, client_factory)
         finally:
             store.close()
+
+    @app.middleware("http")
+    async def protect_mcp(request: Request, call_next):
+        # Mounted ASGI applications do not inherit FastAPI route dependencies.
+        # Protect every method, including the slash redirect, before dispatch.
+        if request.url.path == "/mcp" or request.url.path.startswith("/mcp/"):
+            try:
+                authenticate(await bearer(request))
+            except HTTPException as exc:
+                return JSONResponse(
+                    status_code=exc.status_code,
+                    content={"detail": exc.detail},
+                    headers=exc.headers,
+                )
+            origin = request.headers.get("origin")
+            if origin is not None and origin not in config.cors_origins:
+                return JSONResponse(status_code=403, content={"detail": "Invalid Origin"})
+        return await call_next(request)
+
+    app.mount("/mcp", mcp_app)
 
     Service = Annotated[Coach, Depends(coach)]
     errors = {400: {"model": Error}, 401: {"model": Error}, 502: {"model": Error}}

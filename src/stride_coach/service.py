@@ -3,6 +3,7 @@
 import json
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
 from pydantic import Field
@@ -55,6 +56,18 @@ class WorkoutView(Record):
 class WeekView(Record):
     workouts: list[WorkoutView]
     metrics: Metrics
+
+
+class TodayView(Record):
+    day: date
+    status: Literal["workout", "rest", "outside_plan"]
+    workouts: list[WorkoutView]
+
+
+class CurrentWeekView(Record):
+    day: date
+    week: int | None
+    view: WeekView | None
 
 
 class Created(Record):
@@ -168,6 +181,25 @@ class Coach:
             Metrics(**week_metrics(plan, activities, n))
             for n in sorted({w.week for w in plan.workouts})
         ]
+
+    def today_workout(self, on: date | None = None) -> TodayView:
+        on = on or date.today()
+        plan = self.plan()
+        workouts = [WorkoutView(workout=w, minutes=w.minutes) for w in plan.workouts if w.day == on]
+        status = "workout" if workouts else "rest"
+        if not plan.setup.start <= on < plan.setup.race_date:
+            status = "outside_plan"
+        return TodayView(day=on, status=status, workouts=workouts)
+
+    def current_week(self, on: date | None = None) -> CurrentWeekView:
+        on = on or date.today()
+        plan = self.plan()
+        number = (on - plan.setup.start).days // 7 + 1
+        if not plan.setup.start <= on < plan.setup.race_date or number not in {
+            w.week for w in plan.workouts
+        }:
+            return CurrentWeekView(day=on, week=None, view=None)
+        return CurrentWeekView(day=on, week=number, view=self.week(number))
 
     def load(self) -> list[Load]:
         return [
