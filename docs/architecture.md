@@ -14,6 +14,10 @@ Applied plan changes and their adjustment record commit in one transaction.
 request/response models. CLI, FastAPI, and MCP are thin transports over `service.Coach`.
 `mcp.py` uses PostgreSQL read-only transactions and exposes only read-only operations.
 It checks schema compatibility but never applies migrations.
+FastAPI mounts the same tools at `/mcp/` using stateless Streamable HTTP and owns the MCP
+session-manager lifespan. Middleware checks the API bearer token on dispatched MCP requests,
+including mount redirects, and rejects browser Origins outside the configured CORS list.
+The HTTPS proxy handles public host routing. The local stdio entry point remains available.
 Data routes authenticate before opening a request-scoped PostgreSQL connection.
 The public health probe opens its own connection without authentication. HTTP requests never share connections.
 The generated `docs/openapi.json` is the mobile-client contract.
@@ -23,7 +27,9 @@ flowchart LR
     CLI[CLI] --> Service[Shared Coach service]
     Phone[Mobile client] -->|HTTPS + bearer| API[FastAPI]
     API --> Service
-    Claude[Claude Code] --> MCP[MCP read tools and previews]
+    Claude[Claude] -->|HTTPS + bearer /mcp/| API
+    API --> MCP[MCP read tools and previews]
+    Local[Local MCP client] -->|stdio| MCP
     MCP --> Service
     Service --> Engine[Deterministic rules]
     Service --> DB[(PostgreSQL)]
@@ -98,7 +104,7 @@ OAuth tokens and an optional account display name live only in the private conne
 Generic Garmin running activities have unknown session type; inferred matches are labeled. Normalized imports can supply a `kind`. Best-effort status
 must be supplied explicitly; it is never guessed from an ordinary activity title.
 
-The CLI's JSON output is intended for inspection and scripts. The MCP process reserves
+The CLI's JSON output is intended for inspection and scripts. The standalone stdio MCP process reserves
 stdout for stdio protocol traffic. See the [test setup](self-hosting.md#local-offline-tests-and-synthetic-proof)
 for PostgreSQL requirements and synthetic demos. No live Garmin write belongs in tests or CI.
 
@@ -111,7 +117,11 @@ CORS allows only configured exact origins and the needed methods/headers. Deploy
 HTTPS at a trusted reverse proxy; the built-in server defaults to loopback and disables
 request access logging. `serve` validates configuration before accepting traffic.
 
-Each HTTP request has its own SQLAlchemy connection. Transactions commit each durable remote
+Each MCP read operation creates, uses, and closes its Store in one worker thread for both transports.
+Database waits therefore do not block the API event loop, which processes concurrent requests.
+See `tests/test_mcp_concurrency.py` for the regression coverage.
+
+Each HTTP data request has its own SQLAlchemy connection. Transactions commit each durable remote
 intent before the network call and commit adaptation plus its adjustment together. Advisory locks
 coordinate API, CLI, and worker writes. See [automatic sync and import recovery](self-hosting.md#automatic-sync-and-import-recovery)
 for the worker lifecycle. The public `/health`

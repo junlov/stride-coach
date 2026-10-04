@@ -1,6 +1,7 @@
 """Exercise the actual HTTP server on loopback, with generated auth and synthetic setup."""
 
 import argparse
+import asyncio
 import os
 import secrets
 import socket
@@ -11,6 +12,46 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import httpx
+from mcp import ClientSession
+from mcp.client.streamable_http import streamable_http_client
+
+
+async def prove_mcp(base_url: str, token: str):
+    async with httpx.AsyncClient(
+        headers={"Authorization": f"Bearer {token}"},
+        trust_env=False,
+        timeout=10,
+    ) as client:
+        async with streamable_http_client(f"{base_url}/mcp/", http_client=client) as (
+            reader,
+            writer,
+            _,
+        ):
+            async with ClientSession(reader, writer) as session:
+                await session.initialize()
+                tools = (await session.list_tools()).tools
+                expected = {
+                    "plan": {},
+                    "week": {"number": 1},
+                    "compliance": {},
+                    "load": {},
+                    "propose_adjustment": {"number": 2},
+                    "today_workout": {},
+                    "current_week": {},
+                    "status": {},
+                }
+                assert {tool.name for tool in tools} == set(expected)
+                assert all(tool.annotations.readOnlyHint for tool in tools)
+                for name, arguments in expected.items():
+                    result = await session.call_tool(name, arguments)
+                    assert not result.isError, name
+                for name in ("sync", "push", "remove", "adapt", "apply"):
+                    result = await session.call_tool(name, {"apply": True})
+                    assert result.isError, name
+                print(
+                    "mcp: Streamable HTTP handshake, 8 read-only tools called, "
+                    "5 write names rejected"
+                )
 
 
 def main():
@@ -84,6 +125,13 @@ def main():
                 response.raise_for_status()
                 assert response.json()["scheduled_workouts"] == 0
                 print("status: HTTP 200, zero scheduled Garmin workouts")
+                before = response.json()
+                unauthorized = client.post("/mcp/", headers={"Authorization": "Bearer invalid"})
+                assert unauthorized.status_code == 401
+                print("mcp auth: invalid bearer rejected with HTTP 401")
+                asyncio.run(prove_mcp(str(client.base_url).rstrip("/"), token))
+                assert client.get("/status").json() == before
+                print("mcp: stored status unchanged after all tool calls")
                 print("server: loopback HTTP workflow complete")
         finally:
             process.terminate()

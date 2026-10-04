@@ -8,7 +8,7 @@ The server requires Python 3.11+. The project is MIT licensed.
 **stride-coach is not affiliated with, endorsed by, or a replacement product from Runna,
 Garmin, or V.O2.** It contains original rules and session descriptions, with no imported
 commercial plans or copied interfaces. There are no LLM API calls or API keys in this package.
-Claude Code can discuss your local plan through MCP using your existing Claude Code access.
+Claude can discuss your plan through local or remote read-only MCP using your existing access.
 
 ## 15-minute quickstart
 
@@ -85,7 +85,7 @@ uv run stride-coach --help
 ```
 
 Linux and macOS are supported. PostgreSQL is the only runtime store. Set `DATABASE_URL`
-(or global `--database-url`) and run `uv run stride-coach db upgrade` before using MCP.
+(or global `--database-url`) and run `uv run stride-coach db upgrade` before using standalone stdio MCP.
 The CLI and API startup apply pending migrations automatically. Use one database per active
 plan; `init` refuses to overwrite one. Keep activity exports, backups, and tokens private.
 
@@ -246,22 +246,85 @@ if those weeks were already pushed, push them again to update Garmin. There is n
 Garmin write from sync or adapt. See [training rules](docs/training-rules.md) for the thresholds
 and limitations, and [architecture](docs/architecture.md) for storage and recovery behavior.
 
-## Claude Code over MCP
+## Connect Claude to your coach
 
-Register the local stdio server using the absolute repository path. Supply `DATABASE_URL`
-in the MCP process environment (use your client's protected environment configuration):
+The deployed API serves read-only MCP over Streamable HTTP at
+`https://coach.example.com/mcp/`. Use your own HTTPS hostname and the same
+`STRIDE_COACH_API_TOKEN` configured for the API. No separate MCP process or database
+access is needed on your laptop. The [self-hosting guide](docs/self-hosting.md) covers HTTPS.
+
+For **Claude Desktop**, install Node.js and open **Settings > Developer > Edit Config**.
+Merge this entry into `claude_desktop_config.json`, replace the hostname and token,
+then restart Claude Desktop. The [mcp-remote bridge](https://github.com/punkpeye/mcp-remote)
+passes the bearer header from Desktop's local stdio connection to the remote server:
+
+```json
+{
+  "mcpServers": {
+    "stride-coach": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote", "https://coach.example.com/mcp/",
+        "--transport", "http-only", "--header", "Authorization:${COACH_AUTH_HEADER}"
+      ],
+      "env": {
+        "COACH_AUTH_HEADER": "Bearer YOUR_SERVER_TOKEN"
+      }
+    }
+  }
+}
+```
+
+Keep that config private and untracked. This uses a static bearer header, with no OAuth
+login. A connector that only accepts an OAuth login cannot use this endpoint directly.
+
+For **Claude Code**, use this remote entry in your MCP configuration. Set
+`STRIDE_COACH_API_TOKEN` in Claude Code's environment using your secret manager:
+
+```json
+{
+  "mcpServers": {
+    "stride-coach": {
+      "type": "http",
+      "url": "https://coach.example.com/mcp/",
+      "headers": {"Authorization": "Bearer ${STRIDE_COACH_API_TOKEN}"}
+    }
+  }
+}
+```
+
+See [Claude Code's MCP configuration](https://code.claude.com/docs/en/mcp) for setup.
+Every remote MCP request requires the bearer header except browser CORS preflight requests.
+Tokens in URLs or cookies do not authenticate requests.
+Browser clients also need their exact Origin in `STRIDE_COACH_CORS_ORIGINS`.
+Preflight permits the `Authorization`, `Content-Type`, and `MCP-Protocol-Version` headers.
+
+The **local stdio option** still works on a host with database access. Register it using
+the absolute repository path and supply `DATABASE_URL` in the MCP process environment
+(use your client's protected environment configuration):
 
 ```sh
 claude mcp add stride-coach -- uv run --directory /absolute/path/to/stride-coach \
   stride-coach-mcp
 ```
 
-Tools: `plan`, `week`, `compliance`, `load`, `propose_adjustment`.
-Ask Claude Code: "Review my last week, explain compliance and load, and propose next week's
-adjustment." The MCP tools open PostgreSQL transactions read-only, never invoke Garmin, and make no LLM calls.
+Both transports expose `plan`, `week`, `compliance`, `load`, `propose_adjustment`,
+`today_workout`, `current_week`, and `status`.
+Ask Claude: "What is today's workout, how did this week go, and why did my plan change?"
+`today_workout` distinguishes a workout, a rest day, and a date outside the plan.
+`current_week` returns workouts and measured completion, or a null week outside the plan.
+Both use the server's `TZ` (UTC by default). `status` includes stored sync coverage and
+applied adjustments with reasons and before/after minutes. Empty adjustments mean no saved
+changes; null sync means no stored coverage. Coverage is not the time of the last sync attempt.
+The `sync_status` field returns stored sync-attempt details and history import progress.
+See [automatic sync and import recovery](docs/self-hosting.md#automatic-sync-and-import-recovery)
+for their meaning.
+
+The MCP tools open PostgreSQL transactions read-only, never invoke Garmin, and make no LLM calls.
 It exposes training data to your MCP client, so use a client/account you trust with that data.
 Proposals are previews and can include an incomplete week. Follow the [weekly loop](#weekly-loop)
-to apply a reviewed proposal. MCP cannot upload, remove, or apply.
+to apply a reviewed proposal. MCP cannot sync, upload, remove, or apply.
+It reads changes after the app or CLI saves them.
 
 ## JSON API for a phone client
 
