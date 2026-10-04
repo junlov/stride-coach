@@ -226,15 +226,20 @@ def has_tag(record: dict, workout: Workout) -> bool:
     return isinstance(description, str) and tag(workout) in description.splitlines()
 
 
+def workout_inventory(client) -> list[dict]:
+    return [
+        record if record.get("description") else client.workout(str(record["workoutId"]))
+        for record in client.workouts()
+    ]
+
+
 def owned_remote(client, inventory: list[dict], workout: Workout) -> dict | None:
-    # Hydrate summaries without descriptions, including renamed human titles.
     # A name is only a discovery hint; an exact tag line authorizes ownership.
     candidates = [
         r
         for r in inventory
         if (r.get("workoutName") or "").startswith(f"SC {workout.id} ")
         or has_tag(r, workout)
-        or not r.get("description")
     ]
     owned = [client.workout(str(r["workoutId"])) for r in candidates]
     owned = [r for r in owned if has_tag(r, workout)]
@@ -256,7 +261,7 @@ def push(store: Store, workouts: list[Workout], client=None, dry_run: bool = Tru
         # Re-read after acquiring the lock, in case an adaptation changed the plan.
         ids = {w.id for w in workouts}
         workouts = [w for w in store.plan().workouts if w.id in ids]
-        inventory = client.workouts()
+        inventory = workout_inventory(client)
         for workout in workouts:
             payload = workout_payload(workout)
             digest = fingerprint(payload)
@@ -312,7 +317,7 @@ def remove(store: Store, client=None, dry_run: bool = True) -> list[dict]:
         raise ValueError("A Garmin client is required for removal")
     output = []
     with store.lock():
-        inventory = client.workouts()
+        inventory = workout_inventory(client)
         for workout in workouts:
             remote = owned_remote(client, inventory, workout)
             if remote:

@@ -324,3 +324,61 @@ def test_summary_tag_must_be_verified_in_detail(plan):
     inventory = deepcopy(client.workouts())
     client.data["1"]["description"] = "No longer tagged"
     assert owned_remote(client, inventory, workout) is None
+
+
+@pytest.mark.parametrize("operation", ["push", "remove"])
+def test_missing_summary_descriptions_are_loaded_once(store, operation):
+    from collections import Counter
+
+    client = FakeGarmin()
+    workouts = store.plan().workouts[:4]
+    push(store, workouts, client, False)
+    client.data["999"] = {"workoutId": "999", "workoutName": "Personal run"}
+    client.workouts = lambda: [{"workoutId": remote_id} for remote_id in client.data]
+    reads = Counter()
+    detail = client.workout
+
+    def counted_detail(remote_id):
+        reads[remote_id] += 1
+        return detail(remote_id)
+
+    client.workout = counted_detail
+    client.writes.clear()
+    if operation == "push":
+        result = push(store, workouts, client, False)
+        assert all(item["action"] == "skipped" for item in result)
+        assert client.writes == []
+    else:
+        result = remove(store, client, False)
+        assert len(result) == len(workouts)
+        assert set(client.data) == {"999"}
+    assert reads == Counter({"1": 2, "2": 2, "3": 2, "4": 2, "999": 1})
+
+
+@pytest.mark.parametrize("operation", ["push", "remove"])
+def test_hydrated_inventory_does_not_authorize_writes(store, operation):
+    client = FakeGarmin()
+    workouts = store.plan().workouts[:1]
+    push(store, workouts, client, False)
+    client.workouts = lambda: [{"workoutId": "1"}]
+    reads = 0
+    detail = client.workout
+
+    def changed_detail(remote_id):
+        nonlocal reads
+        reads += 1
+        if reads == 2:
+            client.data[remote_id]["description"] = "No longer tagged"
+        return detail(remote_id)
+
+    client.workout = changed_detail
+    client.writes.clear()
+    store.save_remote(workouts[0].id, "1", "outdated", True)
+    if operation == "push":
+        with pytest.raises(GarminError, match="no longer discoverable"):
+            push(store, workouts, client, False)
+    else:
+        assert remove(store, client, False) == []
+    assert reads == 2
+    assert client.writes == []
+    assert "1" in client.data
