@@ -16,12 +16,14 @@ from .db_models import (
     ScheduledRow,
     StepKind,
     StepRow,
+    SyncAttemptRow,
     WeekRow,
     WorkoutRow,
     WriteIntentRow,
     WriteOperation,
 )
 from .models import Activity, Adjustment, Athlete, Fitness, Plan, Setup, Step, Workout
+from .sync_models import SyncAttempt, SyncStatus
 
 
 def fields(row, model):
@@ -71,6 +73,62 @@ class Store:
     def lock(self):
         with connection_lock(self.connection, WRITE_LOCK):
             yield
+
+    @contextmanager
+    def try_lock(self):
+        acquired = self.connection.scalar(
+            text("SELECT pg_try_advisory_lock(:key)"), {"key": WRITE_LOCK}
+        )
+        self.connection.commit()
+        try:
+            yield acquired
+        finally:
+            if acquired:
+                self.connection.rollback()
+                self.connection.execute(
+                    text("SELECT pg_advisory_unlock(:key)"), {"key": WRITE_LOCK}
+                )
+                self.connection.commit()
+
+    def save_attempt(self, attempt: SyncAttempt):
+        with self.transaction() as session:
+            session.merge(SyncAttemptRow(**attempt.model_dump()))
+
+    def sync_status(self) -> SyncStatus:
+        with self.transaction() as session:
+
+            def latest(*conditions):
+                row = session.scalar(
+                    select(SyncAttemptRow)
+                    .where(*conditions)
+                    .order_by(SyncAttemptRow.started_at.desc())
+                    .limit(1)
+                )
+                return SyncAttempt(**fields(row, SyncAttempt)) if row else None
+
+            return SyncStatus(
+                latest=latest(),
+                last_success=latest(SyncAttemptRow.result == "success"),
+                history=latest(SyncAttemptRow.source == "history"),
+            )
+
+    def latest_regular_sync(self):
+        with self.transaction() as session:
+            row = session.scalar(
+                select(SyncAttemptRow)
+                .where(SyncAttemptRow.source != "history")
+                .order_by(SyncAttemptRow.started_at.desc())
+                .limit(1)
+            )
+            return SyncAttempt(**fields(row, SyncAttempt)) if row else None
+
+    def save_history_page(self, attempt: SyncAttempt, activities: list[Activity]):
+        # Cursor and upserts commit together. A crash can only replay the uncommitted page.
+        with self.transaction() as session:
+            for activity in activities:
+                session.merge(ActivityRow(**activity.model_dump()))
+            session.merge(SyncAttemptRow(**attempt.model_dump()))
+            self._refresh_matches(session)
 
     def _plan(self, session) -> Plan:
         row = session.scalar(select(PlanRow))

@@ -72,6 +72,8 @@ export function response(data: unknown, status = 200): Response {
 export function mockServer(overrides: Record<string, unknown> = {}) {
   const routes: Record<string, unknown> = {
     "/status": status,
+    "/sync/status": {},
+    "/sync/open": { skipped: true },
     "/garmin/status": {
       connected: true,
       display_name: "Synthetic Runner",

@@ -112,6 +112,7 @@ class Adjustment(Record):
     week: int
     factor: float
     reasons: list[str]
+    inputs: dict = Field(default_factory=dict)
     before_minutes: float
     after_minutes: float
     applied: bool = False

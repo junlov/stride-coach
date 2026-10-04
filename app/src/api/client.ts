@@ -115,6 +115,10 @@ export function createClient(
     garminMfa: (body: Schema<"GarminMFA">) =>
       request<Result<"garmin_mfa">>("/garmin/mfa", body, 120000),
     garminLogout: () => request<Result<"garmin_logout">>("/garmin/logout", {}),
+    syncStatus: () => request<Result<"get_sync_status">>("/sync/status"),
+    syncOnOpen: () => request<Result<"sync_on_open">>("/sync/open", {}, 120000),
+    importHistory: (range: Schema<"HistoryRequest">["range"]) =>
+      request<Result<"import_history">>("/sync/history", { range }),
     status: () => request<Result<"get_status">>("/status"),
     plan: () => request<Result<"get_plan">>("/plan"),
     week: (number: number) => request<Result<"get_week">>(`/weeks/${number}`),

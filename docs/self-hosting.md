@@ -43,6 +43,10 @@ transaction-mode pooling cannot preserve the advisory locks used across committe
 | `POSTGRES_USER`, `POSTGRES_DB` | Bundled database role and database, default `stride` |
 | `DATABASE_URL` | Optional override for external PostgreSQL; otherwise Compose constructs it from the above credentials |
 | `STRIDE_COACH_TOKENS` | Dedicated session volume path, default `/data/garmin` in Compose |
+| `STRIDE_COACH_SYNC_ENABLED` | Daily automatic Garmin reads, `true` by default; `false` disables the daily schedule only |
+| `STRIDE_COACH_SYNC_TIME` | Daily `HH:MM` time in `TZ`, default `06:00`; catches up once after startup if due |
+| `STRIDE_COACH_SYNC_OPEN_HOURS` | Minimum interval between app-open sync attempts, default `6` hours, shared across devices |
+| `STRIDE_COACH_IMPORT_PAGE_DELAY` | Minimum delay between history pages, default `1` second (range 0.1 to 60) |
 | `TZ` | Athlete's IANA timezone, default `UTC`; determines local coaching dates |
 | `PORT` | Compose host port, default `8000`; container port stays `8000` |
 | `BIND_ADDRESS` | Host bind address, default `127.0.0.1` |
@@ -80,9 +84,10 @@ docker compose exec api python -m stride_coach.cli garmin login
 docker compose exec api python -m stride_coach.cli garmin status
 ```
 
-Follow the [mobile screen guide](../app/README.md#screens-and-actions) to create a goal and sync Garmin runs.
-To include recent runs in the initial fitness estimate, first use `sync --since YYYY-MM-DD --until YYYY-MM-DD`
-from the CLI, then create the goal. Garmin push and removal remain previews until you explicitly
+Before creating your plan, use **Import past runs** after connecting Garmin or in **Settings**.
+Choose 12 weeks, 6 calendar months, or everything. Wait for Complete to include the imported
+runs in your initial fitness estimate, then create the goal. You can also import from the CLI
+with `sync --since YYYY-MM-DD --until YYYY-MM-DD`. Garmin push and removal remain previews until you explicitly
 confirm a live action. Never use real Garmin writes for deployment healthchecks.
 
 Garmin's API is unofficial. The synthetic install proof does not establish live login acceptance
@@ -308,3 +313,36 @@ For the packaged clean-install, restart, schema-upgrade, and dump/restore proof,
 `uv run python examples/selfhost_proof.py`. It builds the image and creates a randomly named
 Compose project with generated secrets, uses synthetic data, then removes only that project
 and its volumes. No existing `.env` settings or Garmin credentials are used.
+
+## Automatic sync and import recovery
+
+One in-process worker starts with the HTTP server. Keep the server running for daily sync and
+history imports; CLI and MCP invocations do not start a scheduler. Daily sync runs after the
+configured local time, at most once that day when a regular sync has already been attempted.
+App open/resume requests `POST /sync/open`; the server skips silently without stored Garmin
+credentials or while another writer holds the PostgreSQL advisory lock. The server persists
+attempt times to enforce the configured interval across app restarts and devices. A failed
+attempt also counts toward the interval; **Actions > Sync** is the explicit retry path.
+
+`GET /sync/status` returns the latest attempt, last successful attempt, and history job, without
+requiring a plan. Each attempt includes start/finish time, result, requested date range, activity
+count, and a safe error message. Running or failed attempts do not claim complete coverage.
+If access renewal fails, reconnect in Settings; the worker never retries password login.
+Automatic sync only reads activities. It never pushes/removes workouts or applies adjustments.
+
+`POST /sync/history` takes `{"range":"12-weeks"}`, `{"range":"6-months"}`, or
+`{"range":"everything"}` and returns a durable job immediately. Everything requests all available
+Garmin history from 1970 onward. Ranges are anchored to the request's local date. The worker
+fetches ascending pages of 100 activities with the configured delay. Activity upserts and the
+page cursor commit together. Restarting the server resumes a running import. A request failure
+pauses the job; **Resume import** retries its last uncommitted page after reconnecting if needed.
+Repeated requests for the current range return the same job; selecting another range after it
+finishes starts another idempotent import. Only one import is active at a time. Garmin does not
+provide a snapshot cursor, so avoid editing/deleting old activities during an import, which can
+shift offsets. Imported history never grants complete-week coverage for automatic adaptation.
+Run a regular sync before applying any adjustment.
+
+Applied adjustments retain reason text and an input snapshot (weekly completion/load, athlete
+parameters, target effort counts, rule version, and complete sync coverage). `/status` returns
+this evidence; **Progress** shows why each applied week changed. Older adjustments retain their
+existing reasons with an empty input snapshot because their original inputs cannot be recovered.

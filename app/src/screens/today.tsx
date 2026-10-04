@@ -1,3 +1,4 @@
+import { SyncStatus } from "../components/sync-status";
 import { Client } from "../api/client";
 import {
   Button,
@@ -53,6 +54,7 @@ export default function TodayScreen() {
       eyebrow="Your daily coach"
     >
       <ConnectionGate>
+        <SyncStatus />
         <QueryState {...query} />
         {data && (
           <>

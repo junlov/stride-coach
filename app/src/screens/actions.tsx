@@ -1,3 +1,4 @@
+import { SyncStatus } from "../components/sync-status";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import { ApiError, Schema } from "../api/client";
@@ -222,6 +223,7 @@ function ConnectedActions() {
   return (
     <Page title="Ready for your next run." eyebrow="Coach actions">
       <ConnectionGate>
+        <SyncStatus />
         <Card>
           <Heading>Bring your training up to date</Heading>
           <Muted>

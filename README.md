@@ -361,3 +361,24 @@ the single-workout check above is required before relying on device delivery.
 The project has no web UI, multi-user hosting, other watch vendors, commercial-plan import, or integration
 that changes an existing Garmin analytics project. These are generic training heuristics,
 not clinical return-to-sport clearance. Stop a session if symptoms make running unsafe.
+
+### Daily sync, past runs, and plan-change reasons
+
+The HTTP server automatically reads Garmin activities daily and when the app opens or resumes.
+Settings, Today, and Actions show the last successful sync and any sync error. Before creating
+a goal, use **Import past runs** after Connect Garmin (also in Settings): choose **12 weeks**,
+**6 months**, or **Everything**, and wait for Complete so those runs inform the fitness estimate.
+Imports continue on the server, survive restarts, and offer Resume after a connection error.
+Reconnect Garmin if token renewal fails; no password login is retried automatically.
+
+Configure `STRIDE_COACH_SYNC_ENABLED=true`, `STRIDE_COACH_SYNC_TIME=06:00` (in `TZ`),
+`STRIDE_COACH_SYNC_OPEN_HOURS=6`, and `STRIDE_COACH_IMPORT_PAGE_DELAY=1` seconds in `.env`.
+Disabling the daily schedule leaves explicit history imports and app-open sync available.
+Sync reads runs only. Applying a proposed adjustment still requires explicit confirmation;
+**Progress** shows the saved reasons for every applied adjustment. The API preserves its inputs
+as well, so later activity changes do not rewrite the original explanation.
+
+See [automatic sync and import recovery](docs/self-hosting.md#automatic-sync-and-import-recovery)
+for API endpoints, restart behavior, range semantics, and configuration limits. A synthetic
+loopback proof is available with `uv run python examples/sync_demo.py` and a disposable
+`TEST_DATABASE_URL`; it makes no live Garmin calls.

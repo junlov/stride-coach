@@ -121,6 +121,14 @@ def propose(plan: Plan, activities: list[Activity], week: int) -> Adjustment:
         week=week,
         factor=factor,
         reasons=reasons,
+        inputs={
+            "rule_version": "v1",
+            "current_week": current,
+            "previous_week": previous,
+            "athlete": plan.setup.athlete.model_dump(mode="json"),
+            "hard_runs": hard,
+            "easy_runs": easy,
+        },
         before_minutes=before,
         after_minutes=before * factor,
     )
@@ -144,6 +152,7 @@ def adapt(store: Store, week: int, today: date, apply: bool = False) -> Adjustme
         ):
             raise ValueError("Sync the previous two complete weeks before adaptation.")
         adjustment = propose(plan, store.activities(), week)
+        adjustment.inputs["complete_sync_window"] = window
         if apply:
             # Propagate the reduction so later weeks cannot jump back above the 10% cap.
             for workout in plan.workouts:

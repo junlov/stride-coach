@@ -1,8 +1,9 @@
 """Shared application operations for CLI, MCP, and HTTP transports."""
 
 import json
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from uuid import uuid4
 
 from pydantic import Field
 
@@ -15,6 +16,7 @@ from .garmin import remove as remove_workouts
 from .garmin_auth import DEFAULT_TOKENS as DEFAULT_TOKENS
 from .models import Activity, Adjustment, Fitness, Plan, Record, Setup, Workout
 from .storage import Store
+from .sync_models import SyncAttempt, SyncStatus
 
 
 class Match(Record):
@@ -77,6 +79,7 @@ class Status(Record):
     scheduled_workouts: int
     weeks: list[Metrics]
     adjustments: list[Adjustment]
+    sync_status: SyncStatus | None = None
 
 
 class Proposal(Record):
@@ -181,6 +184,7 @@ class Coach:
             scheduled_workouts=store.scheduled_count(),
             weeks=self.compliance(),
             adjustments=store.adjustments(),
+            sync_status=store.sync_status(),
         )
 
     def push(self, request: PushRequest, today: date | None = None) -> list[WriteResult]:
@@ -211,20 +215,40 @@ class Coach:
             WriteResult(**r) for r in remove_workouts(self.store, client, dry_run=not request.apply)
         ]
 
-    def sync(self, request: SyncRequest, today: date | None = None) -> SyncResult:
+    def sync(
+        self, request: SyncRequest, today: date | None = None, *, source="manual", now=None
+    ) -> SyncResult:
         today = today or date.today()
         end = request.until or today
         begin = request.since or self.plan().setup.start - timedelta(days=28)
         if begin > end or end > today:
             raise ValueError("Sync needs since <= until <= today")
         with self.store.lock():
-            runs = (
-                request.activities
-                if request.activities is not None
-                else self.client_factory(self.token_dir).activities(begin, end)
+            attempt = SyncAttempt(
+                id=uuid4().hex,
+                source=source,
+                started_at=now or datetime.now(UTC),
+                since=begin,
+                until=end,
             )
-            runs = [a for a in runs if begin <= a.day <= end]
-            self.store.save_sync(runs, begin.isoformat(), end.isoformat(), today=today)
+            self.store.save_attempt(attempt)
+            try:
+                runs = (
+                    request.activities
+                    if request.activities is not None
+                    else self.client_factory(self.token_dir).activities(begin, end)
+                )
+                runs = [a for a in runs if begin <= a.day <= end]
+                self.store.save_sync(runs, begin.isoformat(), end.isoformat(), today=today)
+                attempt.result = "success"
+                attempt.activity_count = len(runs)
+            except Exception:
+                attempt.result = "error"
+                attempt.error = "Sync failed. Check connectivity or reconnect Garmin, then retry."
+                raise
+            finally:
+                attempt.finished_at = datetime.now(UTC)
+                self.store.save_attempt(attempt)
         return SyncResult(
             synced=len(runs),
             since=begin,

@@ -242,6 +242,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sync/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import History */
+        post: operations["import_history"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sync/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sync On Open */
+        post: operations["sync_on_open"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sync/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sync Status */
+        get: operations["get_sync_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/weeks/{number}": {
         parameters: {
             query?: never;
@@ -313,6 +364,10 @@ export interface components {
             before_minutes: number;
             /** Factor */
             factor: number;
+            /** Inputs */
+            inputs?: {
+                [key: string]: unknown;
+            };
             /** Reasons */
             reasons: string[];
             /** Week */
@@ -427,6 +482,14 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HistoryRequest */
+        HistoryRequest: {
+            /**
+             * Range
+             * @enum {string}
+             */
+            range: "12-weeks" | "6-months" | "everything";
         };
         /**
          * Kind
@@ -560,6 +623,7 @@ export interface components {
             /** Scheduled Workouts */
             scheduled_workouts: number;
             sync: components["schemas"]["SyncWindow"] | null;
+            sync_status?: components["schemas"]["SyncStatus"] | null;
             /** Weeks */
             weeks: components["schemas"]["Metrics"][];
         };
@@ -577,6 +641,51 @@ export interface components {
             pace_max?: number | null;
             /** Pace Min */
             pace_min?: number | null;
+        };
+        /** SyncAttempt */
+        SyncAttempt: {
+            /**
+             * Activity Count
+             * @default 0
+             */
+            activity_count?: number;
+            /** Error */
+            error?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /** History Range */
+            history_range?: ("12-weeks" | "6-months" | "everything") | null;
+            /** Id */
+            id: string;
+            /**
+             * Next Page
+             * @default 0
+             */
+            next_page?: number;
+            /** Next Page At */
+            next_page_at?: string | null;
+            /**
+             * Result
+             * @default running
+             */
+            result?: string;
+            /**
+             * Since
+             * Format: date
+             */
+            since: string;
+            /** Source */
+            source: string;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /**
+             * Until
+             * Format: date
+             */
+            until: string;
         };
         /** SyncRequest */
         SyncRequest: {
@@ -603,6 +712,17 @@ export interface components {
              * Format: date
              */
             until: string;
+        };
+        /** SyncStatus */
+        SyncStatus: {
+            history?: components["schemas"]["SyncAttempt"] | null;
+            last_success?: components["schemas"]["SyncAttempt"] | null;
+            latest?: components["schemas"]["SyncAttempt"] | null;
+            /**
+             * Skipped
+             * @default false
+             */
+            skipped?: boolean;
         };
         /** SyncWindow */
         SyncWindow: {
@@ -1455,6 +1575,160 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    import_history: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HistoryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncAttempt"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    sync_on_open: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncStatus"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_sync_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncStatus"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             /** @description Bad Gateway */
