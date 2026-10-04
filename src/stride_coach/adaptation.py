@@ -5,7 +5,7 @@ import json
 import math
 from datetime import date, timedelta
 
-from .models import Activity, Adjustment, Athlete, Kind, Plan
+from .models import executable_steps, Activity, Adjustment, Athlete, Kind, Plan
 from .storage import Store
 
 
@@ -183,8 +183,10 @@ def adapt(
             # Propagate the reduction so later weeks cannot jump back above the 10% cap.
             for workout in plan.workouts:
                 if workout.week >= week:
-                    for step in workout.steps:
+                    for step in executable_steps(workout.steps):
                         step.minutes *= adjustment.factor
+                        if step.distance_m is not None:
+                            step.distance_m *= adjustment.factor
             store.apply(plan, adjustment)
         return adjustment
 

@@ -11,13 +11,39 @@ import {
   Notice,
   QueryState,
 } from "./ui";
+import { WorkoutGraph } from "./workout-graph";
 import { useQuery } from "../state/query";
 export function pace(seconds: number) {
   const rounded = Math.round(seconds);
   return `${Math.floor(rounded / 60)}:${String(rounded % 60).padStart(2, "0")}`;
 }
+type WorkoutStep = Schema<"Step"> | Schema<"RepeatGroup">;
+export function stepMinutes(step: WorkoutStep): number {
+  return "steps" in step
+    ? step.repetitions * step.steps.reduce((sum, child) => sum + child.minutes, 0) -
+        (step.skip_last_rest ? step.steps[step.steps.length - 1].minutes : 0)
+    : step.minutes;
+}
+export function stepSummary(step: WorkoutStep): string {
+  if ("steps" in step) {
+    return `${step.label}: ${step.repetitions} x (${step.steps.map(stepSummary).join("; ")})${step.skip_last_rest ? " · Skip last recovery" : ""}`;
+  }
+  const end = step.end_condition === "lap"
+    ? `press Lap (${step.minutes.toFixed(1)} min estimated)`
+    : step.end_condition === "distance"
+      ? `${Number(step.distance_m?.toFixed(1))} m`
+      : `${step.minutes.toFixed(1)} min`;
+  const target = step.hr_zone
+    ? `Zone ${step.hr_zone}`
+    : step.pace_min && step.pace_max
+      ? `${pace(step.pace_min)} to ${pace(step.pace_max)} /km`
+      : step.hr_min && step.hr_max ? `${step.hr_min} to ${step.hr_max} bpm` : "";
+  const cadence = step.cadence_min && step.cadence_max
+    ? ` · ${step.cadence_min} to ${step.cadence_max} spm` : "";
+  return `${step.label}: ${end}${target ? ` · ${target}` : ""}${cadence}`;
+}
 export const workoutMinutes = (workout: Schema<"WorkoutSummary">) =>
-  workout.steps.reduce((sum, step) => sum + step.minutes, 0);
+  workout.steps.reduce((sum, step) => sum + stepMinutes(step), 0);
 export function WorkoutCard({
   workout,
   hero = false,
@@ -47,16 +73,9 @@ export function WorkoutCard({
           {workout.cutback ? " · Cutback" : ""}
         </Copy>
       )}
+      <WorkoutGraph workout={workout} />
       {workout.steps.map((step, i) => (
-        <Muted key={i}>
-          {step.label}: {step.minutes.toFixed(1)} min
-          {step.pace_min && step.pace_max
-            ? ` · ${pace(step.pace_min)} to ${pace(step.pace_max)} /km`
-            : ""}
-          {step.hr_min && step.hr_max
-            ? ` · ${step.hr_min} to ${step.hr_max} bpm`
-            : ""}
-        </Muted>
+        <Muted key={i}>{stepSummary(step)}</Muted>
       ))}
       {children}
       <Button

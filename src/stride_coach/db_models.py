@@ -115,6 +115,31 @@ class StepRow(Base):
     pace_max: Mapped[float | None]
     hr_min: Mapped[int | None]
     hr_max: Mapped[int | None]
+    end_condition: Mapped[str] = mapped_column(default="time", server_default="time")
+    distance_m: Mapped[float | None]
+    preferred_hr_zone: Mapped[int | None]
+    hr_zone: Mapped[int | None]
+    cadence_min: Mapped[int | None]
+    cadence_max: Mapped[int | None]
+    group_position: Mapped[int | None]
+
+
+class RepeatRow(Base):
+    __tablename__ = "step_repeats"
+    workout_id: Mapped[str] = mapped_column(ForeignKey("workouts.id"), primary_key=True)
+    position: Mapped[int] = mapped_column(primary_key=True)
+    label: Mapped[str]
+    repetitions: Mapped[int]
+    skip_last_rest: Mapped[bool]
+    __table_args__ = (CheckConstraint("repetitions BETWEEN 2 AND 100"),)
+
+
+class GarminZoneRow(Base):
+    __tablename__ = "garmin_hr_zones"
+    zone: Mapped[int] = mapped_column(primary_key=True)
+    lower_bpm: Mapped[int]
+    upper_bpm: Mapped[int]
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class ActivityRow(Base):

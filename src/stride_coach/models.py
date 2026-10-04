@@ -2,6 +2,7 @@
 
 from datetime import date
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -95,11 +96,60 @@ class Fitness(Record):
 
 class Step(Record):
     label: str
-    minutes: float = Field(gt=0)
+    minutes: float = Field(gt=0, description="Estimated minutes, including distance and Lap steps")
+    cadence_min: int | None = Field(default=None, ge=60, le=250)
+    cadence_max: int | None = Field(default=None, ge=60, le=250)
+    end_condition: Literal["time", "distance", "lap"] = "time"
+    distance_m: float | None = Field(default=None, gt=0)
+    preferred_hr_zone: int | None = Field(default=None, ge=1, le=5)
+    hr_zone: int | None = Field(default=None, ge=1, le=5)
     pace_min: float | None = Field(default=None, gt=0)
     pace_max: float | None = Field(default=None, gt=0)
     hr_min: int | None = Field(default=None, gt=0)
     hr_max: int | None = Field(default=None, gt=0)
+
+
+    @model_validator(mode="after")
+    def valid_end_condition(self):
+        if (self.end_condition == "distance") != (self.distance_m is not None):
+            raise ValueError("Distance steps require distance_m; other steps must omit it")
+        for low, high in [(self.pace_min, self.pace_max), (self.hr_min, self.hr_max), (self.cadence_min, self.cadence_max)]:
+            if (low is None) != (high is None) or (low is not None and low > high):
+                raise ValueError("Targets need an ordered pair of bounds")
+        if self.pace_min is not None and (self.hr_min is not None or self.hr_zone is not None):
+            raise ValueError("Choose pace or heart rate")
+        return self
+
+
+class RepeatGroup(Record):
+    label: str
+    repetitions: int = Field(ge=2, le=100)
+    skip_last_rest: bool = False
+    steps: list[Step] = Field(min_length=1)
+
+    @property
+    def minutes(self) -> float:
+        return self.repetitions * sum(step.minutes for step in self.steps) - (
+            self.steps[-1].minutes if self.skip_last_rest else 0
+        )
+
+
+def executable_steps(steps: list[Step | RepeatGroup]):
+    """Visit each stored step once, without expanding repetitions."""
+    for step in steps:
+        yield from step.steps if isinstance(step, RepeatGroup) else [step]
+
+
+class GarminHeartRateZone(Record):
+    zone: int = Field(ge=1, le=5)
+    lower_bpm: int = Field(ge=30, le=240)
+    upper_bpm: int = Field(ge=30, le=240)
+
+    @model_validator(mode="after")
+    def ordered(self):
+        if self.lower_bpm >= self.upper_bpm:
+            raise ValueError("Zone boundaries must increase")
+        return self
 
 
 class Workout(Record):
@@ -108,7 +158,7 @@ class Workout(Record):
     week: int
     phase: str
     kind: Kind
-    steps: list[Step]
+    steps: list[Step | RepeatGroup]
     cutback: bool = False
 
     @property
