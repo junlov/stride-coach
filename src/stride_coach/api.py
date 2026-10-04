@@ -302,7 +302,7 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
         response_model=PairedToken,
         responses={
             400: {"model": Error},
-            422: {"model": Error},
+            422: {"model": Error, "description": "Unprocessable Content"},
             429: {"model": Error},
             503: {"model": Error},
         },
