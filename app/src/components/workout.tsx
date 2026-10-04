@@ -16,7 +16,7 @@ export function pace(seconds: number) {
   const rounded = Math.round(seconds);
   return `${Math.floor(rounded / 60)}:${String(rounded % 60).padStart(2, "0")}`;
 }
-export const workoutMinutes = (workout: Schema<"Workout">) =>
+export const workoutMinutes = (workout: Schema<"WorkoutSummary">) =>
   workout.steps.reduce((sum, step) => sum + step.minutes, 0);
 export function WorkoutCard({
   workout,
@@ -24,7 +24,7 @@ export function WorkoutCard({
   match,
   children,
 }: {
-  workout: Schema<"Workout">;
+  workout: Schema<"WorkoutSummary">;
   hero?: boolean;
   children?: ReactNode;
   match?: Schema<"Match">;
@@ -37,7 +37,7 @@ export function WorkoutCard({
         {workout.cutback ? "Cutback" : workout.phase} · Week {workout.week}
       </Badge>
       <Heading>
-        {workout.day} · {workout.kind}
+        {workout.day} · {workout.name}
       </Heading>
       {hero ? (
         <Hero value={Math.round(workoutMinutes(workout))} unit="min" />

@@ -248,11 +248,17 @@ def test_adapter_endpoints_and_response_parsing(monkeypatch):
         client.calendar(day)
 
 
-def test_duplicate_tags_stop_writes(store):
+@pytest.mark.parametrize("legacy", [False, True])
+def test_duplicate_tags_stop_writes(store, legacy):
     client = FakeGarmin()
     workouts = store.plan().workouts[:1]
     payload = workout_payload(workouts[0])
     client.create(payload)
+    if legacy:
+        from stride_coach.garmin import tag
+
+        payload["description"] = tag(workouts[0])
+        payload["workoutName"] = f"SC {workouts[0].id} easy"
     client.create(payload)
     with pytest.raises(GarminError, match="Multiple"):
         push(store, workouts, client, False)
@@ -266,3 +272,113 @@ def test_remove_cannot_clear_an_unresolved_upload(store):
     with pytest.raises(GarminError, match="unresolved"):
         remove(store, client, False)
     assert pending(store, f"create:{workout.id}")
+
+
+@pytest.mark.parametrize("old_name", [True, False])
+@pytest.mark.parametrize("description_style", ["exact", "embedded", "missing_summary"])
+def test_legacy_and_new_workouts_update_in_place(store, old_name, description_style):
+    from stride_coach.garmin import fingerprint, tag
+
+    client = FakeGarmin()
+    workout = store.plan().workouts[0]
+    payload = workout_payload(workout)
+    legacy = {**payload, "workoutName": f"SC {workout.id} easy" if old_name else "Renamed run"}
+    if description_style == "exact":
+        legacy["description"] = tag(workout)
+    client.create(legacy)
+    client.schedule("1", workout.day)
+    store.save_remote(workout.id, "1", fingerprint(legacy), True)
+    if description_style == "missing_summary":
+        client.workouts = lambda: [{"workoutId": "1", "workoutName": legacy["workoutName"]}]
+    result = push(store, [workout], client, False)
+    assert result[0]["action"] == "updated"
+    assert client.writes == ["create", "schedule", "update"]
+    assert client.data["1"] == {**payload, "workoutId": "1"}
+    push(store, [workout], client, False)
+    assert client.writes == ["create", "schedule", "update"]
+    remove(store, client, False)
+    assert not client.data
+
+
+@pytest.mark.parametrize("description", [None, "", "prefix {tag}", "{tag}-other", "{tag} suffix"])
+@pytest.mark.parametrize("old_name", [True, False])
+def test_name_never_authorizes_ownership(plan, description, old_name):
+    from stride_coach.garmin import owned_remote, tag
+
+    workout = plan.workouts[0]
+    client = FakeGarmin()
+    payload = workout_payload(workout)
+    payload["description"] = description.format(tag=tag(workout)) if description else description
+    if old_name:
+        payload["workoutName"] = f"SC {workout.id} easy"
+    client.create(payload)
+    assert owned_remote(client, client.workouts(), workout) is None
+
+
+def test_summary_tag_must_be_verified_in_detail(plan):
+    from stride_coach.garmin import owned_remote
+
+    workout = plan.workouts[0]
+    client = FakeGarmin()
+    client.create(workout_payload(workout))
+    inventory = deepcopy(client.workouts())
+    client.data["1"]["description"] = "No longer tagged"
+    assert owned_remote(client, inventory, workout) is None
+
+
+@pytest.mark.parametrize("operation", ["push", "remove"])
+def test_missing_summary_descriptions_are_loaded_once(store, operation):
+    from collections import Counter
+
+    client = FakeGarmin()
+    workouts = store.plan().workouts[:4]
+    push(store, workouts, client, False)
+    client.data["999"] = {"workoutId": "999", "workoutName": "Personal run"}
+    client.workouts = lambda: [{"workoutId": remote_id} for remote_id in client.data]
+    reads = Counter()
+    detail = client.workout
+
+    def counted_detail(remote_id):
+        reads[remote_id] += 1
+        return detail(remote_id)
+
+    client.workout = counted_detail
+    client.writes.clear()
+    if operation == "push":
+        result = push(store, workouts, client, False)
+        assert all(item["action"] == "skipped" for item in result)
+        assert client.writes == []
+    else:
+        result = remove(store, client, False)
+        assert len(result) == len(workouts)
+        assert set(client.data) == {"999"}
+    assert reads == Counter({"1": 2, "2": 2, "3": 2, "4": 2, "999": 1})
+
+
+@pytest.mark.parametrize("operation", ["push", "remove"])
+def test_hydrated_inventory_does_not_authorize_writes(store, operation):
+    client = FakeGarmin()
+    workouts = store.plan().workouts[:1]
+    push(store, workouts, client, False)
+    client.workouts = lambda: [{"workoutId": "1"}]
+    reads = 0
+    detail = client.workout
+
+    def changed_detail(remote_id):
+        nonlocal reads
+        reads += 1
+        if reads == 2:
+            client.data[remote_id]["description"] = "No longer tagged"
+        return detail(remote_id)
+
+    client.workout = changed_detail
+    client.writes.clear()
+    store.save_remote(workouts[0].id, "1", "outdated", True)
+    if operation == "push":
+        with pytest.raises(GarminError, match="no longer discoverable"):
+            push(store, workouts, client, False)
+    else:
+        assert remove(store, client, False) == []
+    assert reads == 2
+    assert client.writes == []
+    assert "1" in client.data

@@ -80,13 +80,7 @@ export default function TodayScreen() {
             {!todayWorkouts.length && next && (
               <Card>
                 <Heading>Up next · {next.day}</Heading>
-                <Copy>
-                  {next.kind} ·{" "}
-                  {Math.round(
-                    next.steps.reduce((n, step) => n + step.minutes, 0),
-                  )}{" "}
-                  min
-                </Copy>
+                <Copy>{next.name}</Copy>
               </Card>
             )}
             {todayWorkouts.map(({ workout }) => (

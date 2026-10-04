@@ -133,6 +133,17 @@ async function main() {
     const proposal = await client.propose(2);
     assert.equal(proposal.preview_only, true);
     const preview = await client.push({ week: 1, dry_run: true, apply: false });
+    for (const item of preview) {
+      const workout = plan.workouts.find(
+        (workout) => workout.day === item.date,
+      );
+      assert(workout);
+      assert.equal(item.payload?.workoutName, workout.name);
+      assert(workout.name.length <= 15);
+    }
+    console.log(
+      "names: mobile plan and Garmin previews match within 15 characters",
+    );
     assert(
       preview.length > 0 && preview.every((item) => item.action === "preview"),
     );

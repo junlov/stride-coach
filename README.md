@@ -199,7 +199,12 @@ Without `--apply`, every push is a local dry run, including bulk pushes. `--appl
 `--dry-run` together are rejected. Past workouts are excluded. Garmin device delivery uses
 Garmin's normal calendar/device sync; this tool does not force a device message.
 
-Workouts have an exact `stride-coach:v1:` ownership marker and stable per-date identity.
+Workouts use short runner-facing names, such as `Easy Run 40 min` and `Tempo 3 x 8 min`,
+shared with the app. Descriptions explain the effort and targets; step instructions include
+pace or heart rate. See [Garmin workout text, ownership, and migration](docs/garmin-workouts.md)
+for naming limits, an example payload, and updates to older workouts.
+
+Workouts have an ownership marker and stable per-date identity.
 Re-running reconciles remote workouts and calendar entries, updates changed workouts in place,
 and skips unchanged ones. PostgreSQL advisory locks serialize writers, and durable intents record uncertain operations
 before sending them. If a request might have succeeded but Garmin has not exposed it yet,

@@ -32,7 +32,7 @@ from .garmin_auth import (
     GarminStatus,
 )
 from .mcp import create_server
-from .models import Adjustment, Plan, Record, RunDetail
+from .models import Adjustment, Record, RunDetail
 from .pairing import PairedToken, PairingCode, PairingExchange, PairingStore
 from .service import (
     DEFAULT_TOKENS,
@@ -42,6 +42,7 @@ from .service import (
     GoalRequest,
     Load,
     Metrics,
+    PlanView,
     Proposal,
     PushRequest,
     RemoveRequest,
@@ -361,7 +362,7 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
     def setup_goal(body: GoalRequest, service: Service):
         return service.initialize(body)
 
-    @app.get("/plan", response_model=Plan, responses=errors, operation_id="get_plan")
+    @app.get("/plan", response_model=PlanView, responses=errors, operation_id="get_plan")
     def plan(service: Service):
         return service.plan()
 

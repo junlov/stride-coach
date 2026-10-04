@@ -693,8 +693,8 @@ export interface components {
              */
             code: string;
         };
-        /** Plan */
-        Plan: {
+        /** PlanView */
+        PlanView: {
             fitness: components["schemas"]["Fitness"];
             /** Id */
             id: string;
@@ -702,7 +702,7 @@ export interface components {
             /** Warnings */
             warnings?: string[];
             /** Workouts */
-            workouts: components["schemas"]["Workout"][];
+            workouts: components["schemas"]["WorkoutSummary"][];
         };
         /** Proposal */
         Proposal: {
@@ -1067,8 +1067,8 @@ export interface components {
             /** Workouts */
             workouts: components["schemas"]["WorkoutView"][];
         };
-        /** Workout */
-        Workout: {
+        /** WorkoutSummary */
+        WorkoutSummary: {
             /**
              * Cutback
              * @default false
@@ -1082,6 +1082,8 @@ export interface components {
             /** Id */
             id: string;
             kind: components["schemas"]["Kind"];
+            /** Name */
+            readonly name: string;
             /** Phase */
             phase: string;
             /** Steps */
@@ -1093,7 +1095,7 @@ export interface components {
         WorkoutView: {
             /** Minutes */
             minutes: number;
-            workout: components["schemas"]["Workout"];
+            workout: components["schemas"]["WorkoutSummary"];
         };
         /** WriteResult */
         WriteResult: {
@@ -1863,7 +1865,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Plan"];
+                    "application/json": components["schemas"]["PlanView"];
                 };
             };
             /** @description Bad Request */

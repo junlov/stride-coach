@@ -72,6 +72,9 @@ test("seven days distinguish planned rest from an inferred match with recorded m
   });
   await mount(<WeekScreen />);
   expect(await screen.findAllByText("Rest planned")).toHaveLength(6);
+  expect(
+    screen.getAllByText(`${workout.day} · ${workout.name}`).length,
+  ).toBeGreaterThan(0);
   await fireEvent.press(screen.getByText("Review matched run"));
   expect(screen.getByText("Activity: run-123")).toBeTruthy();
   expect(screen.getByText("Match method: date-kind")).toBeTruthy();
@@ -102,6 +105,9 @@ test("week navigation requests the selected week and handles no weeks", async ()
 test("workout explanations disclose when personalized reasons are absent", async () => {
   await mount(<PlanScreen />);
   await fireEvent.press(await screen.findByText("View week 1"));
+  expect(
+    screen.getAllByText(`${workout.day} · ${workout.name}`).length,
+  ).toBeGreaterThan(0);
   await fireEvent.press(screen.getByText("Why this workout?"));
   expect(screen.getByText(/personalized reason.*not available/)).toBeTruthy();
 });
@@ -109,6 +115,9 @@ test("workout explanations disclose when personalized reasons are absent", async
 test("J2 Today links to a week-scoped Garmin preview", async () => {
   await mount(<TodayScreen />);
   const link = await screen.findByText("Send this week to Garmin");
+  expect(
+    screen.getAllByText(`${workout.day} · ${workout.name}`).length,
+  ).toBeGreaterThan(0);
   expect(link.props.href).toEqual({
     pathname: "/actions",
     params: { week: "1" },
@@ -340,7 +349,7 @@ test("week selection resets across connections and falls back when the plan lose
 
 test("push preview shows workout content, converts pace, and keeps raw details optional", async () => {
   const payload = {
-    workoutName: "SC synthetic easy",
+    workoutName: "Easy Run 30 min",
     workoutSegments: [
       {
         workoutSteps: [
@@ -369,7 +378,7 @@ test("push preview shows workout content, converts pace, and keeps raw details o
   });
   await mount(<ActionsScreen />);
   await fireEvent.press(await screen.findByText("Preview Garmin push"));
-  await screen.findByText("SC synthetic easy");
+  await screen.findByText("Easy Run 30 min");
   expect(screen.getByText("2026-10-05")).toBeTruthy();
   expect(screen.getByText("1. Warm up: 10 min · 120 to 140 bpm")).toBeTruthy();
   expect(screen.getByText("2. Run: 1000 m · 5:00 to 6:00 /km")).toBeTruthy();
