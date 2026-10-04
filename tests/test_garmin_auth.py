@@ -82,9 +82,7 @@ def fake_garmin(monkeypatch):
 
 @pytest.fixture
 def api(tmp_path, fake_garmin):
-    config = ServerConfig(
-        token="synthetic-bearer-" * 3, db=tmp_path / "coach.db", tokens=tmp_path / "tokens"
-    )
+    config = ServerConfig(token="synthetic-bearer-" * 3, tokens=tmp_path / "tokens")
     with TestClient(create_app(config)) as client:
         yield client
     client.app.state.garmin_connection.close()

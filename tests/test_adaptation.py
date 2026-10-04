@@ -1,9 +1,12 @@
 from datetime import timedelta
 
 import pytest
+from sqlalchemy import event
 
 from stride_coach.adaptation import adapt, match_activities, propose, trimp, week_metrics
-from stride_coach.models import Activity, Athlete, Kind
+from stride_coach.engine import generate_plan
+from stride_coach.models import Activity, Athlete, Goal, Kind, Setup
+from stride_coach.storage import Store
 
 
 def completed(plan, week, hr=140, factor=1):
@@ -99,3 +102,47 @@ def test_adapt_rejects_open_week_and_stale_sync(store):
         adapt(store, 2, store.plan().setup.start + timedelta(weeks=1))
     with pytest.raises(ValueError):
         propose(store.plan(), [], 1)
+
+
+def test_return_plan_adaptation_batches_database_calls(database, setup):
+    plan = generate_plan(
+        Setup(
+            goal=Goal.RETURN,
+            start=setup.start,
+            race_date=setup.start + timedelta(weeks=12),
+            days_per_week=3,
+            long_run_day=6,
+        ),
+        [],
+    )
+    assert sum(len(workout.steps) for workout in plan.workouts) == 432
+    calls = []
+
+    def record_call(connection, cursor, statement, parameters, context, executemany):
+        calls.append((context.isupdate, executemany))
+
+    store = Store(database)
+    try:
+        store.initialize(plan)
+        monday = plan.setup.start + timedelta(weeks=1)
+        store.save_sync([], str(monday - timedelta(days=14)), str(monday), today=monday)
+        event.listen(store.engine, "before_cursor_execute", record_call)
+        try:
+            applied = adapt(store, 2, monday, apply=True)
+        finally:
+            event.remove(store.engine, "before_cursor_execute", record_call)
+        assert len(calls) <= 25
+        assert [batch for update, batch in calls if update] == [True]
+        assert applied.applied
+        assert store.adjustment(2) == applied
+        updated = store.plan()
+        for old, new in zip(plan.workouts, updated.workouts, strict=True):
+            factor = 0.75 if old.week >= 2 else 1
+            assert new.id == old.id
+            for old_step, new_step in zip(old.steps, new.steps, strict=True):
+                assert new_step.minutes == pytest.approx(old_step.minutes * factor)
+                assert new_step.model_dump(exclude={"minutes"}) == old_step.model_dump(
+                    exclude={"minutes"}
+                )
+    finally:
+        store.close()

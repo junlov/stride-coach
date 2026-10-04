@@ -16,9 +16,6 @@ def main():
     parser.add_argument("--directory", type=Path, required=True)
     directory = parser.parse_args().directory.resolve()
     directory.mkdir(parents=True, exist_ok=True)
-    db = directory / "demo.db"
-    if db.exists():
-        raise SystemExit("Demo database already exists; choose a fresh --directory.")
     today = date.today()
     monday = today - timedelta(days=today.weekday())
     start = monday - timedelta(weeks=2)
@@ -26,7 +23,7 @@ def main():
 
     def cli(*args):
         process = subprocess.run(
-            [sys.executable, "-m", "stride_coach.cli", "--db", str(db), *args],
+            [sys.executable, "-m", "stride_coach.cli", *args],
             text=True,
             capture_output=True,
             check=True,
@@ -64,7 +61,7 @@ def main():
         str(source),
     )
     print(f"sync: {result['synced']} synthetic completed run")
-    store = Store(db)
+    store = Store()
     try:
         proposal = adapt(store, 3, monday)
         applied = adapt(store, 3, monday, apply=True)
@@ -82,4 +79,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    from synthetic_database import synthetic_database
+
+    with synthetic_database():
+        main()

@@ -17,15 +17,19 @@ HEADERS = {"Authorization": f"Bearer {TOKEN}"}
 
 
 @pytest.fixture
-def api(tmp_path):
+def api(tmp_path, database):
     config = ServerConfig(
-        token=TOKEN, db=tmp_path / "api.db", cors_origins=["https://coach.example.test"]
+        token=TOKEN,
+        database_url=database,
+        tokens=tmp_path / "tokens",
+        cors_origins=["https://coach.example.test"],
     )
 
     def forbidden_client(path):
         raise AssertionError("An offline preview must not initialize Garmin")
 
-    return TestClient(create_app(config, client_factory=forbidden_client))
+    with TestClient(create_app(config, client_factory=forbidden_client)) as client:
+        yield client
 
 
 def create_goal(api, setup):
@@ -140,7 +144,7 @@ def test_api_garmin_write_requires_explicit_apply(tmp_path, setup, monkeypatch):
         attempts.append(path)
         raise GarminError("Saved tokens unavailable")
 
-    api = TestClient(create_app(ServerConfig(token=TOKEN, db=tmp_path / "api.db"), client))
+    api = TestClient(create_app(ServerConfig(token=TOKEN, tokens=tmp_path / "tokens"), client))
     create_goal(api, setup)
     assert api.post("/push", json={"week": 1}, headers=HEADERS).status_code == 200
     assert not attempts
@@ -198,7 +202,7 @@ def test_committed_openapi_matches_application(api):
 
 def test_http_and_direct_service_agree(api, setup, tmp_path):
     create_goal(api, setup)
-    store = Store(tmp_path / "api.db", read_only=True)
+    store = Store(read_only=True)
     try:
         service = Coach(store)
         expected = {
@@ -216,12 +220,12 @@ def test_http_and_direct_service_agree(api, setup, tmp_path):
 
 
 def test_store_read_only_rejects_writes(store):
-    import sqlite3
+    from sqlalchemy.exc import InternalError
 
-    read = Store(store.path, read_only=True)
+    read = Store(store.url, read_only=True)
     try:
         assert Coach(read).plan() == store.plan()
-        with pytest.raises(sqlite3.OperationalError):
+        with pytest.raises(InternalError):
             read.save_sync(
                 [Activity(id="1", day="2026-10-03", distance_km=5, duration_min=30)],
                 "2026-10-01",

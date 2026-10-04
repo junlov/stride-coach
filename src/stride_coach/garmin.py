@@ -14,12 +14,12 @@ SPORT = {"sportTypeId": 1, "sportTypeKey": "running"}
 
 
 class GarminClient:
-    def __init__(self, token_dir: Path):
+    def __init__(self, token_dir: Path, database_url: str | None = None):
         from garminconnect import Garmin
 
         self.api = Garmin()
         try:
-            self.api.garth = StoredSession(TokenVault(token_dir))
+            self.api.garth = StoredSession(TokenVault(token_dir, database_url))
         except GarminError:
             raise
         except Exception:
@@ -189,13 +189,7 @@ def fingerprint(payload: dict) -> str:
 
 
 def pending(store: Store, key: str, state: bool | None = None) -> bool:
-    if state is not None:
-        with store.db:
-            if state:
-                store.db.execute("INSERT OR REPLACE INTO metadata VALUES (?, 'pending')", (key,))
-            else:
-                store.db.execute("DELETE FROM metadata WHERE key=?", (key,))
-    return store.db.execute("SELECT 1 FROM metadata WHERE key=?", (key,)).fetchone() is not None
+    return store.pending(key, state)
 
 
 def owned_remote(client, inventory: list[dict], workout: Workout) -> dict | None:

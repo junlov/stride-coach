@@ -67,7 +67,7 @@ class FakeGarmin:
 def test_dry_run_needs_no_client_and_writes_no_ledger(store):
     preview = push(store, store.plan().workouts[:1])
     assert preview[0]["action"] == "preview"
-    assert not store.db.execute("SELECT * FROM scheduled").fetchall()
+    assert store.scheduled_count() == 0
     assert remove(store)[0]["action"] == "preview removal"
 
 
@@ -80,8 +80,10 @@ def test_create_rerun_update_and_remove_only_owned(store):
     assert client.writes == ["create", "schedule", "create", "schedule"]
     plan = store.plan()
     plan.workouts[0].steps[0].minutes *= 0.8
-    with store.db:
-        store.db.execute("UPDATE plan SET data=?", (plan.model_dump_json(),))
+    from stride_coach.db_models import StepRow
+
+    with store.transaction() as session:
+        session.get(StepRow, (plan.workouts[0].id, 0)).minutes = plan.workouts[0].steps[0].minutes
     push(store, workouts, client, False)
     assert client.writes[-1] == "update"
     assert client.writes.count("schedule") == 2
@@ -89,7 +91,7 @@ def test_create_rerun_update_and_remove_only_owned(store):
     remove(store, client, False)
     assert set(client.data) == {"999"}
     assert not client.events
-    assert not store.db.execute("SELECT * FROM scheduled").fetchall()
+    assert store.scheduled_count() == 0
 
 
 @pytest.mark.parametrize("failure", ["fail_create", "fail_schedule"])

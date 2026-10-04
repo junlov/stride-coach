@@ -7,13 +7,14 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 
+from .database import upgrade
 from .garmin import GarminError
 from .garmin_auth import GarminConnection
 from .models import Athlete, Goal, Setup
 from .service import (
-    DEFAULT_DB,
     DEFAULT_TOKENS,
     AdaptRequest,
     Coach,
@@ -32,6 +33,37 @@ app = typer.Typer(
 )
 garmin = typer.Typer(no_args_is_help=True, help="Manage this server's Garmin connection.")
 app.add_typer(garmin, name="garmin")
+db = typer.Typer(no_args_is_help=True, help="Upgrade PostgreSQL or import a legacy SQLite file.")
+app.add_typer(db, name="db")
+
+
+def config_error(exc):
+    if isinstance(exc, ValidationError):
+        return "; ".join(
+            f"{'.'.join(str(v) for v in error['loc'])}: {error['msg']}"
+            for error in exc.errors(include_input=False, include_url=False)
+        )
+    return str(exc)
+
+
+@db.command("upgrade")
+def db_upgrade(ctx: typer.Context):
+    try:
+        upgrade(ctx.obj["database_url"])
+        typer.echo("Database schema is current.")
+    except (ValueError, SQLAlchemyError):
+        typer.echo(
+            "Database upgrade failed. Check DATABASE_URL and schema compatibility.", err=True
+        )
+        raise typer.Exit(1) from None
+
+
+@db.command("import-sqlite")
+def db_import(ctx: typer.Context, path: Path):
+    from .sqlite_import import import_sqlite
+
+    with session(ctx) as coach:
+        emit(import_sqlite(path, coach.store))
 
 
 def emit(data):
@@ -48,18 +80,25 @@ def emit(data):
 @app.callback()
 def options(
     ctx: typer.Context,
-    db: Annotated[Path, typer.Option(envvar="STRIDE_COACH_DB")] = DEFAULT_DB,
+    database_url: Annotated[str | None, typer.Option(envvar="DATABASE_URL")] = None,
     tokens: Annotated[Path, typer.Option(envvar="STRIDE_COACH_TOKENS")] = DEFAULT_TOKENS,
 ):
-    ctx.obj = {"db": db.expanduser(), "tokens": tokens.expanduser()}
+    ctx.obj = {"database_url": database_url, "tokens": tokens.expanduser()}
+    if database_url:
+        import os
+
+        os.environ["DATABASE_URL"] = database_url
 
 
 @contextmanager
 def session(ctx):
     store = None
     try:
-        store = Store(ctx.obj["db"])
+        store = Store(ctx.obj["database_url"])
         yield Coach(store, ctx.obj["tokens"])
+    except SQLAlchemyError:
+        typer.echo("Error: database operation failed. Check connection and schema.", err=True)
+        raise typer.Exit(1) from None
     except (ValueError, OSError, GarminError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from None
@@ -215,17 +254,21 @@ def status(ctx: typer.Context):
 
 
 @app.command()
-def serve(ctx: typer.Context, host: str = "127.0.0.1", port: int = 8000):
+def serve(
+    ctx: typer.Context,
+    host: str = "127.0.0.1",
+    port: Annotated[int, typer.Option(envvar="PORT", min=1, max=65535)] = 8000,
+):
     """Run the single-user API. Requires STRIDE_COACH_API_TOKEN (32+ characters)."""
     import uvicorn
 
     from .api import ServerConfig, create_app
 
     try:
-        config = ServerConfig.from_env(db=ctx.obj["db"], tokens=ctx.obj["tokens"])
-    except ValueError:
+        config = ServerConfig.from_env(tokens=ctx.obj["tokens"])
+    except ValueError as exc:
         typer.echo(
-            "Error: configure STRIDE_COACH_API_TOKEN (32+ characters) and valid CORS origins.",
+            "Error: " + config_error(exc),
             err=True,
         )
         raise typer.Exit(1) from None

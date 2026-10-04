@@ -1,0 +1,15 @@
+# A separate, disposable PostgreSQL for tests and synthetic demos.
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: synthetic-test-password
+      POSTGRES_DB: stride_test
+    ports:
+      - "127.0.0.1:55439:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d stride_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 20

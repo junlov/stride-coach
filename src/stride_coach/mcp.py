@@ -3,16 +3,15 @@
 import argparse
 import os
 from contextlib import contextmanager
-from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from .service import DEFAULT_DB, Coach
+from .service import Coach
 from .storage import Store
 
 
-def create_server(db_path: Path) -> FastMCP:
+def create_server(database_url: str | None = None) -> FastMCP:
     server = FastMCP("stride-coach")
     annotations = ToolAnnotations(
         readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
@@ -20,9 +19,7 @@ def create_server(db_path: Path) -> FastMCP:
 
     @contextmanager
     def read():
-        if not db_path.expanduser().exists():
-            raise ValueError("Initialize stride-coach with the CLI first")
-        store = Store(db_path, read_only=True)
+        store = Store(database_url, read_only=True)
         try:
             yield Coach(store)
         finally:
@@ -67,11 +64,9 @@ def create_server(db_path: Path) -> FastMCP:
 
 def main():
     parser = argparse.ArgumentParser(description="stride-coach local MCP server")
-    parser.add_argument(
-        "--db", type=Path, default=Path(os.getenv("STRIDE_COACH_DB", str(DEFAULT_DB)))
-    )
+    parser.add_argument("--database-url", default=os.getenv("DATABASE_URL"))
     args = parser.parse_args()
-    create_server(args.db).run(transport="stdio")
+    create_server(args.database_url).run(transport="stdio")
 
 
 if __name__ == "__main__":

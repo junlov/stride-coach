@@ -21,11 +21,14 @@ uv sync --locked
 uv run stride-coach --help
 ```
 
-Linux and macOS are supported. SQLite stores personal training data locally at
-`~/.local/share/stride-coach/coach.db`. Override it with the global `--db PATH` option or
-`STRIDE_COACH_DB`. Keep database files, activity exports, and tokens out of version control.
-Back up the database before moving machines: it includes the plan and remote-write ledger.
-Use one database for an active plan. `init` refuses to overwrite one.
+Linux and macOS are supported. PostgreSQL is the only runtime store. Set `DATABASE_URL`
+(or global `--database-url`) and run `uv run stride-coach db upgrade` before using MCP.
+The CLI and API startup apply pending migrations automatically. Use one database per active
+plan; `init` refuses to overwrite one. Keep activity exports, backups, and tokens private.
+
+For one-command deployment after configuring secrets, run `docker compose up -d --build --wait`.
+See [self-hosting](docs/self-hosting.md) for Compose setup, HTTPS, Openship-equivalent settings,
+SQLite import, upgrades, backup/restore, and the disposable PostgreSQL test setup.
 
 ## Plan and review
 
@@ -92,7 +95,7 @@ uv run stride-coach garmin logout
 ```
 
 Each explicit login submits the password once, without transport retries or automatic login
-fallbacks. The password and MFA code are never saved to disk, SQLite, logs, or API responses.
+fallbacks. The password and MFA code are never saved to disk, PostgreSQL, logs, or API responses.
 The app clears its password field immediately on submit. A pending MFA challenge stays only in
 server memory for five minutes, and is consumed by one completion attempt. A new login replaces
 it; a restart loses it. Run **one server process/worker** so both requests reach the same memory.
@@ -109,14 +112,10 @@ without its ownership marker. Choose a fresh directory, then connect again; do n
 another tool's tokens. Disconnect removes token contents and leaves a non-secret generation marker
 to invalidate outstanding logins.
 
-**Container deployment:** mount a persistent, writable volume at the chosen token directory,
-for example `/data/garmin`, and persist the SQLite directory too. Set `STRIDE_COACH_TOKENS=/data/garmin`,
-`STRIDE_COACH_DB=/data/coach.db`, a stable 32+ character `STRIDE_COACH_API_TOKEN`, and `TZ` to the
-athlete's timezone. Set `STRIDE_COACH_CORS_ORIGINS` only for browser clients. Start with
-`uv run stride-coach serve --host 0.0.0.0 --port 8000` behind an HTTPS reverse proxy on a private
-container network. Use one replica/worker and ensure its user owns the volume. Keep proxy and
+**Container deployment:** follow the [operator guide](docs/self-hosting.md). The supplied Compose
+file persists PostgreSQL and the dedicated Garmin session directory, validates configuration,
+and provides a public readiness probe. Run one replica/worker behind HTTPS. Keep proxy and
 application request-body logging disabled, including error monitoring that captures login bodies.
-TLS, secret injection, backups, and platform-specific image/volume setup remain deployment work.
 
 The adapter retains pinned `python-garminconnect` **0.2.38** and garth **0.5.21**. Garmin's API is
 unofficial. [Garth's maintainer reports broken newer login flows and deprecation](https://github.com/matin/garth/discussions/222).
@@ -142,7 +141,7 @@ Garmin's normal calendar/device sync; this tool does not force a device message.
 
 Workouts have an exact `stride-coach:v1:` ownership marker and stable per-date identity.
 Re-running reconciles remote workouts and calendar entries, updates changed workouts in place,
-and skips unchanged ones. SQLite serializes local writers and records uncertain operations
+and skips unchanged ones. PostgreSQL advisory locks serialize writers, and durable intents record uncertain operations
 before sending them. If a request might have succeeded but Garmin has not exposed it yet,
 the tool stops instead of creating a duplicate. Wait for Garmin visibility and rerun. If a
 workout was renamed and its marker removed, the tool refuses to reclaim it. Keep the marker.
@@ -187,16 +186,17 @@ and limitations, and [architecture](docs/architecture.md) for storage and recove
 
 ## Claude Code over MCP
 
-Register the local stdio server, using the absolute repository and database paths:
+Register the local stdio server using the absolute repository path. Supply `DATABASE_URL`
+in the MCP process environment (use your client's protected environment configuration):
 
 ```sh
 claude mcp add stride-coach -- uv run --directory /absolute/path/to/stride-coach \
-  stride-coach-mcp --db /absolute/path/to/coach.db
+  stride-coach-mcp
 ```
 
 Tools: `plan`, `week`, `compliance`, `load`, `propose_adjustment`.
 Ask Claude Code: "Review my last week, explain compliance and load, and propose next week's
-adjustment." The MCP tools open SQLite read-only, never invoke Garmin, and make no LLM calls.
+adjustment." The MCP tools open PostgreSQL transactions read-only, never invoke Garmin, and make no LLM calls.
 It exposes training data to your MCP client, so use a client/account you trust with that data.
 Proposals are previews and may include an incomplete week. Actual application remains the
 CLI's explicit `adapt WEEK --apply`, with date and sync checks. MCP cannot upload, remove, or apply.
@@ -205,7 +205,7 @@ CLI's explicit `adapt WEEK --apply`, with date and sync checks. MCP cannot uploa
 
 The package includes FastAPI. CLI, MCP, and API
 use the same `service.Coach` operations. The API is single-user and requires a bearer token
-on every operation, including the schema endpoint. It accepts the token only in the
+on every data operation, including the schema endpoint. The non-sensitive `/health` probe is public. It accepts the token only in the
 `Authorization: Bearer ...` header, never a query parameter or cookie.
 
 Generate a secret, save it securely for both server and phone configuration, then start:
@@ -214,7 +214,7 @@ Generate a secret, save it securely for both server and phone configuration, the
 export STRIDE_COACH_API_TOKEN="$(uv run python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 # Optional, only for browser clients. Exact origins, separated by commas, no trailing slash.
 export STRIDE_COACH_CORS_ORIGINS="https://your-browser-client.example"
-uv run stride-coach --db /absolute/path/to/coach.db serve --host 127.0.0.1 --port 8000
+uv run stride-coach serve --host 127.0.0.1 --port 8000
 ```
 
 The server refuses to start without a token of at least 32 characters. Keep the same secret
@@ -238,7 +238,7 @@ requirements. The phone uses `https://your-domain` as its API base URL. Do not s
 token over public plaintext HTTP. FastAPI documents this [TLS termination arrangement](
 https://fastapi.tiangolo.com/deployment/https/). Avoid logging Authorization headers or request bodies in the proxy.
 Set the server's timezone to the athlete's local timezone, since plan/adaptation dates use it.
-Run one server instance with its local SQLite file, with the same data/token paths as the CLI.
+Run one server instance using the same PostgreSQL database and session directory as the CLI.
 
 | Method and route | Operation |
 | --- | --- |
@@ -276,6 +276,9 @@ secure connection settings, offline tests, and EAS builds.
 
 ## Development and offline proof
 
+Start the [disposable PostgreSQL](docs/self-hosting.md#local-offline-tests-and-synthetic-proof)
+and export `TEST_DATABASE_URL` before running tests or demos.
+
 ```sh
 uv sync --locked
 uv run ruff check .
@@ -286,9 +289,9 @@ uv run python examples/api_demo.py --directory .local/api-demo
 ```
 
 The CLI demo exercises initialization, plan inspection, dry-run push, synthetic activity sync,
-and adaptation with a simulated Monday. It uses no Garmin account or network. The API demo starts the real server on loopback,
+and adaptation with a simulated Monday. It uses no Garmin account or requests; PostgreSQL is the only external service. The API demo starts the real server on loopback,
 checks auth, creates a synthetic goal, and previews one workout. It sends no Garmin requests.
-Tests block network access and use fake Garmin responses, including lost-response cases.
+Tests use real PostgreSQL while blocking Garmin traffic, including fake lost-response cases.
 Run `uv run python examples/garmin_demo.py --directory .local/garmin-proof` with a fresh directory
 for real loopback HTTP login, MFA, renewal, and disconnect backed by synthetic Garmin replies.
 Outbound Garmin requests are blocked in this proof; it does not establish live SSO compatibility.

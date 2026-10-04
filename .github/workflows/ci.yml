@@ -11,6 +11,19 @@ jobs:
     strategy:
       matrix:
         python: ['3.11', '3.12', '3.13']
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-password
+          POSTGRES_DB: stride_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d stride_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:synthetic-test-password@localhost:5432/stride_test
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6

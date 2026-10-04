@@ -11,12 +11,12 @@ from stride_coach.service import Coach, SyncRequest
 runner = CliRunner()
 
 
-def test_cli_offline_full_workflow(tmp_path):
-    db = tmp_path / "coach.db"
+def test_cli_offline_full_workflow(tmp_path, database):
+    db = database
     today = date.today()
     start = today + timedelta(days=(-today.weekday()) % 7)
     end = start + timedelta(weeks=12)
-    args = ["--db", str(db)]
+    args = ["--database-url", str(db)]
     result = runner.invoke(app, args + ["init", "10k", str(end), "--start", str(start)])
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["sessions"] == 36
@@ -47,7 +47,7 @@ def test_cli_offline_full_workflow(tmp_path):
 
 def test_mcp_lists_only_safe_tools_and_calls_them(store):
     async def exercise():
-        server = create_server(store.path)
+        server = create_server(store.url)
         tools = await server.list_tools()
         assert {t.name for t in tools} == {
             "plan",
@@ -73,15 +73,21 @@ def test_mcp_lists_only_safe_tools_and_calls_them(store):
     asyncio.run(exercise())
 
 
-def test_mcp_missing_db_does_not_create(tmp_path):
+def test_mcp_missing_plan_does_not_create(database):
+    import pytest
+
+    from stride_coach.storage import Store
+
     async def exercise():
-        path = tmp_path / "missing.db"
-        server = create_server(path)
-        try:
+        server = create_server(database)
+        with pytest.raises(Exception, match="No plan"):
             await server.call_tool("plan", {})
-        except Exception:
-            pass
-        assert not path.exists()
+        store = Store(database, read_only=True)
+        try:
+            with pytest.raises(ValueError, match="No plan"):
+                store.plan()
+        finally:
+            store.close()
 
     asyncio.run(exercise())
 
@@ -94,7 +100,8 @@ def test_mcp_stdio_handshake_and_proposal(store):
 
     async def exercise():
         params = StdioServerParameters(
-            command=sys.executable, args=["-m", "stride_coach.mcp", "--db", str(store.path)]
+            command=sys.executable,
+            args=["-m", "stride_coach.mcp", "--database-url", str(store.url)],
         )
         async with stdio_client(params) as (reader, writer):
             async with ClientSession(reader, writer) as session:
@@ -122,7 +129,7 @@ def test_cli_adapt_positional_week_preview_and_apply(store, monkeypatch):
 
     monkeypatch.setattr(service, "date", Clock)
     Coach(store).sync(SyncRequest(since=monday - timedelta(days=14), activities=[]), today=monday)
-    args = ["--db", str(store.path), "adapt", "2"]
+    args = ["--database-url", str(store.url), "adapt", "2"]
     preview = runner.invoke(app, args)
     assert preview.exit_code == 0, preview.output
     assert not json.loads(preview.stdout)["applied"]

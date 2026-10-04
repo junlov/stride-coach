@@ -112,7 +112,9 @@ and mocked SecureStore. Tests run offline and never access Garmin or real creden
 Actions checks generated-type drift, typecheck, lint, tests, and both native bundle exports
 alongside the existing Python jobs.
 
-For a real local HTTP proof, install the root Python dependencies (`uv sync --locked`) and run:
+For a real local HTTP proof, install the root Python dependencies (`uv sync --locked`), start
+the [disposable PostgreSQL](../docs/self-hosting.md#local-offline-tests-and-synthetic-proof),
+export `TEST_DATABASE_URL`, and run:
 
 ```sh
 npm run proof
@@ -122,8 +124,8 @@ This starts the actual FastAPI server on a temporary loopback port, uses a gener
 bearer token, and exercises the mobile TypeScript client: rejected auth, goal creation, plan and
 week reads, load/compliance, an empty synthetic activity import, adjustment proposal, and Garmin
 dry-run previews. It asserts zero scheduled Garmin workouts. No Garmin login or network calls
-are made. Temporary databases and server logs stay under ignored `.local/mobile-proof-*` in the
-repository. The proof stops its server on completion. Bundle exports prove compilation, not
+are made. The proof uses an isolated PostgreSQL schema that is removed on shutdown. Server logs stay
+under ignored `.local/mobile-proof-*` in the repository. The proof stops its server on completion. Bundle exports prove compilation, not
 physical device behavior; test both devices before distributing a release.
 
 ## EAS builds

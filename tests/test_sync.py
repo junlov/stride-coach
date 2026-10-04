@@ -1,12 +1,13 @@
-import json
-import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import timedelta
 from threading import Event
 
 import pytest
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
+from stride_coach.db_models import MetadataRow
 from stride_coach.models import Activity
 from stride_coach.service import AdaptRequest, Coach, SyncRequest
 from stride_coach.storage import Store
@@ -56,12 +57,21 @@ def test_sync_rolls_back_reconciliation_and_coverage(store):
     store.save_sync([run], str(day), str(day), today=today)
     window = store.sync_window()
     complete = store.sync_window(complete=True)
-    store.db.execute("""
-        CREATE TEMP TRIGGER reject_coverage BEFORE INSERT ON metadata
-        WHEN NEW.key = 'sync_complete'
-        BEGIN SELECT RAISE(ABORT, 'coverage failure'); END
-    """)
-    with pytest.raises(sqlite3.IntegrityError, match="coverage failure"):
+    with store.connection.begin():
+        store.connection.execute(
+            text("""
+            CREATE FUNCTION reject_coverage() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN RAISE EXCEPTION 'coverage failure' USING ERRCODE = '23514'; END;
+            $$
+        """)
+        )
+        store.connection.execute(
+            text("""
+            CREATE TRIGGER reject_coverage BEFORE INSERT OR UPDATE ON metadata
+            FOR EACH ROW WHEN (NEW.key = 'sync_complete') EXECUTE FUNCTION reject_coverage()
+        """)
+        )
+    with pytest.raises(IntegrityError, match="coverage failure"):
         store.save_sync([], str(day - timedelta(days=1)), str(today), today=today)
     assert store.activities() == [run]
     assert store.sync_window() == window
@@ -98,11 +108,8 @@ def test_today_only_sync_has_no_complete_day_coverage(store):
 
 def test_legacy_sync_requires_fresh_complete_coverage(store):
     monday = store.plan().setup.start + timedelta(weeks=1)
-    with store.db:
-        store.db.execute(
-            "INSERT INTO metadata VALUES ('sync', ?)",
-            (json.dumps({"since": str(monday - timedelta(days=14)), "until": str(monday)}),),
-        )
+    with store.transaction() as session:
+        session.add(MetadataRow(key="sync", since=monday - timedelta(days=14), until=monday))
     with pytest.raises(ValueError, match="Sync"):
         Coach(store).adapt(AdaptRequest(week=2), today=monday)
 
@@ -114,7 +121,7 @@ def test_concurrent_sync_preserves_newer_snapshot(store, monkeypatch):
     run = Activity(id="new-run", day=sunday, distance_km=5, duration_min=30)
     first_fetched, release_first = Event(), Event()
     second_lock_attempted, second_fetched = Event(), Event()
-    second_store = Store(store.path)
+    second_store = Store(store.url)
     shared_lock = second_store.lock
 
     @contextmanager

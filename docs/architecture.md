@@ -3,14 +3,20 @@
 `models.py` defines validated inputs and records. `engine.py` and the proposal calculations
 in `adaptation.py` are deterministic and have no Garmin or LLM dependency. `storage.py`
 keeps one plan, normalized activities, remote workout mappings,
-write-intent metadata, sync coverage, and applied adjustments in SQLite.
+write intents, typed sync coverage, and applied adjustments in PostgreSQL.
+`db_models.py` defines SQLAlchemy typed columns, enums, foreign keys, and the single-plan constraint.
+Packaged Alembic revisions apply at API startup or through `stride-coach db upgrade`.
+Core records are relational; no plan, activity, or adjustment is serialized into a JSON column.
 `adaptation.week_metrics` computes matches from the current plan and activities on demand.
+A relational match table is refreshed transactionally after initialization, sync, import, and adaptation.
 Applied plan changes and their adjustment record commit in one transaction.
 `service.py` owns application operations and typed
 request/response models. CLI, FastAPI, and MCP are thin transports over `service.Coach`.
-`mcp.py` opens the same file with SQLite `mode=ro` and exposes only read-only operations.
-`api.py` authenticates before opening a request-scoped SQLite connection; HTTP workers never
-share connections. The generated `docs/openapi.json` is the mobile-client contract.
+`mcp.py` uses PostgreSQL read-only transactions and exposes only read-only operations.
+It checks schema compatibility but never applies migrations.
+Data routes authenticate before opening a request-scoped PostgreSQL connection.
+The public health probe opens its own connection without authentication. HTTP requests never share connections.
+The generated `docs/openapi.json` is the mobile-client contract.
 
 ```mermaid
 flowchart LR
@@ -20,7 +26,7 @@ flowchart LR
     Claude[Claude Code] --> MCP[MCP read tools and previews]
     MCP --> Service
     Service --> Engine[Deterministic rules]
-    Service --> DB[(Local SQLite)]
+    Service --> DB[(PostgreSQL)]
     Service -->|explicit sync or apply| Garmin[Garmin Connect]
 ```
 
@@ -30,14 +36,15 @@ flowchart LR
 pinned garth SSO functions. A password is submitted once per explicit request, without retries.
 Pending MFA state lives in memory for five minutes; submitted request bodies are scrubbed from
 garth's retained response before keeping a challenge. Passwords are never persisted.
-The CLI and authenticated HTTP routes share this manager; MCP remains read-only and offline.
-A token-store file lock and atomic private-file replacement protect persistence. A generation
+The CLI and authenticated HTTP routes share this manager. MCP only reads PostgreSQL and never contacts Garmin.
+A PostgreSQL session advisory lock and atomic private-file replacement protect token persistence. A generation
 marker prevents a pending login or an older session from restoring tokens after logout or a
 new connection. Unmarked nonempty stores and shared Garmin paths are refused.
 `StoredSession` wraps both proactive and implicit garth renewal with one attempt per request.
 HTTP retries are disabled. Upstream exceptions and request validation inputs are sanitized.
 Use one API process/worker because MFA challenges are not shared between workers. See the
-README Garmin section for volume setup, security boundaries, and upstream compatibility limits.
+[self-hosting guide](self-hosting.md) for volume setup and the
+[README Garmin section](../README.md#garmin-authentication-and-first-live-check) for security boundaries and upstream compatibility limits.
 
 Workout upload and activity reads use python-garminconnect public methods. The pinned release
 lacks scheduling, update, and delete helpers, so these use its garth transport with upstream
@@ -59,9 +66,12 @@ before updating or deleting. It checks remote calendar entries before scheduling
 local workouts retain their remote ID. Existing local mappings never authorize reclaiming
 an unmarked remote workout.
 
-A local file lock serializes push, removal, sync, and adaptation for the same database.
+A PostgreSQL session advisory lock serializes push, removal, sync, and adaptation in the same database.
+The lock uses the same connection as ledger writes and survives their commits. PostgreSQL releases
+it when that connection closes. Migrations and token persistence use separate advisory keys.
+Use direct or session-pooled connections; transaction pooling is unsupported.
 Sync holds this lock throughout fetching and saving, so concurrent fetches cannot commit snapshots out of order.
-Activity replacement and fetched-range and complete-day coverage records commit in one SQLite transaction.
+Activity replacement and fetched-range and complete-day coverage records commit in one PostgreSQL transaction.
 The latest sync replaces both coverage records, rather than merging coverage across separate syncs.
 See the [weekly loop](../README.md#weekly-loop) for adaptation coverage requirements.
 
@@ -78,15 +88,14 @@ planned month may require manual inspection. `remove` is scoped to the active lo
 ## Data and testing
 
 Garmin's local activity date is used for matching. Original titles, locations, and raw exports
-are not stored in SQLite. OAuth tokens and an optional account display name live only in the
+are not stored in PostgreSQL. OAuth tokens and an optional account display name live only in the
 private connection store. Generic Garmin running activities have unknown session type;
 inferred matches are labeled. Normalized imports can supply a `kind`. Best-effort status
 must be supplied explicitly; it is never guessed from an ordinary activity title.
 
 The CLI's JSON output is intended for inspection and scripts. The MCP process reserves
-stdout for stdio protocol traffic. Tests replace network entry points with failures and
-use synthetic data. `examples/offline_demo.py` is an executable demonstration of the local
-loop. No live Garmin write belongs in tests or CI.
+stdout for stdio protocol traffic. See the [test setup](self-hosting.md#local-offline-tests-and-synthetic-proof)
+for PostgreSQL requirements and synthetic demos. No live Garmin write belongs in tests or CI.
 
 ## HTTP authentication and concurrency
 
@@ -97,10 +106,11 @@ CORS allows only configured exact origins and the needed methods/headers. Deploy
 HTTPS at a trusted reverse proxy; the built-in server defaults to loopback and disables
 request access logging. `serve` validates configuration before accepting traffic.
 
-Each HTTP request has its own SQLite connection; thread checking is disabled because a
-FastAPI sync dependency and handler can run on different worker threads. The connection is
-never shared between requests. Existing process locks and SQLite transactions also coordinate
-API writes with CLI writes against the same database. There is no server-side background job.
+Each HTTP request has its own SQLAlchemy connection. Transactions commit each durable remote
+intent before the network call and commit adaptation plus its adjustment together. Advisory locks
+coordinate API and CLI writers. There is no server-side background job. The public `/health`
+probe checks connectivity and exact schema compatibility without exposing training data or secrets.
+See [self-hosting](self-hosting.md) for configuration, deployment, and data recovery.
 
 `examples/api_demo.py` launches and stops only its own temporary loopback server and uses an
 ephemeral bearer secret. It performs no Garmin calls. API tests use FastAPI TestClient and
