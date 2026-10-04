@@ -259,6 +259,29 @@ describe.each(["light", "dark"] as const)(
       expect(calls("/remove")).toHaveLength(0);
     });
 
+    test("activity coverage stays unavailable without a plan and recovers on retry", async () => {
+      const transport = server.getMockImplementation()!;
+      server.mockImplementation(async (input) => {
+        if (new URL(String(input)).pathname === "/status")
+          return response(
+            { detail: "No plan. Run stride-coach init first." },
+            400,
+          );
+        return transport(input);
+      });
+      await mount(<SettingsScreen />);
+      await screen.findByText(/Activity coverage is unavailable/);
+      expect(
+        screen.queryByText("No activity sync coverage recorded yet."),
+      ).toBeNull();
+      expect(screen.getByText("Connected through your server.")).toBeTruthy();
+
+      server.mockImplementation(transport);
+      await press("Retry activity coverage");
+      await screen.findByText("No activity sync coverage recorded yet.");
+      expect(screen.queryByText(/Activity coverage is unavailable/)).toBeNull();
+    });
+
     test("status failure offers explicit reconnect without claiming an expired session", async () => {
       server.mockResolvedValueOnce(
         response({ detail: "Reconnect Garmin in Settings." }, 502),

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import { Client, Schema } from "../api/client";
 import { useQuery } from "../state/query";
-import { isMissingPlan } from "./server-connection";
 import {
   Button,
   Card,
@@ -290,12 +289,7 @@ export function GarminSettings({
 
 function GarminCoverage() {
   const load = useCallback(async (api: Client) => {
-    try {
-      return (await api.status()).sync;
-    } catch (error) {
-      if (isMissingPlan(error)) return null;
-      throw error;
-    }
+    return (await api.status()).sync;
   }, []);
   const query = useQuery(load);
   if (query.loading) return <Muted>Checking activity coverage...</Muted>;
