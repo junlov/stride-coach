@@ -114,11 +114,11 @@ A "harder" observation describes the recorded target deviation; it does not diag
 
 [`compliance.py`](../src/stride_coach/compliance.py) implements `laps-v1`. Plans currently use
 **duration-based steps**. Match runs with the existing date/type rule first; inferred matches
-remain labeled. For a multi-step workout, pair laps with steps in order only when the counts
-match. For one continuous step, combine all recorded laps. Different lap counts, absent laps,
-and absent target measurements produce **unavailable**, not a failed step. Automatic kilometre
-laps cannot reliably identify interval boundaries. Equal counts establish only an inferred
-alignment; the runner should review the lap table if the watch did not follow the workout.
+remain labeled. Multi-step scoring requires equal lap and step counts, with each lap duration
+within 90% to 110% of its planned step duration. Otherwise, the scorer marks step alignment
+as unverified and reports no step failures. Equal counts alone do not establish step boundaries.
+For one continuous step, combine all recorded laps. Absent laps and absent target measurements
+produce unavailable scores. Automatic kilometer laps cannot reliably identify interval boundaries.
 
 Each step has two checks, with equal weight:
 

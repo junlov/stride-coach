@@ -35,9 +35,9 @@ def test_scores_duration_and_target_separately(plan):
             RunLap(duration_s=1200, distance_m=4000),
         ],
     )
-    assert result.steps[0].score == 0
-    assert result.score == 50
-    assert result.missing_steps == 0
+    assert all(step.score is None for step in result.steps)
+    assert result.score is None
+    assert result.missing_steps == 2
 
 
 @pytest.mark.parametrize("seconds,expected", [(540, True), (660, True), (539, False), (661, False)])

@@ -5,17 +5,20 @@ from .models import Workout
 
 
 def score_steps(workout: Workout, laps: list[RunLap]) -> RunCompliance:
-    # A single continuous step can span auto-laps. Multi-step sessions require one
-    # recorded lap per step; never pretend kilometre splits identify interval boundaries.
     groups = [laps] if len(workout.steps) == 1 and laps else [[lap] for lap in laps]
     aligned = bool(laps) and len(groups) == len(workout.steps)
+    if aligned and len(workout.steps) > 1:
+        aligned = all(
+            0.9 * step.minutes * 60 <= lap.duration_s <= 1.1 * step.minutes * 60
+            for step, lap in zip(workout.steps, laps, strict=True)
+        )
     results = []
     for position, step in enumerate(workout.steps):
         result = StepCompliance(
             position=position, label=step.label, planned_seconds=step.minutes * 60
         )
         if not aligned:
-            result.missing = "Laps unavailable or lap boundaries do not match planned steps."
+            result.missing = "Step alignment unverified: laps do not establish planned boundaries."
         else:
             group = groups[position]
             duration = sum(lap.duration_s for lap in group)
