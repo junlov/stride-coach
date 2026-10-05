@@ -84,7 +84,8 @@ interval workout appears in a build/peak week, only with at least three training
 warm-up and cool-down that end with the Lap button, with estimated minutes retained for
 planning. Intervals use one repeat group of four controlled efforts and recoveries, skipping
 the final recovery. With an estimated pace, effort and recovery distances round down to
-100 m increments within their original time budgets. Otherwise they remain timed. The
+100 m increments within their original time budgets. A step remains timed if pace is unavailable
+or its budget allows less than 100 m. The
 remaining session time is split equally between warm-up and cool-down. A distance step's
 minutes are an estimate, not a second watch end condition. Explicit structured steps can
 also represent sessions such as 6 x 800 m with 400 m jog recoveries.
@@ -172,6 +173,7 @@ unavailable while preserving the duration check. The run score is the mean of it
 steps, accompanied by scored and unavailable counts. A partially scored run is not 100% proven
 compliant even if its available steps score 100. Zero HR and zero-distance laps without pace
 are unavailable target data. Lap averages cannot establish second-by-second time in zone.
+Secondary cadence targets do not contribute to step scores.
 
 Reads recalculate scores from saved laps and the plan's current resolved targets.
 Zone changes, removal, and expiry therefore affect scores, including the HR-reserve fallback.
