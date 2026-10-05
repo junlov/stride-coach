@@ -52,9 +52,12 @@ Tempo and intervals retain pace ranges when pace can be estimated. Their bands n
 extend from 96% to 106% of the multiplied seconds/km value. The minimum total spread is
 20 seconds/km, centered on 101% of that value and rounded outward to whole seconds.
 This avoids very narrow bands that alert on ordinary pace variation. Thin history retains
-HR-reserve fallbacks. Strides can also carry a secondary cadence band: the median cadence
-of at least three runs from the preceding 28 days, plus or minus 10 steps/min. Only measured
-cadences from 100 to 230 steps/min qualify; absent history means no cadence target.
+HR-reserve fallbacks.
+
+Strides can also carry a secondary cadence band, centered on the median cadence, plus or minus 10 steps/min.
+This requires at least three runs from the 28 days before plan start.
+Only measured cadences from 100 to 230 steps/min qualify. Plan creation uses supplied runs
+or stored cadence measurements, without loading activity streams. Absent history means no cadence target.
 
 Whole-session HR averages cannot capture the intensity of each short interval, so adaptation
 does not score interval/run-walk averages against step targets. Heat, hills, sensor errors,
@@ -145,11 +148,15 @@ A "harder" observation describes the recorded target deviation; it does not diag
 
 ## Step compliance from captured laps
 
-[`compliance.py`](../src/stride_coach/compliance.py) implements `laps-v1`. Plans currently use
-**duration-based steps**. Match runs with the existing date/type rule first; inferred matches
-remain labeled. Multi-step scoring requires equal lap and step counts, with each lap duration
-within 90% to 110% of its planned step duration. Otherwise, the scorer marks step alignment
+[`compliance.py`](../src/stride_coach/compliance.py) implements `laps-v1`.
+The scorer expands repeat groups and omits a skipped final recovery before it aligns laps.
+Match runs with the existing date/type rule first. Inferred matches remain labeled.
+
+Multi-step scoring requires equal lap and expanded step counts.
+Each lap duration must fall within 90% to 110% of its planned step estimate,
+including distance and Lap-ended steps. Otherwise, the scorer marks step alignment
 as unverified and reports no step failures. Equal counts alone do not establish step boundaries.
+
 For one continuous step, combine all recorded laps. Absent laps and absent target measurements
 produce unavailable scores. Automatic kilometer laps cannot reliably identify interval boundaries.
 
@@ -166,10 +173,12 @@ steps, accompanied by scored and unavailable counts. A partially scored run is n
 compliant even if its available steps score 100. Zero HR and zero-distance laps without pace
 are unavailable target data. Lap averages cannot establish second-by-second time in zone.
 
-Scores are stored with the match and refreshed after sync, detail backfill, history import,
-plan creation, and confirmed adaptation. Existing databases gain scores on the next sync or
-backfill. They are feedback for the runner; this version does not feed them into weekly volume
-rules or infer run types.
+Reads recalculate scores from saved laps and the plan's current resolved targets.
+Zone changes, removal, and expiry therefore affect scores, including the HR-reserve fallback.
+Read-only Store and MCP access neither writes scores nor contacts Garmin.
+Sync, detail backfill, history import, plan creation, confirmed adaptation, and zone replacement
+also refresh stored score snapshots.
+These scores provide runner feedback. Weekly volume rules and run classification do not use them.
 
 ## Daily recovery proposal
 
@@ -194,8 +203,11 @@ Boundaries 25 and 50 do not trigger. `UNBALANCED`, `UNKNOWN`, unrecognized HRV s
 missing scores do not independently trigger. Retain all triggered reasons. These are
 conservative project rules, not individually validated medical or coaching prescriptions.
 
-Only **tomorrow's tempo or interval workout** can change. The preview replaces all its steps
-with an easy step at the same total duration, using the existing easy-target generator.
+Only tomorrow's tempo or interval workout can change. The preview replaces its steps with
+an easy workout at the same total estimated duration. The replacement follows the
+[session structure rules](#periodization), including eligible strides.
+The server resolves replacement targets through the same zone rules as plan reads
+before it creates descriptions and the proposal fingerprint.
 It preserves the workout ID, date, week, and remote mapping. It never adds a workout,
 increases minutes, moves a rest day, or restores previously reduced volume.
 

@@ -47,7 +47,7 @@ export function WorkoutCard({
         {workout.cutback ? "Cutback" : workout.phase} · Week {workout.week}
       </Badge>
       <Heading>
-        {workout.day} · {"name" in workout ? workout.name : workout.kind}
+        {workout.day} · {workout.name}
       </Heading>
       {hero ? (
         <Hero value={Math.round(workoutMinutes(workout))} unit="min" />

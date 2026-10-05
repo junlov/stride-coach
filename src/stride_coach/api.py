@@ -405,7 +405,10 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
         return service.daily_adjustment(today=worker.now().date())
 
     @app.post(
-        "/adapt/daily", response_model=DailyProposalView, responses=errors, operation_id="adapt_daily"
+        "/adapt/daily",
+        response_model=DailyProposalView,
+        responses=errors,
+        operation_id="adapt_daily",
     )
     def daily_adapt(body: DailyAdaptRequest, service: Service):
         return service.daily_adjustment(body, today=worker.now().date())

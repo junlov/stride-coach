@@ -1,4 +1,4 @@
-"""Validated local records. Durations are minutes, distance km, pace seconds/km."""
+"""Validated records: minutes, activity km, step meters, and pace seconds/km."""
 
 from datetime import date
 from enum import StrEnum

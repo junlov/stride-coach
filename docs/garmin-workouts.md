@@ -83,7 +83,9 @@ Garmin credentials or writes. Live Garmin rendering has not been verified.
 ## Structured steps and coaching notes
 
 API workout summaries expose `step_descriptions` from the same formatter used by the Garmin
-builder. Notes include the end condition, primary target, optional cadence and a short cue.
+builder. Daily preview, confirmation, and saved adjustment responses also include workout names
+and step descriptions in their before/after summaries.
+Notes include the end condition, primary target, optional cadence and a short cue.
 Distance is in meters, Lap steps say "press Lap" with a time estimate, and groups show the
 repeat count and whether to skip the last recovery. Each executable step note uses a conservative 200-character
 budget, below the [212-character note limit reported on Garmin's forum](https://forums.garmin.com/sports-fitness/cycling/f/edge-530/209957/display-step-notes).
