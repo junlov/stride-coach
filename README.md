@@ -250,9 +250,8 @@ stop Garmin generating suggestions or delete scheduled workouts.
   confirmed in those public help pages. Stop the plan in Connect, then sync your
   watch and check its upcoming workouts before sending Stride Coach workouts.
 
-Garmin settings and every push confirmation in the app include a reminder,
-including the first push. Check Garmin's calendar and the watch yourself to make
-sure you are following only the plan you intend.
+Garmin settings and the separate manual push confirmation include a reminder.
+Before confirming calendar changes, also make sure that Garmin and your watch show only the training plan you intend.
 
 ## Weekly loop
 

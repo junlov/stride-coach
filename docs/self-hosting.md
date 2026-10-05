@@ -425,9 +425,10 @@ GPS tracks reveal locations, and FIT files may contain additional personal data.
 
 ## Garmin calendar window
 
-In the phone app's Settings, choose how many days to keep on Garmin (14 by default,
-7 to 28 allowed, including today). This setting is stored on the server and also
-limits ordinary CLI and API push selections. Saving a setting never writes to Garmin.
+In the phone app's Settings, choose how many days to keep on Garmin.
+The default is 14 days, with 7 to 28 allowed. The window includes today, using the server's local date.
+The server stores this setting and also limits ordinary CLI and API push selections.
+Saving a setting never writes to Garmin.
 
 Coach actions offers **Preview calendar changes**. The server reads Garmin inventory
 and builds one review of creates, updates, missing schedules, and removals. Confirming
@@ -438,9 +439,10 @@ moves forward each day; it describes the last confirmed plan, not continuous rem
 monitoring. There are no background pushes.
 
 Cleanup requires a Stride Coach ownership tag verified in the workout detail. It removes
-owned workouts no longer in the plan and future workouts beyond the window. Past,
-uncompleted workouts are removed only when complete-day sync coverage includes
-their planned dates and any past schedule dates. Sync first so completed runs can be matched and preserved.
+owned workouts no longer in the plan and future workouts beyond the window.
+For past, uncompleted workouts still in the plan, cleanup requires complete-day sync coverage
+of their planned dates and any past schedule dates.
+Sync first so completed runs can be matched and preserved.
 Untagged workouts are never changed. The existing manual removal action still removes all matching owned
 plan workouts when explicitly confirmed.
 

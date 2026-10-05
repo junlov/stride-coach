@@ -152,8 +152,9 @@ Today, Week and Plan link to Actions. A missing-plan error links to Goal setup.
   These counts do not establish how many remote workouts exist. Live removal affects only matching Garmin workouts.
 - **Settings:** secure server connection storage, an explicit server test, and Garmin login/MFA, status, and disconnect.
 
-Push and removal first send `dry_run: true, apply: false`. Only the separate **Confirm live**
-button sends `dry_run: false, apply: true`. Editing the week, cancelling, changing connections,
+The separate manual push and removal actions first send `dry_run: true, apply: false`.
+Their **Confirm live** button sends `dry_run: false, apply: true`.
+Editing the week, cancelling, changing connections,
 or leaving the Actions screen invalidates the preview. Empty or failed previews cannot be
 confirmed. Weekly adjustment eligibility and confirmation follow the
 [weekly loop](../README.md#weekly-loop). For daily changes, see
@@ -352,8 +353,8 @@ Today shows the current server-day Training Readiness, HRV status, and sleep sco
 unavailable readings labeled. A poor-recovery proposal links to Actions. Tap **Preview
 tomorrow's change** to review the current and proposed workout plus reasons, then **Confirm
 tomorrow’s change** to save it. Cancelling makes no change. A stale preview must be reviewed
-again. A saved change appears in Progress. Existing Garmin workouts require a separate
-**Preview Garmin push** and live confirmation to update the watch.
+again. A saved change appears in Progress.
+For Garmin updates, use the [calendar workflow](../docs/self-hosting.md#garmin-calendar-window).
 
 Opening a matched run shows **Step compliance**, including scored/unavailable counts, each
 step's duration check, and its lap-average target result. See the
