@@ -64,6 +64,11 @@ class WorkoutSummary(Workout):
         return workout_name(self)
 
 
+class DailyProposalView(DailyProposal):
+    before: WorkoutSummary | None = None
+    after: WorkoutSummary | None = None
+
+
 class PlanView(Plan):
     workouts: list[WorkoutSummary]
 
@@ -117,7 +122,7 @@ class Status(Record):
     weeks: list[Metrics]
     adjustments: list[Adjustment]
     sync_status: SyncStatus | None = None
-    daily_adjustments: list[DailyProposal] = Field(default_factory=list)
+    daily_adjustments: list[DailyProposalView] = Field(default_factory=list)
 
 
 class Proposal(Record):
@@ -171,7 +176,11 @@ class Coach:
         self.client_factory = client_factory
 
     def initialize(self, request: GoalRequest) -> Created:
-        runs = request.recent_runs if request.recent_runs is not None else self.store.activities()
+        runs = (
+            request.recent_runs
+            if request.recent_runs is not None
+            else self.store.activities(include_cadence=True)
+        )
         plan = generate_plan(request.setup, runs)
         with self.store.lock():
             self.store.initialize(plan)
@@ -253,7 +262,10 @@ class Coach:
             weeks=self.compliance(),
             adjustments=store.adjustments(),
             sync_status=store.sync_status(),
-            daily_adjustments=store.daily_adjustments(),
+            daily_adjustments=[
+                DailyProposalView.model_validate(proposal.model_dump())
+                for proposal in store.daily_adjustments()
+            ],
         )
 
     def push(self, request: PushRequest, today: date | None = None) -> list[WriteResult]:
@@ -360,9 +372,10 @@ class Coach:
 
     def daily_adjustment(
         self, request: DailyAdaptRequest | None = None, today: date | None = None
-    ) -> DailyProposal:
+    ) -> DailyProposalView:
         request = request or DailyAdaptRequest()
-        return adapt_daily(self.store, today or date.today(), **request.model_dump())
+        proposal = adapt_daily(self.store, today or date.today(), **request.model_dump())
+        return DailyProposalView.model_validate(proposal.model_dump())
 
     def activity_streams(self, activity_id: str):
         return read_streams(self.store, activity_id)

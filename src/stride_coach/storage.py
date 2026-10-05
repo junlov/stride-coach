@@ -6,10 +6,11 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
-from .activity_models import RunCompliance, RunLap, StepCompliance
+from .activity_models import RunCompliance, RunLap, RunMetrics, StepCompliance
 from .activity_storage import save_details
 from .database import WRITE_LOCK, check_schema, connection_lock, database_url, make_engine, upgrade
 from .db_models import (
+    ActivityDetailRow,
     ActivityLapRow,
     ActivityRow,
     AdjustmentRow,
@@ -259,29 +260,33 @@ class Store:
         )
         session.flush()
         for workout in plan.workouts:
-            position = 0
-            for block in workout.steps:
-                group_position = position if isinstance(block, RepeatGroup) else None
-                if group_position is not None:
-                    session.add(
-                        RepeatRow(
-                            workout_id=workout.id,
-                            position=position,
-                            **block.model_dump(exclude={"steps"}),
-                        )
-                    )
-                for step in executable_steps([block]):
-                    session.add(
-                        StepRow(
-                            **step.model_dump(),
-                            workout_id=workout.id,
-                            position=position,
-                            group_position=group_position,
-                            kind=step_kind(step.label),
-                        )
-                    )
-                    position += 1
+            self._write_steps(session, workout)
         session.flush()
+
+    @staticmethod
+    def _write_steps(session, workout):
+        position = 0
+        for block in workout.steps:
+            group_position = position if isinstance(block, RepeatGroup) else None
+            if group_position is not None:
+                session.add(
+                    RepeatRow(
+                        workout_id=workout.id,
+                        position=position,
+                        **block.model_dump(exclude={"steps"}),
+                    )
+                )
+            for step in executable_steps([block]):
+                session.add(
+                    StepRow(
+                        **step.model_dump(),
+                        workout_id=workout.id,
+                        position=position,
+                        group_position=group_position,
+                        kind=step_kind(step.label),
+                    )
+                )
+                position += 1
 
     def _refresh_matches(self, session):
         from .adaptation import match_activities
@@ -392,15 +397,8 @@ class Store:
                 raise ValueError("This workout already has a confirmed daily change.")
             session.get(WorkoutRow, workout.id).kind = workout.kind
             session.execute(delete(StepRow).where(StepRow.workout_id == workout.id))
-            session.add_all(
-                StepRow(
-                    workout_id=workout.id,
-                    position=i,
-                    kind=step_kind(step.label),
-                    **step.model_dump(),
-                )
-                for i, step in enumerate(workout.steps)
-            )
+            session.execute(delete(RepeatRow).where(RepeatRow.workout_id == workout.id))
+            self._write_steps(session, workout)
             session.add(
                 DailyAdjustmentRow(
                     workout_id=workout.id,
@@ -421,9 +419,20 @@ class Store:
             for row in session.scalars(select(ActivityRow).order_by(ActivityRow.id))
         ]
 
-    def activities(self) -> list[Activity]:
+    def activities(self, *, include_cadence: bool = False) -> list[Activity]:
         with self.transaction() as session:
-            return self._activities(session)
+            activities = self._activities(session)
+            if include_cadence:
+                cadences = dict(
+                    session.execute(
+                        select(ActivityDetailRow.activity_id, ActivityDetailRow.average_cadence_spm)
+                    ).all()
+                )
+                for activity in activities:
+                    cadence = cadences.get(activity.id)
+                    if cadence is not None:
+                        activity.metrics = RunMetrics(average_cadence_spm=cadence)
+            return activities
 
     def save_sync(
         self, activities: list[Activity], since: str, until: str, *, today: date | None = None

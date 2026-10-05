@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+import { resolve } from "node:path";
 import { render, screen } from "@testing-library/react-native";
 import { WorkoutCard, workoutMinutes } from "../src/components/workout";
 import { GarminPayload } from "../src/components/garmin-payload";
@@ -111,4 +113,30 @@ test("push preview reads the actual repeat payload including cadence and Lap", a
       /6 x .*Run: 800 m · 4:30 to 4:50 \/km · 162 to 182 spm.*Jog: 400 m · Zone 1.*Skip last recovery/,
     ),
   ).toBeTruthy();
+});
+
+test("daily preview renders the actual HTTP response before and after workouts", async () => {
+  const proposal: Schema<"DailyProposalView"> = JSON.parse(
+    execFileSync(
+      resolve(__dirname, "../../.venv/bin/python"),
+      [resolve(__dirname, "daily_proposal_response.py")],
+      { encoding: "utf8" },
+    ),
+  );
+  expect(proposal.before).toBeTruthy();
+  expect(proposal.after).toBeTruthy();
+  await render(
+    <>
+      <WorkoutCard workout={proposal.before!} />
+      <WorkoutCard workout={proposal.after!} />
+    </>,
+  );
+  for (const workout of [proposal.before!, proposal.after!]) {
+    expect(workout.step_descriptions.length).toBe(workout.steps.length);
+    for (const description of workout.step_descriptions) {
+      expect(screen.getAllByText(description).length).toBeGreaterThan(0);
+    }
+  }
+  expect(screen.getAllByRole("image")).toHaveLength(2);
+  expect(screen.getByText(/Strides: 4 x/)).toBeTruthy();
 });

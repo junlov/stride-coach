@@ -22,7 +22,7 @@ import { GarminPayload } from "../components/garmin-payload";
 import { useConnection } from "../state/connection";
 
 type Preview =
-  | { kind: "daily"; proposal: Schema<"DailyProposal"> }
+  | { kind: "daily"; proposal: Schema<"DailyProposalView"> }
   | { kind: "adapt"; adjustment: Schema<"Adjustment">; week: number }
   | { kind: "push" | "remove"; writes: Schema<"WriteResult">[]; week?: number };
 function Writes({ results }: { results: Schema<"WriteResult">[] }) {

@@ -403,13 +403,13 @@
         "title": "DailyAdaptRequest",
         "type": "object"
       },
-      "DailyProposal": {
+      "DailyProposalView": {
         "additionalProperties": false,
         "properties": {
           "after": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Workout"
+                "$ref": "#/components/schemas/WorkoutSummary"
               },
               {
                 "type": "null"
@@ -424,7 +424,7 @@
           "before": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Workout"
+                "$ref": "#/components/schemas/WorkoutSummary"
               },
               {
                 "type": "null"
@@ -475,7 +475,7 @@
           "readiness",
           "reasons"
         ],
-        "title": "DailyProposal",
+        "title": "DailyProposalView",
         "type": "object"
       },
       "DailyReadiness": {
@@ -2120,7 +2120,7 @@
           },
           "daily_adjustments": {
             "items": {
-              "$ref": "#/components/schemas/DailyProposal"
+              "$ref": "#/components/schemas/DailyProposalView"
             },
             "title": "Daily Adjustments",
             "type": "array"
@@ -2725,60 +2725,6 @@
         "title": "WeekView",
         "type": "object"
       },
-      "Workout": {
-        "additionalProperties": false,
-        "properties": {
-          "cutback": {
-            "default": false,
-            "title": "Cutback",
-            "type": "boolean"
-          },
-          "day": {
-            "format": "date",
-            "title": "Day",
-            "type": "string"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "kind": {
-            "$ref": "#/components/schemas/Kind"
-          },
-          "phase": {
-            "title": "Phase",
-            "type": "string"
-          },
-          "steps": {
-            "items": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/Step"
-                },
-                {
-                  "$ref": "#/components/schemas/RepeatGroup"
-                }
-              ]
-            },
-            "title": "Steps",
-            "type": "array"
-          },
-          "week": {
-            "title": "Week",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id",
-          "day",
-          "week",
-          "phase",
-          "kind",
-          "steps"
-        ],
-        "title": "Workout",
-        "type": "object"
-      },
       "WorkoutSummary": {
         "additionalProperties": false,
         "properties": {
@@ -3198,7 +3144,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DailyProposal"
+                  "$ref": "#/components/schemas/DailyProposalView"
                 }
               }
             },
@@ -3261,7 +3207,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DailyProposal"
+                  "$ref": "#/components/schemas/DailyProposalView"
                 }
               }
             },

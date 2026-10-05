@@ -25,15 +25,16 @@ export function stepMinutes(step: WorkoutStep): number {
         (step.skip_last_rest ? step.steps[step.steps.length - 1].minutes : 0)
     : step.minutes;
 }
-export const workoutMinutes = (workout: Schema<"Workout">) =>
-  workout.steps.reduce((sum, step) => sum + stepMinutes(step), 0);
+export const workoutMinutes = (
+  workout: Pick<Schema<"WorkoutSummary">, "steps">,
+) => workout.steps.reduce((sum, step) => sum + stepMinutes(step), 0);
 export function WorkoutCard({
   workout,
   hero = false,
   match,
   children,
 }: {
-  workout: Schema<"Workout"> | Schema<"WorkoutSummary">;
+  workout: Schema<"WorkoutSummary">;
   hero?: boolean;
   children?: ReactNode;
   match?: Schema<"Match">;

@@ -590,15 +590,15 @@ export interface components {
             /** Proposal Fingerprint */
             proposal_fingerprint?: string | null;
         };
-        /** DailyProposal */
-        DailyProposal: {
-            after?: components["schemas"]["Workout"] | null;
+        /** DailyProposalView */
+        DailyProposalView: {
+            after?: components["schemas"]["WorkoutSummary"] | null;
             /**
              * Applied
              * @default false
              */
             applied?: boolean;
-            before?: components["schemas"]["Workout"] | null;
+            before?: components["schemas"]["WorkoutSummary"] | null;
             /**
              * Day
              * Format: date
@@ -1070,7 +1070,7 @@ export interface components {
             /** Adjustments */
             adjustments: components["schemas"]["Adjustment"][];
             /** Daily Adjustments */
-            daily_adjustments?: components["schemas"]["DailyProposal"][];
+            daily_adjustments?: components["schemas"]["DailyProposalView"][];
             /** Plan Id */
             plan_id: string;
             /** Scheduled Workouts */
@@ -1249,28 +1249,6 @@ export interface components {
             metrics: components["schemas"]["Metrics"];
             /** Workouts */
             workouts: components["schemas"]["WorkoutView"][];
-        };
-        /** Workout */
-        Workout: {
-            /**
-             * Cutback
-             * @default false
-             */
-            cutback?: boolean;
-            /**
-             * Day
-             * Format: date
-             */
-            day: string;
-            /** Id */
-            id: string;
-            kind: components["schemas"]["Kind"];
-            /** Phase */
-            phase: string;
-            /** Steps */
-            steps: (components["schemas"]["Step"] | components["schemas"]["RepeatGroup"])[];
-            /** Week */
-            week: number;
         };
         /** WorkoutSummary */
         WorkoutSummary: {
@@ -1525,7 +1503,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DailyProposal"];
+                    "application/json": components["schemas"]["DailyProposalView"];
                 };
             };
             /** @description Bad Request */
@@ -1581,7 +1559,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DailyProposal"];
+                    "application/json": components["schemas"]["DailyProposalView"];
                 };
             };
             /** @description Bad Request */
