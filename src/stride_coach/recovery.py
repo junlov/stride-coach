@@ -90,6 +90,7 @@ def propose_daily(store, today: date) -> DailyProposal:
             "steps": make_steps(Kind.EASY, workout.minutes, plan.fitness, plan.setup, workout.week),
         }
     )
+    result.after = store.resolve_workout_targets(result.after)
     result.garmin_update_required = store.scheduled(workout.id) is not None
     result.reasons.append("Replace tomorrow's hard workout with easy running at the same duration.")
     evidence = {

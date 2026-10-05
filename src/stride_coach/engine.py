@@ -67,24 +67,24 @@ def training_days(count: int, long_day: int) -> list[int]:
     return sorted((long_day + offset) % 7 for offset in offsets[count])
 
 
+def heart_rate_range(athlete, effort: str) -> tuple[int, int]:
+    bands = {
+        "easy": (0.60, 0.72),
+        "recovery": (0.50, 0.65),
+        "tempo": (0.78, 0.87),
+        "intervals": (0.85, 0.93),
+        "walk": (0.35, 0.55),
+    }
+    reserve = athlete.max_hr - athlete.resting_hr
+    return tuple(round(athlete.resting_hr + bound * reserve) for bound in bands[effort])
+
+
 def make_steps(
     kind: Kind, minutes: float, fitness: Fitness, setup: Setup, week: int
 ) -> list[Step | RepeatGroup]:
     def step(label: str, duration: float, effort: str = "easy") -> Step:
-        bands = {
-            "easy": (0.60, 0.72),
-            "recovery": (0.50, 0.65),
-            "tempo": (0.78, 0.87),
-            "intervals": (0.85, 0.93),
-            "walk": (0.35, 0.55),
-        }
-        lo, hi = bands[effort]
-        athlete = setup.athlete
-        reserve = athlete.max_hr - athlete.resting_hr
-        kwargs = {
-            "hr_min": round(athlete.resting_hr + lo * reserve),
-            "hr_max": round(athlete.resting_hr + hi * reserve),
-        }
+        hr_min, hr_max = heart_rate_range(setup.athlete, effort)
+        kwargs = {"hr_min": hr_min, "hr_max": hr_max}
         if fitness.easy_pace and effort in ("tempo", "intervals"):
             ratio = {"easy": 1, "recovery": 1.08, "tempo": 0.83, "intervals": 0.75}[effort]
             center = fitness.easy_pace * ratio * 1.01

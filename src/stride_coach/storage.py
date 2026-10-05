@@ -31,6 +31,7 @@ from .db_models import (
     WriteIntentRow,
     WriteOperation,
 )
+from .engine import heart_rate_range
 from .models import (
     Activity,
     ActivityCore,
@@ -166,21 +167,9 @@ class Store:
             (group.workout_id, group.position): group
             for group in session.scalars(select(RepeatRow))
         }
-        zones = {
-            zone.zone: zone
-            for zone in session.scalars(
-                select(GarminZoneRow).where(
-                    GarminZoneRow.fetched_at >= datetime.now(UTC) - timedelta(days=7)
-                )
-            )
-        }
         children = {}
         for leaf in session.scalars(select(StepRow).order_by(StepRow.position)):
             step = Step(**fields(leaf, Step))
-            zone = zones.get(step.preferred_hr_zone)
-            if zone is not None:
-                step.hr_zone = zone.zone
-                step.hr_min, step.hr_max = zone.lower_bpm, zone.upper_bpm
             target = steps.setdefault(leaf.workout_id, [])
             if leaf.group_position is None:
                 target.append(step)
@@ -207,6 +196,7 @@ class Store:
             )
             for w in session.scalars(select(WorkoutRow).order_by(WorkoutRow.position))
         ]
+        self._resolve_targets(session, workouts, Athlete(**fields(row, Athlete)))
         return Plan(
             id=row.id,
             setup=Setup(
@@ -227,12 +217,40 @@ class Store:
             warnings=row.warnings,
         )
 
+    @staticmethod
+    def _resolve_targets(session, workouts, athlete):
+        zones = {
+            zone.zone: zone
+            for zone in session.scalars(
+                select(GarminZoneRow).where(
+                    GarminZoneRow.fetched_at >= datetime.now(UTC) - timedelta(days=7)
+                )
+            )
+        }
+        for workout in workouts:
+            for step in executable_steps(workout.steps):
+                zone = zones.get(step.preferred_hr_zone)
+                if zone is not None:
+                    step.hr_zone = zone.zone
+                    step.hr_min, step.hr_max = zone.lower_bpm, zone.upper_bpm
+                elif step.preferred_hr_zone in (1, 2):
+                    step.hr_zone = None
+                    effort = "recovery" if step.preferred_hr_zone == 1 else "easy"
+                    step.hr_min, step.hr_max = heart_rate_range(athlete, effort)
+
+    def resolve_workout_targets(self, workout: Workout) -> Workout:
+        with self.transaction() as session:
+            row = session.scalar(select(PlanRow))
+            self._resolve_targets(session, [workout], Athlete(**fields(row, Athlete)))
+        return workout
+
     def save_garmin_zones(self, zones: list[GarminHeartRateZone]):
         with self.lock(), self.transaction() as session:
             session.execute(delete(GarminZoneRow))
             session.add_all(
                 GarminZoneRow(**zone.model_dump(), fetched_at=datetime.now(UTC)) for zone in zones
             )
+            self._refresh_matches(session)
 
     def plan(self) -> Plan:
         with self.transaction() as session:

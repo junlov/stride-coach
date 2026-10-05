@@ -31,6 +31,7 @@ today = workout.day - timedelta(days=1)
 now = datetime.combine(today, datetime.min.time(), tzinfo=UTC)
 store = SimpleNamespace(
     plan=lambda: plan,
+    resolve_workout_targets=lambda workout: workout,
     readiness=lambda day: DailyReadiness(day=day, fetched_at=now, training_readiness=10),
     daily_adjustment=lambda _: None,
     scheduled=lambda _: None,
