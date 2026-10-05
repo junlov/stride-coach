@@ -60,6 +60,16 @@ export default function TodayScreen() {
         <QueryState {...query} />
         {data && (
           <>
+            {data.status.garmin_out_of_date && (
+              <Card>
+                <Heading>Garmin is out of date</Heading>
+                <Copy>
+                  Review the next {data.status.garmin_window_days} days and
+                  stale workouts before sending changes.
+                </Copy>
+                <NavLink href="/actions" label="Review Garmin calendar" />
+              </Card>
+            )}
             <Muted>
               {data.today} · {data.plan.setup.goal}
             </Muted>
