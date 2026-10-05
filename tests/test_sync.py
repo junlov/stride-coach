@@ -13,12 +13,15 @@ from stride_coach.service import AdaptRequest, Coach, SyncRequest
 from stride_coach.storage import Store
 
 
-def test_sync_reconciles_range_and_computes_matches(store):
+@pytest.mark.parametrize("local_import", [False, True])
+def test_sync_upserts_runs_and_preserves_other_activities(store, local_import):
     plan = store.plan()
     day = plan.workouts[0].day
     run = Activity(id="kept", day=day, distance_km=5, duration_min=30, average_hr=140)
-    duplicate = run.model_copy(update={"id": "deleted"})
-    reclassified = run.model_copy(update={"id": "changed-sport"})
+    non_runs = [
+        run.model_copy(update={"id": sport, "sport": sport})
+        for sport in ("walking", "cycling", "strength_training")
+    ]
     before = run.model_copy(update={"id": "before", "day": day - timedelta(days=1)})
     after = run.model_copy(update={"id": "after", "day": day + timedelta(days=1)})
     coach = Coach(store)
@@ -26,31 +29,45 @@ def test_sync_reconciles_range_and_computes_matches(store):
         SyncRequest(
             since=before.day,
             until=after.day,
-            activities=[before, run, duplicate, reclassified, after],
+            activities=[before, run, *non_runs, after],
         ),
         today=after.day + timedelta(days=1),
     )
 
+    fetched = [run.model_copy(update={"duration_min": 35})]
+
     class Garmin:
         def activities(self, since, until):
             assert (since, until) == (day, day)
-            return [run.model_copy(update={"duration_min": 35})]
+            return fetched
 
     coach = Coach(store, client_factory=lambda _: Garmin())
-    coach.sync(SyncRequest(since=day, until=day), today=after.day)
-    assert {a.id for a in store.activities()} == {"before", "kept", "after"}
+    request = SyncRequest(since=day, until=day)
+    if local_import:
+        request.activities = [run.model_copy(update={"duration_min": 35}), *non_runs]
+    coach.sync(request, today=after.day)
+    expected_ids = {"before", "kept", "after", *(a.id for a in non_runs)}
+    assert {a.id for a in store.activities()} == expected_ids
+    assert all(a in store.activities() for a in non_runs)
     assert next(a for a in store.activities() if a.id == "kept").duration_min == 35
     metrics = coach.week(1).metrics
     assert metrics.completed_minutes == sum(
-        a.duration_min for a in store.activities() if a.day >= plan.setup.start
+        a.duration_min
+        for a in store.activities()
+        if a.day >= plan.setup.start and a.sport == "running"
     )
     assert any(m.activity_id == "kept" for m in metrics.matches)
-    coach.sync(SyncRequest(since=day, until=day, activities=[]), today=after.day)
-    assert {a.id for a in store.activities()} == {"before", "after"}
-    assert all(m.activity_id != "kept" for m in coach.week(1).metrics.matches)
+    coach.sync(request, today=after.day)
+    assert {a.id for a in store.activities()} == expected_ids
+    if not local_import:
+        fetched.clear()
+        coach.sync(request, today=after.day)
+    assert {a.id for a in store.activities()} == expected_ids
+    assert coach.week(1).metrics == metrics
+    assert store.plan() == plan
 
 
-def test_sync_rolls_back_reconciliation_and_coverage(store):
+def test_sync_rolls_back_upserts_and_coverage(store):
     today = store.plan().setup.start
     day = today - timedelta(days=1)
     run = Activity(id="old", day=day, distance_km=5, duration_min=30)
@@ -72,7 +89,12 @@ def test_sync_rolls_back_reconciliation_and_coverage(store):
         """)
         )
     with pytest.raises(IntegrityError, match="coverage failure"):
-        store.save_sync([], str(day - timedelta(days=1)), str(today), today=today)
+        store.save_sync(
+            [run.model_copy(update={"duration_min": 35}), run.model_copy(update={"id": "new"})],
+            str(day - timedelta(days=1)),
+            str(today),
+            today=today,
+        )
     assert store.activities() == [run]
     assert store.sync_window() == window
     assert store.sync_window(complete=True) == complete

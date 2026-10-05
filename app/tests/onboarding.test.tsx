@@ -14,6 +14,11 @@ import TodayScreen from "../src/screens/today";
 import { palettes } from "../src/theme";
 import { connection, mockServer, response, status } from "./fixtures";
 
+jest.mock("../src/dates", () => ({
+  ...jest.requireActual("../src/dates"),
+  localDay: () => "2026-10-05",
+}));
+
 let server: ReturnType<typeof mockServer>;
 const press = async (label: string) =>
   fireEvent.press(await screen.findByText(label));
@@ -111,7 +116,7 @@ describe.each(["light", "dark"] as const)(
         await press("Confirm new plan");
         await screen.findByText("Plan created");
         await press("Go to Today");
-        await screen.findByRole("link", { name: "See this week" });
+        await screen.findByRole("header", { name: "Make room for easy." });
         expect(calls("/goal")).toHaveLength(1);
         const goalRequest = (server as jest.Mock).mock.calls.find(([url]) =>
           String(url).endsWith("/goal"),

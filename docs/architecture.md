@@ -82,7 +82,8 @@ The lock uses the same connection as ledger writes and survives their commits. P
 it when that connection closes. Migrations and token persistence use separate advisory keys.
 Use direct or session-pooled connections; transaction pooling is unsupported.
 Sync holds this lock throughout fetching and saving, so concurrent fetches cannot commit snapshots out of order.
-Activity replacement and fetched-range and complete-day coverage records commit in one PostgreSQL transaction.
+Activity upserts and fetched-range and complete-day coverage records commit in one PostgreSQL transaction.
+See [sync behavior](../README.md#plan-and-review) for activity preservation and offline import requirements.
 The latest sync replaces both coverage records, rather than merging coverage across separate syncs.
 See the [weekly loop](../README.md#weekly-loop) for adaptation coverage requirements.
 

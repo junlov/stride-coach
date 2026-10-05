@@ -120,4 +120,12 @@ def test_scores_persist_refresh_and_clear_with_matches(store):
     )
     assert coach.activity(run.id).step_compliance == score
     coach.sync(request.model_copy(update={"activities": []}), today=run.day + timedelta(days=1))
+    assert coach.activity(run.id).step_compliance == score
+    # An explicit sport update removes the workout match; omission preserves it.
+    coach.sync(
+        request.model_copy(
+            update={"activities": [summary.model_copy(update={"sport": "walking"})]}
+        ),
+        today=run.day + timedelta(days=1),
+    )
     assert store.step_compliance() == {}
