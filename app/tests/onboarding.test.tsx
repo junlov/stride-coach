@@ -111,7 +111,7 @@ describe.each(["light", "dark"] as const)(
         await press("Confirm new plan");
         await screen.findByText("Plan created");
         await press("Go to Today");
-        await screen.findByRole("header", { name: "Your next stride" });
+        await screen.findByRole("link", { name: "See this week" });
         expect(calls("/goal")).toHaveLength(1);
         const goalRequest = (server as jest.Mock).mock.calls.find(([url]) =>
           String(url).endsWith("/goal"),
