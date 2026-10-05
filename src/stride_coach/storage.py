@@ -6,7 +6,7 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
-from .activity_models import RunCompliance, RunLap, RunMetrics, StepCompliance
+from .activity_models import RunCompliance, RunLap, RunMetrics
 from .activity_storage import save_details
 from .database import WRITE_LOCK, check_schema, connection_lock, database_url, make_engine, upgrade
 from .db_models import (
@@ -308,50 +308,44 @@ class Store:
 
     def _refresh_matches(self, session):
         from .adaptation import match_activities
-        from .compliance import score_steps
 
         session.flush()
         session.execute(delete(MatchRow))
         if session.scalar(select(PlanRow.id)) is not None:
             plan = self._plan(session)
-            workouts = {w.id: w for w in plan.workouts}
-            laps = {}
-            for row in session.scalars(select(ActivityLapRow).order_by(ActivityLapRow.position)):
-                laps.setdefault(row.activity_id, []).append(RunLap(**fields(row, RunLap)))
             matches = match_activities(plan, self._activities(session))
             session.add_all(MatchRow(**match) for match in matches)
             session.flush()
-            for match in matches:
-                result = score_steps(
-                    workouts[match["workout_id"]], laps.get(match["activity_id"], [])
-                )
+            for result in self._step_compliance(session).values():
                 session.add_all(
                     StepComplianceRow(workout_id=result.workout_id, **step.model_dump())
                     for step in result.steps
                 )
 
+    def _step_compliance(self, session) -> dict[str, RunCompliance]:
+        from .compliance import score_steps
+
+        matches = list(session.scalars(select(MatchRow)))
+        if not matches:
+            return {}
+        workouts = {workout.id: workout for workout in self._plan(session).workouts}
+        laps = {}
+        for row in session.scalars(
+            select(ActivityLapRow)
+            .join(MatchRow, MatchRow.activity_id == ActivityLapRow.activity_id)
+            .order_by(ActivityLapRow.position)
+        ):
+            laps.setdefault(row.activity_id, []).append(RunLap(**fields(row, RunLap)))
+        return {
+            match.activity_id: score_steps(
+                workouts[match.workout_id], laps.get(match.activity_id, [])
+            )
+            for match in matches
+        }
+
     def step_compliance(self) -> dict[str, RunCompliance]:
         with self.transaction() as session:
-            scores = {}
-            for row in session.scalars(
-                select(StepComplianceRow).order_by(StepComplianceRow.position)
-            ):
-                scores.setdefault(row.workout_id, []).append(
-                    StepCompliance(**fields(row, StepCompliance))
-                )
-            result = {}
-            for row in session.scalars(select(MatchRow)):
-                steps = scores.get(row.workout_id, [])
-                if steps:
-                    known = [step.score for step in steps if step.score is not None]
-                    result[row.activity_id] = RunCompliance(
-                        workout_id=row.workout_id,
-                        score=sum(known) / len(known) if known else None,
-                        scored_steps=len(known),
-                        missing_steps=len(steps) - len(known),
-                        steps=steps,
-                    )
-            return result
+            return self._step_compliance(session)
 
     def save_readiness(self, readiness: DailyReadiness):
         with self.transaction() as session:

@@ -216,3 +216,53 @@ def test_sync_refreshes_scores_after_zone_changes_and_fallback(database, plan, c
         step = store.plan().workouts[0].steps[0]
         assert (step.hr_zone, step.hr_min, step.hr_max) == (None, 138, 154)
         assert store.step_compliance()[activity.id].steps[0].target_score == 0
+
+
+@pytest.mark.parametrize("age_days, expected_zone, expected_target", [(0, 2, 100), (8, None, 0)])
+def test_read_only_scores_follow_zone_expiry(
+    database, plan, age_days, expected_zone, expected_target
+):
+    from sqlalchemy import text
+
+    from stride_coach.db_models import GarminZoneRow, StepComplianceRow
+    from stride_coach.models import GarminHeartRateZone
+
+    workout = plan.workouts[0]
+    workout.kind = Kind.LONG
+    workout.steps = make_steps(Kind.LONG, 40, plan.fitness, plan.setup, 1)
+    activity = Activity(
+        id="expiring-zone",
+        day=workout.day,
+        distance_km=6,
+        duration_min=40,
+        laps=[RunLap(duration_s=2400, distance_m=6000, average_hr=130)],
+    )
+    with closing(Store(database)) as store:
+        store.initialize(plan)
+        store.save_garmin_zones([GarminHeartRateZone(zone=2, lower_bpm=120, upper_bpm=140)])
+        Coach(store).sync(
+            SyncRequest(since=workout.day, until=workout.day, activities=[activity]),
+            today=workout.day,
+        )
+        with store.transaction() as session:
+            assert session.get(StepComplianceRow, (workout.id, 0)).target_score == 100
+            session.get(GarminZoneRow, 2).fetched_at = datetime.now(UTC) - timedelta(days=age_days)
+
+    with closing(Store(database, read_only=True)) as store:
+        with store.transaction() as session:
+            assert session.scalar(text("SHOW transaction_read_only")) == "on"
+        coach = Coach(store, client_factory=lambda _: pytest.fail("No Garmin calls expected"))
+        week = coach.week(workout.week)
+        displayed = next(view.workout for view in week.workouts if view.workout.id == workout.id)
+        step = displayed.steps[0]
+        assert step.hr_zone == expected_zone
+        assert (step.hr_min, step.hr_max) == ((120, 140) if age_days == 0 else (138, 154))
+        compliance = next(metrics for metrics in coach.compliance() if metrics.week == workout.week)
+        for metrics in [week.metrics, compliance]:
+            match = next(match for match in metrics.matches if match.activity_id == activity.id)
+            score = match.step_compliance
+            assert score.steps[0].target_score == expected_target
+            assert score.score == (100 + expected_target) / 2
+            assert score.scored_steps == 1
+        with store.transaction() as session:
+            assert session.get(StepComplianceRow, (workout.id, 0)).target_score == 100
