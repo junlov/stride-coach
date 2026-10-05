@@ -44,7 +44,7 @@ def test_sync_upserts_runs_and_preserves_other_activities(store, local_import):
     coach = Coach(store, client_factory=lambda _: Garmin())
     request = SyncRequest(since=day, until=day)
     if local_import:
-        request.activities = [run.model_copy(update={"duration_min": 35})]
+        request.activities = [run.model_copy(update={"duration_min": 35}), *non_runs]
     coach.sync(request, today=after.day)
     expected_ids = {"before", "kept", "after", *(a.id for a in non_runs)}
     assert {a.id for a in store.activities()} == expected_ids
@@ -57,14 +57,11 @@ def test_sync_upserts_runs_and_preserves_other_activities(store, local_import):
         if a.day >= plan.setup.start and a.sport == "running"
     )
     assert any(m.activity_id == "kept" for m in metrics.matches)
-    # Repeated partial imports update the same ID without duplicating or deleting records.
     coach.sync(request, today=after.day)
     assert {a.id for a in store.activities()} == expected_ids
-    if local_import:
-        request.activities = []
-    else:
+    if not local_import:
         fetched.clear()
-    coach.sync(request, today=after.day)
+        coach.sync(request, today=after.day)
     assert {a.id for a in store.activities()} == expected_ids
     assert coach.week(1).metrics == metrics
     assert store.plan() == plan

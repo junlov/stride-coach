@@ -137,8 +137,10 @@ classified as maximal efforts. Without one, the engine uses recent easy paces or
 
 Each successful regular sync adds or updates activities by ID within the inclusive date range.
 Activities absent from the response are preserved, including walks and rides omitted by
-Garmin's running-only fetch. Offline imports can supply a partial activity list.
-An empty list leaves stored activities unchanged. Sync does not propagate activity deletions.
+Garmin's running-only fetch. For an offline import, supply the complete activity list for that range.
+Sync records complete-day coverage for adaptation, so partial offline imports are unsupported.
+Use an empty list only when the range contains no activities. Stored activities remain unchanged.
+Sync does not propagate activity deletions.
 
 ## Garmin authentication and first live check
 

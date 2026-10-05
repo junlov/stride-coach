@@ -359,8 +359,6 @@ class Store:
             raise ValueError("Sync needs since <= until <= today")
         complete_end = min(end, today - timedelta(days=1))
         with self.lock(), self.transaction() as session:
-            # Garmin returns only runs, and local imports may also be partial.
-            # An omitted ID is not evidence that its activity was deleted.
             for activity in activities:
                 if begin <= activity.day <= end:
                     session.merge(
