@@ -158,15 +158,18 @@ def test_workout_payload_units(plan):
     workout = plan.workouts[0]
     payload = workout_payload(workout)
     step = payload["workoutSegments"][0]["workoutSteps"][0]
-    assert step["endConditionValue"] == pytest.approx(workout.minutes * 60, abs=0.001)
-    assert step["targetType"] == {"workoutTargetTypeId": 6, "workoutTargetTypeKey": "pace.zone"}
-    assert step["targetValueOne"] == pytest.approx(1000 / workout.steps[0].pace_max)
+    assert step["endConditionValue"] == pytest.approx(workout.steps[0].minutes * 60, abs=0.001)
+    assert step["targetType"] == {
+        "workoutTargetTypeId": 4,
+        "workoutTargetTypeKey": "heart.rate.zone",
+    }
+    assert step["targetValueOne"] == workout.steps[0].hr_min
     assert step["targetValueOne"] < step["targetValueTwo"]
-    workout.steps[0].pace_min = workout.steps[0].pace_max = None
-    workout.steps[0].hr_min, workout.steps[0].hr_max = 130, 145
+    workout.steps[0].hr_min = workout.steps[0].hr_max = None
+    workout.steps[0].pace_min, workout.steps[0].pace_max = 270, 290
     step = workout_payload(workout)["workoutSegments"][0]["workoutSteps"][0]
-    assert step["targetType"]["workoutTargetTypeId"] == 4
-    assert step["targetValueOne"] == 130
+    assert step["targetType"]["workoutTargetTypeId"] == 6
+    assert step["targetValueOne"] == pytest.approx(1000 / 290)
 
 
 def test_normalizes_fake_garmin_response():

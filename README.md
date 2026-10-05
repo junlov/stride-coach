@@ -518,8 +518,8 @@ The authenticated API provides `GET /readiness` (last 30 stored daily records),
 To confirm, send `apply: true` and the returned `proposal_fingerprint`. `/status` includes
 saved `daily_adjustments` with their reasons and before/after evidence. MCP adds read-only
 `readiness`, `propose_daily_adjustment`, and `activity(activity_id)` tools. A run detail and
-its `/compliance` match include stored step scores based on captured laps, with missing
-measurements distinct from failed targets.
+its `/compliance` match include [step feedback](docs/training-rules.md#step-compliance-from-captured-laps),
+with missing measurements distinct from failed targets.
 
 Synthetic recovery/compliance proof, using the disposable test database:
 

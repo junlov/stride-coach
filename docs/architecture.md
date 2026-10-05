@@ -60,10 +60,9 @@ Workout uploads and regular activity reads use python-garminconnect public metho
 History pages use its garth transport with activity-service parameters for date range, offset, and ascending order. The pinned release
 lacks scheduling, update, and delete helpers, so these use its garth transport with upstream
 workout-service endpoints. Calendar reads use calendar-service with zero-based months.
-Target identifiers follow the current upstream schema: pace.zone=6 (metres/second),
-heart.rate.zone=4 (bpm). See [upstream workout models](
-https://github.com/cyberjunky/python-garminconnect/blob/master/garminconnect/workout.py) and
-[upstream API methods](https://github.com/cyberjunky/python-garminconnect).
+See [training rules](training-rules.md#garmin-field-evidence-and-supported-fallbacks)
+for workout field evidence and supported targets, and
+[upstream API methods](https://github.com/cyberjunky/python-garminconnect) for transport methods.
 
 Garmin's API is unofficial and may change. The fake-response tests validate request shape
 and control flow, not a live Garmin contract or watch behavior. Verify one real workout

@@ -13,7 +13,7 @@ import {
   NavLink,
   Notice,
 } from "../components/ui";
-import { WorkoutCard } from "../components/workout";
+import { WorkoutCard, workoutMinutes } from "../components/workout";
 import { useQuery } from "../state/query";
 async function loadPlan(client: Client) {
   const [plan, status] = await Promise.all([client.plan(), client.status()]);
@@ -56,12 +56,7 @@ export default function PlanScreen() {
                     {workouts.length} sessions ·{" "}
                     {Math.round(
                       workouts.reduce(
-                        (sum, workout) =>
-                          sum +
-                          workout.steps.reduce(
-                            (n, step) => n + step.minutes,
-                            0,
-                          ),
+                        (sum, workout) => sum + workoutMinutes(workout),
                         0,
                       ),
                     )}{" "}

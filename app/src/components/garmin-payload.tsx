@@ -8,8 +8,11 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function stepSummary(value: unknown, index: number) {
+function stepSummary(value: unknown, index: number): string {
   const step = record(value);
+  if (step.type === "RepeatGroupDTO" && Array.isArray(step.workoutSteps)) {
+    return `${index + 1}. ${step.numberOfIterations} x (${step.workoutSteps.map(stepSummary).join("; ")})${step.skipLastRestStep ? " · Skip last recovery" : ""}`;
+  }
   const label =
     typeof step.description === "string"
       ? step.description
@@ -17,13 +20,15 @@ function stepSummary(value: unknown, index: number) {
   const condition = record(step.endCondition).conditionTypeKey;
   const amount = step.endConditionValue;
   const duration =
-    typeof amount === "number" && Number.isFinite(amount)
-      ? condition === "time"
-        ? `${amount / 60} min`
-        : condition === "distance"
-          ? `${amount} m`
-          : "Duration unavailable"
-      : "Duration unavailable";
+    condition === "lap.button"
+      ? "press Lap"
+      : typeof amount === "number" && Number.isFinite(amount)
+        ? condition === "time"
+          ? `${amount / 60} min`
+          : condition === "distance"
+            ? `${amount} m`
+            : "Duration unavailable"
+        : "Duration unavailable";
   const target = record(step.targetType).workoutTargetTypeKey;
   const low = step.targetValueOne;
   const high = step.targetValueTwo;
@@ -38,7 +43,16 @@ function stepSummary(value: unknown, index: number) {
       targetText = `${pace(1000 / high)} to ${pace(1000 / low)} /km`;
     else if (target === "heart.rate.zone") targetText = `${low} to ${high} bpm`;
   }
-  return `${index + 1}. ${label}: ${duration} · ${targetText}`;
+  if (target === "heart.rate.zone" && typeof step.zoneNumber === "number") {
+    targetText = `Zone ${step.zoneNumber}`;
+  }
+  const cadence =
+    record(step.secondaryTargetType).workoutTargetTypeKey === "cadence" &&
+    typeof step.secondaryTargetValueOne === "number" &&
+    typeof step.secondaryTargetValueTwo === "number"
+      ? ` · ${step.secondaryTargetValueOne} to ${step.secondaryTargetValueTwo} spm`
+      : "";
+  return `${index + 1}. ${label}: ${duration} · ${targetText}${cadence}`;
 }
 
 export function GarminPayload({

@@ -34,7 +34,7 @@ from .garmin_auth import (
 from .mcp import create_server
 from .models import Adjustment, Record, RunDetail
 from .pairing import PairedToken, PairingCode, PairingExchange, PairingStore
-from .recovery_models import DailyAdaptRequest, DailyProposal, DailyReadiness
+from .recovery_models import DailyAdaptRequest, DailyReadiness
 from .service import (
     DEFAULT_TOKENS,
     AdaptRequest,
@@ -43,6 +43,7 @@ from .service import (
     CalendarSettings,
     Coach,
     Created,
+    DailyProposalView,
     GoalRequest,
     Load,
     Metrics,
@@ -399,7 +400,7 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
 
     @app.get(
         "/adjustments/daily",
-        response_model=DailyProposal,
+        response_model=DailyProposalView,
         responses=errors,
         operation_id="propose_daily_adjustment",
     )
@@ -407,7 +408,10 @@ def create_app(config: ServerConfig, client_factory=GarminClient) -> FastAPI:
         return service.daily_adjustment(today=worker.now().date())
 
     @app.post(
-        "/adapt/daily", response_model=DailyProposal, responses=errors, operation_id="adapt_daily"
+        "/adapt/daily",
+        response_model=DailyProposalView,
+        responses=errors,
+        operation_id="adapt_daily",
     )
     def daily_adapt(body: DailyAdaptRequest, service: Service):
         return service.daily_adjustment(body, today=worker.now().date())

@@ -31,6 +31,7 @@ def worker(database, tmp_path, monkeypatch):
         connection.vault.write({"tokens": "synthetic-session", "generation": "test"})
     factory = Mock()
     factory.return_value.activities.return_value = []
+    factory.return_value.heart_rate_zones.return_value = []
     worker = SyncWorker(config, connection, factory)
     monkeypatch.setattr(worker, "now", lambda: NOW)
     yield worker

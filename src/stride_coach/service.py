@@ -14,7 +14,7 @@ from .activity_storage import read_detail, read_streams
 from .adaptation import adapt as adapt_week
 from .adaptation import propose, week_metrics
 from .engine import generate_plan
-from .garmin import GarminClient, calendar_fingerprint, reconcile_calendar
+from .garmin import GarminClient, GarminError, calendar_fingerprint, reconcile_calendar
 from .garmin import push as push_workouts
 from .garmin import remove as remove_workouts
 from .garmin_auth import DEFAULT_TOKENS as DEFAULT_TOKENS
@@ -23,7 +23,7 @@ from .recovery import adapt_daily
 from .recovery_models import DailyAdaptRequest, DailyProposal, DailyReadiness
 from .storage import Store
 from .sync_models import SyncAttempt, SyncStatus
-from .workout_text import workout_name
+from .workout_text import step_summary, workout_name
 
 
 class Match(Record):
@@ -55,8 +55,18 @@ class Load(Record):
 class WorkoutSummary(Workout):
     @computed_field
     @property
+    def step_descriptions(self) -> list[str]:
+        return [step_summary(step) for step in self.steps]
+
+    @computed_field
+    @property
     def name(self) -> str:
         return workout_name(self)
+
+
+class DailyProposalView(DailyProposal):
+    before: WorkoutSummary | None = None
+    after: WorkoutSummary | None = None
 
 
 class PlanView(Plan):
@@ -112,7 +122,7 @@ class Status(Record):
     weeks: list[Metrics]
     adjustments: list[Adjustment]
     sync_status: SyncStatus | None = None
-    daily_adjustments: list[DailyProposal] = Field(default_factory=list)
+    daily_adjustments: list[DailyProposalView] = Field(default_factory=list)
     garmin_out_of_date: bool = True
     garmin_window_days: int = 14
 
@@ -187,7 +197,11 @@ class Coach:
         self.client_factory = client_factory
 
     def initialize(self, request: GoalRequest) -> Created:
-        runs = request.recent_runs if request.recent_runs is not None else self.store.activities()
+        runs = (
+            request.recent_runs
+            if request.recent_runs is not None
+            else self.store.activities(include_cadence=True)
+        )
         plan = generate_plan(request.setup, runs)
         with self.store.lock():
             self.store.initialize(plan)
@@ -269,7 +283,10 @@ class Coach:
             weeks=self.compliance(),
             adjustments=store.adjustments(),
             sync_status=store.sync_status(),
-            daily_adjustments=store.daily_adjustments(),
+            daily_adjustments=[
+                DailyProposalView.model_validate(proposal.model_dump())
+                for proposal in store.daily_adjustments()
+            ],
             garmin_window_days=store.calendar_settings()["window_days"],
             garmin_out_of_date=(
                 store.calendar_settings()["synced_fingerprint"]
@@ -361,6 +378,13 @@ class Coach:
                         # Optional recovery endpoints cannot fail an otherwise successful sync.
                         readiness = DailyReadiness(day=today, fetched_at=datetime.now(UTC))
                     self.store.save_readiness(readiness)
+
+                if client and hasattr(client, "heart_rate_zones"):
+                    try:
+                        zones = client.heart_rate_zones()
+                    except GarminError:
+                        zones = []
+                    self.store.save_garmin_zones(zones)
                 attempt.result = "success"
                 attempt.activity_count = len(runs)
             except Exception:
@@ -393,9 +417,10 @@ class Coach:
 
     def daily_adjustment(
         self, request: DailyAdaptRequest | None = None, today: date | None = None
-    ) -> DailyProposal:
+    ) -> DailyProposalView:
         request = request or DailyAdaptRequest()
-        return adapt_daily(self.store, today or date.today(), **request.model_dump())
+        proposal = adapt_daily(self.store, today or date.today(), **request.model_dump())
+        return DailyProposalView.model_validate(proposal.model_dump())
 
     def activity_streams(self, activity_id: str):
         return read_streams(self.store, activity_id)

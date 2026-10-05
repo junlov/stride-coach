@@ -1,19 +1,26 @@
 """Conservative lap-to-step scoring. Ambiguous alignment is unavailable, not failure."""
 
 from .activity_models import RunCompliance, RunLap, StepCompliance
-from .models import Workout
+from .models import RepeatGroup, Workout
 
 
 def score_steps(workout: Workout, laps: list[RunLap]) -> RunCompliance:
-    groups = [laps] if len(workout.steps) == 1 and laps else [[lap] for lap in laps]
-    aligned = bool(laps) and len(groups) == len(workout.steps)
-    if aligned and len(workout.steps) > 1:
+    steps = []
+    for block in workout.steps:
+        if isinstance(block, RepeatGroup):
+            children = block.steps * block.repetitions
+            steps.extend(children[:-1] if block.skip_last_rest else children)
+        else:
+            steps.append(block)
+    groups = [laps] if len(steps) == 1 and laps else [[lap] for lap in laps]
+    aligned = bool(laps) and len(groups) == len(steps)
+    if aligned and len(steps) > 1:
         aligned = all(
             0.9 * step.minutes * 60 <= lap.duration_s <= 1.1 * step.minutes * 60
-            for step, lap in zip(workout.steps, laps, strict=True)
+            for step, lap in zip(steps, laps, strict=True)
         )
     results = []
-    for position, step in enumerate(workout.steps):
+    for position, step in enumerate(steps):
         result = StepCompliance(
             position=position, label=step.label, planned_seconds=step.minutes * 60
         )

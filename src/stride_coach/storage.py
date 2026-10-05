@@ -6,19 +6,22 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
-from .activity_models import RunCompliance, RunLap, StepCompliance
+from .activity_models import RunCompliance, RunLap, RunMetrics
 from .activity_storage import save_details
 from .database import WRITE_LOCK, check_schema, connection_lock, database_url, make_engine, upgrade
 from .db_models import (
+    ActivityDetailRow,
     ActivityLapRow,
     ActivityRow,
     AdjustmentRow,
     DailyAdjustmentRow,
     GarminCalendarRow,
+    GarminZoneRow,
     MatchRow,
     MetadataRow,
     PlanRow,
     ReadinessRow,
+    RepeatRow,
     ScheduledRow,
     StepComplianceRow,
     StepKind,
@@ -29,7 +32,21 @@ from .db_models import (
     WriteIntentRow,
     WriteOperation,
 )
-from .models import Activity, ActivityCore, Adjustment, Athlete, Fitness, Plan, Setup, Step, Workout
+from .engine import heart_rate_range
+from .models import (
+    Activity,
+    ActivityCore,
+    Adjustment,
+    Athlete,
+    Fitness,
+    GarminHeartRateZone,
+    Plan,
+    RepeatGroup,
+    Setup,
+    Step,
+    Workout,
+    executable_steps,
+)
 from .recovery_models import DailyProposal, DailyReadiness
 from .sync_models import SyncAttempt, SyncStatus
 
@@ -147,8 +164,32 @@ class Store:
         if row is None:
             raise ValueError("No plan. Run stride-coach init first.")
         steps = {}
-        for step in session.scalars(select(StepRow).order_by(StepRow.position)):
-            steps.setdefault(step.workout_id, []).append(Step(**fields(step, Step)))
+        groups = {
+            (group.workout_id, group.position): group
+            for group in session.scalars(select(RepeatRow))
+        }
+        children = {}
+        for leaf in session.scalars(select(StepRow).order_by(StepRow.position)):
+            step = Step(**fields(leaf, Step))
+            target = steps.setdefault(leaf.workout_id, [])
+            if leaf.group_position is None:
+                target.append(step)
+            else:
+                key = (leaf.workout_id, leaf.group_position)
+                if key not in children:
+                    children[key] = []
+                    target.append(key)
+                children[key].append(step)
+        for target in steps.values():
+            for index, entry in enumerate(target):
+                if isinstance(entry, tuple):
+                    group = groups[entry]
+                    target[index] = RepeatGroup(
+                        label=group.label,
+                        repetitions=group.repetitions,
+                        skip_last_rest=group.skip_last_rest,
+                        steps=children[entry],
+                    )
         workouts = [
             Workout(
                 **{key: getattr(w, key) for key in Workout.model_fields if key != "steps"},
@@ -156,6 +197,7 @@ class Store:
             )
             for w in session.scalars(select(WorkoutRow).order_by(WorkoutRow.position))
         ]
+        self._resolve_targets(session, workouts, Athlete(**fields(row, Athlete)))
         return Plan(
             id=row.id,
             setup=Setup(
@@ -175,6 +217,41 @@ class Store:
             workouts=workouts,
             warnings=row.warnings,
         )
+
+    @staticmethod
+    def _resolve_targets(session, workouts, athlete):
+        zones = {
+            zone.zone: zone
+            for zone in session.scalars(
+                select(GarminZoneRow).where(
+                    GarminZoneRow.fetched_at >= datetime.now(UTC) - timedelta(days=7)
+                )
+            )
+        }
+        for workout in workouts:
+            for step in executable_steps(workout.steps):
+                zone = zones.get(step.preferred_hr_zone)
+                if zone is not None:
+                    step.hr_zone = zone.zone
+                    step.hr_min, step.hr_max = zone.lower_bpm, zone.upper_bpm
+                elif step.preferred_hr_zone in (1, 2):
+                    step.hr_zone = None
+                    effort = "recovery" if step.preferred_hr_zone == 1 else "easy"
+                    step.hr_min, step.hr_max = heart_rate_range(athlete, effort)
+
+    def resolve_workout_targets(self, workout: Workout) -> Workout:
+        with self.transaction() as session:
+            row = session.scalar(select(PlanRow))
+            self._resolve_targets(session, [workout], Athlete(**fields(row, Athlete)))
+        return workout
+
+    def save_garmin_zones(self, zones: list[GarminHeartRateZone]):
+        with self.lock(), self.transaction() as session:
+            session.execute(delete(GarminZoneRow))
+            session.add_all(
+                GarminZoneRow(**zone.model_dump(), fetched_at=datetime.now(UTC)) for zone in zones
+            )
+            self._refresh_matches(session)
 
     def plan(self) -> Plan:
         with self.transaction() as session:
@@ -201,59 +278,75 @@ class Store:
             for position, w in enumerate(plan.workouts)
         )
         session.flush()
-        session.add_all(
-            StepRow(**step.model_dump(), workout_id=w.id, position=i, kind=step_kind(step.label))
-            for w in plan.workouts
-            for i, step in enumerate(w.steps)
-        )
+        for workout in plan.workouts:
+            self._write_steps(session, workout)
         session.flush()
+
+    @staticmethod
+    def _write_steps(session, workout):
+        position = 0
+        for block in workout.steps:
+            group_position = position if isinstance(block, RepeatGroup) else None
+            if group_position is not None:
+                session.add(
+                    RepeatRow(
+                        workout_id=workout.id,
+                        position=position,
+                        **block.model_dump(exclude={"steps"}),
+                    )
+                )
+            for step in executable_steps([block]):
+                session.add(
+                    StepRow(
+                        **step.model_dump(),
+                        workout_id=workout.id,
+                        position=position,
+                        group_position=group_position,
+                        kind=step_kind(step.label),
+                    )
+                )
+                position += 1
 
     def _refresh_matches(self, session):
         from .adaptation import match_activities
-        from .compliance import score_steps
 
         session.flush()
         session.execute(delete(MatchRow))
         if session.scalar(select(PlanRow.id)) is not None:
             plan = self._plan(session)
-            workouts = {w.id: w for w in plan.workouts}
-            laps = {}
-            for row in session.scalars(select(ActivityLapRow).order_by(ActivityLapRow.position)):
-                laps.setdefault(row.activity_id, []).append(RunLap(**fields(row, RunLap)))
             matches = match_activities(plan, self._activities(session))
             session.add_all(MatchRow(**match) for match in matches)
             session.flush()
-            for match in matches:
-                result = score_steps(
-                    workouts[match["workout_id"]], laps.get(match["activity_id"], [])
-                )
+            for result in self._step_compliance(session).values():
                 session.add_all(
                     StepComplianceRow(workout_id=result.workout_id, **step.model_dump())
                     for step in result.steps
                 )
 
+    def _step_compliance(self, session) -> dict[str, RunCompliance]:
+        from .compliance import score_steps
+
+        matches = list(session.scalars(select(MatchRow)))
+        if not matches:
+            return {}
+        workouts = {workout.id: workout for workout in self._plan(session).workouts}
+        laps = {}
+        for row in session.scalars(
+            select(ActivityLapRow)
+            .join(MatchRow, MatchRow.activity_id == ActivityLapRow.activity_id)
+            .order_by(ActivityLapRow.position)
+        ):
+            laps.setdefault(row.activity_id, []).append(RunLap(**fields(row, RunLap)))
+        return {
+            match.activity_id: score_steps(
+                workouts[match.workout_id], laps.get(match.activity_id, [])
+            )
+            for match in matches
+        }
+
     def step_compliance(self) -> dict[str, RunCompliance]:
         with self.transaction() as session:
-            scores = {}
-            for row in session.scalars(
-                select(StepComplianceRow).order_by(StepComplianceRow.position)
-            ):
-                scores.setdefault(row.workout_id, []).append(
-                    StepCompliance(**fields(row, StepCompliance))
-                )
-            result = {}
-            for row in session.scalars(select(MatchRow)):
-                steps = scores.get(row.workout_id, [])
-                if steps:
-                    known = [step.score for step in steps if step.score is not None]
-                    result[row.activity_id] = RunCompliance(
-                        workout_id=row.workout_id,
-                        score=sum(known) / len(known) if known else None,
-                        scored_steps=len(known),
-                        missing_steps=len(steps) - len(known),
-                        steps=steps,
-                    )
-            return result
+            return self._step_compliance(session)
 
     def save_readiness(self, readiness: DailyReadiness):
         with self.transaction() as session:
@@ -317,15 +410,8 @@ class Store:
                 raise ValueError("This workout already has a confirmed daily change.")
             session.get(WorkoutRow, workout.id).kind = workout.kind
             session.execute(delete(StepRow).where(StepRow.workout_id == workout.id))
-            session.add_all(
-                StepRow(
-                    workout_id=workout.id,
-                    position=i,
-                    kind=step_kind(step.label),
-                    **step.model_dump(),
-                )
-                for i, step in enumerate(workout.steps)
-            )
+            session.execute(delete(RepeatRow).where(RepeatRow.workout_id == workout.id))
+            self._write_steps(session, workout)
             session.add(
                 DailyAdjustmentRow(
                     workout_id=workout.id,
@@ -346,9 +432,20 @@ class Store:
             for row in session.scalars(select(ActivityRow).order_by(ActivityRow.id))
         ]
 
-    def activities(self) -> list[Activity]:
+    def activities(self, *, include_cadence: bool = False) -> list[Activity]:
         with self.transaction() as session:
-            return self._activities(session)
+            activities = self._activities(session)
+            if include_cadence:
+                cadences = dict(
+                    session.execute(
+                        select(ActivityDetailRow.activity_id, ActivityDetailRow.average_cadence_spm)
+                    ).all()
+                )
+                for activity in activities:
+                    cadence = cadences.get(activity.id)
+                    if cadence is not None:
+                        activity.metrics = RunMetrics(average_cadence_spm=cadence)
+            return activities
 
     def save_sync(
         self, activities: list[Activity], since: str, until: str, *, today: date | None = None
@@ -474,11 +571,12 @@ class Store:
                     select(StepRow).join(WorkoutRow).where(WorkoutRow.plan_id == plan.id)
                 )
             }
-            # Adaptation only changes durations. Keep workout identity and every remote ledger row.
+            # Scale time and distance while keeping workout identity and every remote ledger row.
             for workout in plan.workouts:
-                for position, step in enumerate(workout.steps):
+                for position, step in enumerate(executable_steps(workout.steps)):
                     row = steps[workout.id, position]
                     row.minutes = step.minutes
+                    row.distance_m = step.distance_m
             session.add(
                 AdjustmentRow(
                     plan_id=plan.id, **adjustment.model_dump(exclude={"applied"}), applied=True

@@ -4,7 +4,7 @@ import pytest
 
 from stride_coach.activity_models import RunLap
 from stride_coach.compliance import score_steps
-from stride_coach.models import Activity, Step
+from stride_coach.models import Activity, Kind, Step
 from stride_coach.service import Coach, SyncRequest
 
 
@@ -93,7 +93,7 @@ def test_single_step_auto_laps_weighted_by_time_and_zero_sensors(plan):
 
 def test_scores_persist_refresh_and_clear_with_matches(store):
     coach = Coach(store)
-    planned = store.plan().workouts[0]
+    planned = next(w for w in store.plan().workouts if w.kind == Kind.LONG)
     step = planned.steps[0]
     run = Activity(
         id="compliance-run",

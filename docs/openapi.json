@@ -484,13 +484,13 @@
         "title": "DailyAdaptRequest",
         "type": "object"
       },
-      "DailyProposal": {
+      "DailyProposalView": {
         "additionalProperties": false,
         "properties": {
           "after": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Workout"
+                "$ref": "#/components/schemas/WorkoutSummary"
               },
               {
                 "type": "null"
@@ -505,7 +505,7 @@
           "before": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Workout"
+                "$ref": "#/components/schemas/WorkoutSummary"
               },
               {
                 "type": "null"
@@ -556,7 +556,7 @@
           "readiness",
           "reasons"
         ],
-        "title": "DailyProposal",
+        "title": "DailyProposalView",
         "type": "object"
       },
       "DailyReadiness": {
@@ -1233,6 +1233,41 @@
           }
         },
         "title": "RemoveRequest",
+        "type": "object"
+      },
+      "RepeatGroup": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "repetitions": {
+            "maximum": 100.0,
+            "minimum": 2.0,
+            "title": "Repetitions",
+            "type": "integer"
+          },
+          "skip_last_rest": {
+            "default": false,
+            "title": "Skip Last Rest",
+            "type": "boolean"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            },
+            "minItems": 1,
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "label",
+          "repetitions",
+          "steps"
+        ],
+        "title": "RepeatGroup",
         "type": "object"
       },
       "RunCompliance": {
@@ -2166,7 +2201,7 @@
           },
           "daily_adjustments": {
             "items": {
-              "$ref": "#/components/schemas/DailyProposal"
+              "$ref": "#/components/schemas/DailyProposalView"
             },
             "title": "Daily Adjustments",
             "type": "array"
@@ -2230,6 +2265,54 @@
       "Step": {
         "additionalProperties": false,
         "properties": {
+          "cadence_max": {
+            "anyOf": [
+              {
+                "maximum": 250.0,
+                "minimum": 60.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cadence Max"
+          },
+          "cadence_min": {
+            "anyOf": [
+              {
+                "maximum": 250.0,
+                "minimum": 60.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cadence Min"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance M"
+          },
+          "end_condition": {
+            "default": "time",
+            "enum": [
+              "time",
+              "distance",
+              "lap"
+            ],
+            "title": "End Condition",
+            "type": "string"
+          },
           "hr_max": {
             "anyOf": [
               {
@@ -2254,11 +2337,25 @@
             ],
             "title": "Hr Min"
           },
+          "hr_zone": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hr Zone"
+          },
           "label": {
             "title": "Label",
             "type": "string"
           },
           "minutes": {
+            "description": "Estimated minutes, including distance and Lap steps",
             "exclusiveMinimum": 0.0,
             "title": "Minutes",
             "type": "number"
@@ -2286,6 +2383,19 @@
               }
             ],
             "title": "Pace Min"
+          },
+          "preferred_hr_zone": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Hr Zone"
           }
         },
         "required": [
@@ -2706,53 +2816,6 @@
         "title": "WeekView",
         "type": "object"
       },
-      "Workout": {
-        "additionalProperties": false,
-        "properties": {
-          "cutback": {
-            "default": false,
-            "title": "Cutback",
-            "type": "boolean"
-          },
-          "day": {
-            "format": "date",
-            "title": "Day",
-            "type": "string"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "kind": {
-            "$ref": "#/components/schemas/Kind"
-          },
-          "phase": {
-            "title": "Phase",
-            "type": "string"
-          },
-          "steps": {
-            "items": {
-              "$ref": "#/components/schemas/Step"
-            },
-            "title": "Steps",
-            "type": "array"
-          },
-          "week": {
-            "title": "Week",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id",
-          "day",
-          "week",
-          "phase",
-          "kind",
-          "steps"
-        ],
-        "title": "Workout",
-        "type": "object"
-      },
       "WorkoutSummary": {
         "additionalProperties": false,
         "properties": {
@@ -2782,9 +2845,24 @@
             "title": "Phase",
             "type": "string"
           },
+          "step_descriptions": {
+            "items": {
+              "type": "string"
+            },
+            "readOnly": true,
+            "title": "Step Descriptions",
+            "type": "array"
+          },
           "steps": {
             "items": {
-              "$ref": "#/components/schemas/Step"
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Step"
+                },
+                {
+                  "$ref": "#/components/schemas/RepeatGroup"
+                }
+              ]
             },
             "title": "Steps",
             "type": "array"
@@ -2801,6 +2879,7 @@
           "phase",
           "kind",
           "steps",
+          "step_descriptions",
           "name"
         ],
         "title": "WorkoutSummary",
@@ -3167,7 +3246,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DailyProposal"
+                  "$ref": "#/components/schemas/DailyProposalView"
                 }
               }
             },
@@ -3230,7 +3309,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DailyProposal"
+                  "$ref": "#/components/schemas/DailyProposalView"
                 }
               }
             },

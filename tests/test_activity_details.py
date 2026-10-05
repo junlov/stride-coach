@@ -80,6 +80,7 @@ def capture_client(monkeypatch, tmp_path):
     monkeypatch.setenv("STRIDE_COACH_FIT_DIR", str(tmp_path / "fit"))
     monkeypatch.setattr("stride_coach.activity_capture.time.sleep", Mock())
     api = SimpleNamespace(
+        connectapi=Mock(return_value=[]),
         get_activity=Mock(return_value=payload("summary")),
         get_activity_splits=Mock(return_value=payload("laps")),
         get_activity_hr_in_timezones=Mock(return_value=payload("zones")),
@@ -474,7 +475,8 @@ def test_stream_descriptor_units_and_double_cadence():
     assert result.speed_m_s == pytest.approx([3, 3])
 
 
-def test_run_data_then_sync_migration_preserves_data(store):
+def test_run_data_then_sync_migration_preserves_data(legacy_store):
+    store = legacy_store
     activity = fixture_activity()
     save(store, activity)
     with store.connection.begin():

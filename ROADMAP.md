@@ -19,7 +19,7 @@ and reading the current week offline.
 ## Later: Release 2
 
 Deepen training review and continuity: effort ratings and notes, run classification and
-match corrections, moving workouts, interval repeat blocks, and starting a new race plan
+match corrections, moving workouts, and starting a new race plan
 after finishing the current one.
 
 ## Jobs

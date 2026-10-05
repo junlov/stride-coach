@@ -11,20 +11,30 @@ import {
   Notice,
   QueryState,
 } from "./ui";
+import { WorkoutGraph } from "./workout-graph";
 import { useQuery } from "../state/query";
 export function pace(seconds: number) {
   const rounded = Math.round(seconds);
   return `${Math.floor(rounded / 60)}:${String(rounded % 60).padStart(2, "0")}`;
 }
-export const workoutMinutes = (workout: Schema<"Workout">) =>
-  workout.steps.reduce((sum, step) => sum + step.minutes, 0);
+type WorkoutStep = Schema<"Step"> | Schema<"RepeatGroup">;
+export function stepMinutes(step: WorkoutStep): number {
+  return "steps" in step
+    ? step.repetitions *
+        step.steps.reduce((sum, child) => sum + child.minutes, 0) -
+        (step.skip_last_rest ? step.steps[step.steps.length - 1].minutes : 0)
+    : step.minutes;
+}
+export const workoutMinutes = (
+  workout: Pick<Schema<"WorkoutSummary">, "steps">,
+) => workout.steps.reduce((sum, step) => sum + stepMinutes(step), 0);
 export function WorkoutCard({
   workout,
   hero = false,
   match,
   children,
 }: {
-  workout: Schema<"Workout"> | Schema<"WorkoutSummary">;
+  workout: Schema<"WorkoutSummary">;
   hero?: boolean;
   children?: ReactNode;
   match?: Schema<"Match">;
@@ -37,7 +47,7 @@ export function WorkoutCard({
         {workout.cutback ? "Cutback" : workout.phase} · Week {workout.week}
       </Badge>
       <Heading>
-        {workout.day} · {"name" in workout ? workout.name : workout.kind}
+        {workout.day} · {workout.name}
       </Heading>
       {hero ? (
         <Hero value={Math.round(workoutMinutes(workout))} unit="min" />
@@ -47,16 +57,9 @@ export function WorkoutCard({
           {workout.cutback ? " · Cutback" : ""}
         </Copy>
       )}
-      {workout.steps.map((step, i) => (
-        <Muted key={i}>
-          {step.label}: {step.minutes.toFixed(1)} min
-          {step.pace_min && step.pace_max
-            ? ` · ${pace(step.pace_min)} to ${pace(step.pace_max)} /km`
-            : ""}
-          {step.hr_min && step.hr_max
-            ? ` · ${step.hr_min} to ${step.hr_max} bpm`
-            : ""}
-        </Muted>
+      <WorkoutGraph workout={workout} />
+      {workout.steps.map((_, i) => (
+        <Muted key={i}>{workout.step_descriptions[i]}</Muted>
       ))}
       {children}
       <Button

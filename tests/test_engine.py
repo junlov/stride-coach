@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from stride_coach.engine import estimate_fitness, generate_plan, make_steps, training_days, vdot
-from stride_coach.models import Activity, Athlete, Goal, Kind, Setup
+from stride_coach.models import Activity, Athlete, Goal, Kind, RepeatGroup, Setup, executable_steps
 
 
 def volumes(plan):
@@ -39,10 +39,10 @@ def test_planning_invariants(setup, runs, goal, days, long_day):
         assert any(w.day.weekday() == long_day for w in sessions)
     for workout in plan.workouts:
         assert workout.minutes > 0
-        assert all(s.pace_min or s.hr_min for s in workout.steps)
+        assert all(s.pace_min or s.hr_min for s in executable_steps(workout.steps))
     if goal == Goal.RETURN:
         assert all(w.kind == Kind.RUN_WALK for w in plan.workouts)
-        assert all(len(w.steps) == 12 for w in plan.workouts)
+        assert all(len(w.steps) == 1 and w.steps[0].repetitions == 6 for w in plan.workouts)
 
 
 def test_return_days_are_spaced():
@@ -79,7 +79,7 @@ def test_steps_total_and_targets(setup, runs, kind):
     for fitness in [estimated, estimate_fitness([], setup)]:
         steps = make_steps(kind, 40, fitness, setup, 5)
         assert sum(s.minutes for s in steps) == pytest.approx(40)
-        for s in steps:
+        for s in executable_steps(steps):
             if s.pace_min:
                 assert 0 < s.pace_min < s.pace_max
             else:
@@ -121,6 +121,10 @@ def test_return_running_minutes_progression(setup):
     plan = generate_plan(setup, [])
     running = defaultdict(float)
     for workout in plan.workouts:
-        running[workout.week] += sum(s.minutes for s in workout.steps if s.label == "Run gently")
+        running[workout.week] += sum(
+            block.repetitions * sum(s.minutes for s in block.steps if s.label == "Run gently")
+            for block in workout.steps
+            if isinstance(block, RepeatGroup)
+        )
     values = list(running.values())
     assert all(b <= a * 1.1 for a, b in zip(values, values[1:], strict=False))
