@@ -135,10 +135,10 @@ A recent marked effort provides a VDOT-style estimate. Garmin averages are not a
 classified as maximal efforts. Without one, the engine uses recent easy paces or HR targets.
 `sync --activities PATH --since DATE --until DATE` imports normalized data offline.
 
-Each successful regular sync replaces stored activities within the inclusive date range,
-including removal of activities absent from the result.
-For an offline import, supply the complete activity list for that range.
-An empty list clears that range.
+Each successful regular sync adds or updates activities by ID within the inclusive date range.
+Activities absent from the response are preserved, including walks and rides omitted by
+Garmin's running-only fetch. Offline imports can supply a partial activity list.
+An empty list leaves stored activities unchanged. Sync does not propagate activity deletions.
 
 ## Garmin authentication and first live check
 

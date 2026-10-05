@@ -39,6 +39,7 @@ from stride_coach.database import check_schema, migration_config
 from stride_coach.db_models import (
     ActivityDetailRow,
     ActivityLapRow,
+    ActivityRow,
     ActivitySplitRow,
     ActivityStreamRow,
     ActivityZoneRow,
@@ -406,6 +407,11 @@ def test_summary_only_unknown_format_and_cascade(store):
     with pytest.raises(ValueError, match="Unsupported"):
         read_streams(store, "plain")
     store.save_sync([], str(DAY), str(DAY))
+    with store.transaction() as session:
+        assert session.get(ActivityDetailRow, "plain") is not None
+        assert session.get(ActivityStreamRow, "plain") is not None
+        # Only an explicit deletion should cascade to the captured data.
+        session.delete(session.get(ActivityRow, "plain"))
     with store.transaction() as session:
         assert session.get(ActivityDetailRow, "plain") is None
         assert session.get(ActivityStreamRow, "plain") is None
