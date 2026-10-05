@@ -14,6 +14,7 @@ from synthetic_database import synthetic_database
 
 from stride_coach.api import ServerConfig, create_app
 from stride_coach.models import Activity
+from stride_coach.storage import Store
 
 
 class SyntheticGarmin:
@@ -47,6 +48,18 @@ def main():
             ),
             client_factory=SyntheticGarmin,
         )
+        today = date.today()
+        non_runs = [
+            Activity(
+                id=f"synthetic-{sport}", sport=sport, day=today, distance_km=1, duration_min=20
+            )
+            for sport in ("walking", "cycling", "strength_training")
+        ]
+        store = Store()
+        try:
+            store.save_sync(non_runs, str(today), str(today), today=today)
+        finally:
+            store.close()
         with socket.socket() as sock:
             sock.bind(("127.0.0.1", 0))
             port = sock.getsockname()[1]
@@ -70,11 +83,29 @@ def main():
                 vault = app.state.garmin_connection.vault
                 with vault.locked():
                     vault.write({"tokens": "synthetic-session", "generation": "demo"})
-                response = client.post("/sync/open")
-                response.raise_for_status()
+                # The history worker can briefly hold the shared sync lock at startup.
+                for _ in range(100):
+                    response = client.post("/sync/open")
+                    response.raise_for_status()
+                    if response.json()["latest"] is not None:
+                        break
+                    assert response.json()["skipped"]
+                    time.sleep(0.05)
                 assert response.json()["latest"]["activity_count"] == 1
                 assert client.post("/sync/open").json()["skipped"]
                 print("app-open: one run synced; repeat skipped by persisted interval")
+                for activity in non_runs:
+                    response = client.get(f"/activities/{activity.id}")
+                    response.raise_for_status()
+                    assert response.json()["sport"] == activity.sport
+                response = client.post("/sync", json={"since": str(today), "until": str(today)})
+                response.raise_for_status()
+                assert response.json()["synced"] == 1
+                for activity in non_runs:
+                    response = client.get(f"/activities/{activity.id}")
+                    response.raise_for_status()
+                    assert response.json()["sport"] == activity.sport
+                print("preservation: walks, rides, and strength survive app-open and manual sync")
                 response = client.post("/sync/history", json={"range": "12-weeks"})
                 response.raise_for_status()
                 job = response.json()

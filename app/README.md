@@ -145,21 +145,23 @@ Today, Week and Plan link to Actions. A missing-plan error links to Goal setup.
   The server remains authoritative for validation and uses activities already stored there.
 - **Progress:** `/load` and `/compliance`, including missing-heart-rate notices.
 - **Actions:** sync Garmin activities into the server; review adjustment reasons before applying;
-  preview a selected week or all future workouts before pushing to Garmin.
+  preview a Garmin push, optionally filtered by week.
+  See the [calendar workflow](../docs/self-hosting.md#garmin-calendar-window) for window limits, combined previews, and cleanup.
   Push previews show workout names, dates, step durations or distances, and targets.
   Show payload details reveals the raw payload.
   Removal previews list ownership candidates across all weeks, including workouts never uploaded.
   These counts do not establish how many remote workouts exist. Live removal affects only matching Garmin workouts.
 - **Settings:** secure server connection storage, an explicit server test, and Garmin login/MFA, status, and disconnect.
 
-Push and removal first send `dry_run: true, apply: false`. Only the separate **Confirm live**
-button sends `dry_run: false, apply: true`. Editing the week, cancelling, changing connections,
+The separate manual push and removal actions first send `dry_run: true, apply: false`.
+Their **Confirm live** button sends `dry_run: false, apply: true`.
+Editing the week, cancelling, changing connections,
 or leaving the Actions screen invalidates the preview. Empty or failed previews cannot be
 confirmed. Weekly adjustment eligibility and confirmation follow the
 [weekly loop](../README.md#weekly-loop). For daily changes, see
 [recovery and step feedback](#recovery-and-step-feedback).
 If the server rejects a stale proposal, tap **Preview adjustment** and review it again.
-Garmin push and removal recalculate operations on confirmation without an immutable preview identifier.
+The separate Garmin push and manual removal actions recalculate operations on confirmation without an immutable preview identifier.
 Avoid concurrent changes from another client while reviewing those operations.
 For failed writes, follow the [recovery guidance](#runner-design-and-api-limits) before another attempt.
 The app shows errors, including 401 and timeouts, on screen. Read screens offer Retry and reload on focus or app resume.
@@ -352,8 +354,8 @@ Today shows the current server-day Training Readiness, HRV status, and sleep sco
 unavailable readings labeled. A poor-recovery proposal links to Actions. Tap **Preview
 tomorrow's change** to review the current and proposed workout plus reasons, then **Confirm
 tomorrow’s change** to save it. Cancelling makes no change. A stale preview must be reviewed
-again. A saved change appears in Progress. Existing Garmin workouts require a separate
-**Preview Garmin push** and live confirmation to update the watch.
+again. A saved change appears in Progress.
+For Garmin updates, use the [calendar workflow](../docs/self-hosting.md#garmin-calendar-window).
 
 Opening a matched run shows **Step compliance**, including scored/unavailable counts, each
 step's duration check, and its lap-average target result. See the

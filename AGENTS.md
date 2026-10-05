@@ -5,7 +5,7 @@
 - Run detail/import schema, GPS privacy, FIT archives, and resumable backfill: docs/activity-data.md. Synthetic end-to-end proof and storage measurements: examples/run_data_demo.py.
 - Training rules, weekly adaptation, daily recovery proposals, and lap scoring: docs/training-rules.md; code lives in src/stride_coach/engine.py, adaptation.py, recovery.py, and compliance.py. Synthetic recovery proof: examples/recovery_demo.py.
 - Structured workout repeats, target-zone fallback and synthetic Garmin payload proof: docs/training-rules.md and examples/workout_structure_demo.py.
-- Garmin connection, token storage, and recovery rules: README.md, docs/architecture.md, and src/stride_coach/garmin_auth.py. Tests/CI use synthetic Garmin responses only.
+- Garmin connection, token storage, and recovery rules: README.md, docs/architecture.md, and src/stride_coach/garmin_auth.py. Calendar window and confirmed cleanup: docs/self-hosting.md#garmin-calendar-window and examples/calendar_demo.py. Tests/CI use synthetic Garmin responses only.
 - Keep tokens, personal activity data, database backups, legacy SQLite files, and local demo outputs untracked. The offline demo uses synthetic data only.
 - CLI, MCP, and HTTP share src/stride_coach/service.py. MCP stays read-only; CLI/API Garmin writes require explicit apply. Remote MCP and stdio setup: README.md, "Connect Claude to your coach". Synthetic HTTP/MCP proof: examples/api_demo.py.
 - Mobile API contract: docs/openapi.json, regenerated with uv run python examples/export_openapi.py. See README.md for bearer auth and HTTPS deployment.

@@ -14,7 +14,7 @@ from .activity_storage import read_detail, read_streams
 from .adaptation import adapt as adapt_week
 from .adaptation import propose, week_metrics
 from .engine import generate_plan
-from .garmin import GarminClient, GarminError
+from .garmin import GarminClient, GarminError, calendar_fingerprint, reconcile_calendar
 from .garmin import push as push_workouts
 from .garmin import remove as remove_workouts
 from .garmin_auth import DEFAULT_TOKENS as DEFAULT_TOKENS
@@ -123,6 +123,8 @@ class Status(Record):
     adjustments: list[Adjustment]
     sync_status: SyncStatus | None = None
     daily_adjustments: list[DailyProposalView] = Field(default_factory=list)
+    garmin_out_of_date: bool = True
+    garmin_window_days: int = 14
 
 
 class Proposal(Record):
@@ -138,6 +140,25 @@ class WriteResult(Record):
     workout_id: str | None = None
     remote_id: str | None = None
     ownership_tag: str | None = None
+    reason: str | None = None
+
+
+class CalendarSettings(Record):
+    window_days: int = Field(default=14, ge=7, le=28, strict=True)
+
+
+class CalendarRequest(Record):
+    apply: bool = False
+    preview_id: str | None = None
+
+
+class CalendarResult(Record):
+    window_days: int
+    since: date
+    until: date
+    preview_id: str
+    applied: bool
+    changes: list[WriteResult]
 
 
 class GoalRequest(Record):
@@ -266,18 +287,24 @@ class Coach:
                 DailyProposalView.model_validate(proposal.model_dump())
                 for proposal in store.daily_adjustments()
             ],
+            garmin_window_days=store.calendar_settings()["window_days"],
+            garmin_out_of_date=(
+                store.calendar_settings()["synced_fingerprint"]
+                != calendar_fingerprint(store, date.today())
+            ),
         )
 
     def push(self, request: PushRequest, today: date | None = None) -> list[WriteResult]:
         if request.apply and request.dry_run:
             raise ValueError("Choose apply or dry_run, not both")
         today = today or date.today()
+        end = today + timedelta(days=self.store.calendar_settings()["window_days"])
         selected = [
             w
             for w in self.plan().workouts
             if (request.week is None or w.week == request.week)
             and (request.workout is None or w.id == request.workout)
-            and w.day >= today
+            and today <= w.day < end
         ]
         if not selected:
             raise ValueError("No future workouts match this selection")
@@ -286,6 +313,24 @@ class Coach:
             WriteResult(**r)
             for r in push_workouts(self.store, selected, client, dry_run=not request.apply)
         ]
+
+    def calendar_settings(self) -> CalendarSettings:
+        return CalendarSettings(window_days=self.store.calendar_settings()["window_days"])
+
+    def save_calendar_settings(self, request: CalendarSettings) -> CalendarSettings:
+        self.store.save_calendar_settings(request.window_days)
+        return self.calendar_settings()
+
+    def calendar(self, request: CalendarRequest, today: date | None = None) -> CalendarResult:
+        return CalendarResult(
+            **reconcile_calendar(
+                self.store,
+                self.client_factory(self.token_dir),
+                today or date.today(),
+                apply=request.apply,
+                preview_id=request.preview_id,
+            )
+        )
 
     def remove(self, request: RemoveRequest) -> list[WriteResult]:
         if request.apply and request.dry_run:

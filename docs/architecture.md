@@ -81,7 +81,8 @@ The lock uses the same connection as ledger writes and survives their commits. P
 it when that connection closes. Migrations and token persistence use separate advisory keys.
 Use direct or session-pooled connections; transaction pooling is unsupported.
 Sync holds this lock throughout fetching and saving, so concurrent fetches cannot commit snapshots out of order.
-Activity replacement and fetched-range and complete-day coverage records commit in one PostgreSQL transaction.
+Activity upserts and fetched-range and complete-day coverage records commit in one PostgreSQL transaction.
+See [sync behavior](../README.md#plan-and-review) for activity preservation and offline import requirements.
 The latest sync replaces both coverage records, rather than merging coverage across separate syncs.
 See the [weekly loop](../README.md#weekly-loop) for adaptation coverage requirements.
 
@@ -89,6 +90,14 @@ Before create or schedule, a committed intent marks the operation pending. A res
 after Garmin accepted a write can be recovered from the ownership tag/calendar entry.
 If that evidence is missing, retry stops. This trades automatic availability for avoiding
 duplicate remote writes; there is no claim of distributed exactly-once delivery.
+
+Before unscheduling a cached workout, the server commits an intent, a record of the pending operation.
+This record survives failed reads and process restarts. On retry, fresh ownership and calendar evidence
+must show that the schedule is absent before the server clears its cached scheduling state.
+
+If inventory and calendar reads show that the remote workout is gone, the server clears its cached mapping.
+A pending upload still blocks this cleanup. These rules let interrupted removals recover when the calendar window advances.
+See the removal recovery regressions in [test_garmin_calendar.py](../tests/test_garmin_calendar.py).
 
 Do not run concurrent writers from separate database copies. Do not manually delete the
 write-intent metadata to bypass uncertainty. Removing a pending upload that cannot be found

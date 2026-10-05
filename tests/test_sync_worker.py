@@ -67,6 +67,21 @@ def test_time_and_disabled_daily_still_process_history(worker, monkeypatch):
     assert not worker.client_factory.called
 
 
+@pytest.mark.parametrize("source", ["daily", "app-open"])
+def test_automatic_sync_preserves_non_runs(worker, store, source):
+    activities = [
+        run(sport).model_copy(update={"sport": sport})
+        for sport in ("walking", "cycling", "strength_training")
+    ]
+    store.save_sync(activities, str(NOW.date()), str(NOW.date()), today=NOW.date())
+    worker.client_factory.return_value.activities.return_value = [run("new-run")]
+    result = worker.automatic(store, source, NOW)
+    assert result.latest.result == "success"
+    assert result.latest.activity_count == 1
+    assert {a.id for a in store.activities()} == {"new-run", *(a.id for a in activities)}
+    assert all(a in store.activities() for a in activities)
+
+
 def test_disconnected_skips_silently_without_adapter_or_plan(worker, database):
     worker.connection.logout()
     store = Store(database)

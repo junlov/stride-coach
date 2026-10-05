@@ -160,14 +160,14 @@ test.each(["push", "remove"] as const)(
 test("changing week invalidates preview and cancellation never applies", async () => {
   await mount(<ActionsScreen />);
   await fireEvent.changeText(
-    await screen.findByLabelText("Week (blank pushes all future weeks)"),
+    await screen.findByLabelText("Week (optional, limited to Garmin window)"),
     "2",
   );
   await fireEvent.press(screen.getByText("Preview Garmin push"));
   await screen.findByText("Confirm live Garmin push");
   expect(bodies("/push")).toEqual([{ week: 2, dry_run: true, apply: false }]);
   await fireEvent.changeText(
-    screen.getByLabelText("Week (blank pushes all future weeks)"),
+    screen.getByLabelText("Week (optional, limited to Garmin window)"),
     "3",
   );
   expect(screen.queryByText("Confirm live Garmin push")).toBeNull();
@@ -186,7 +186,7 @@ test("failed preview cannot be confirmed and displays authentication failure", a
 test("adapt shows reasons before applying and sync reports results", async () => {
   await mount(<ActionsScreen />);
   await fireEvent.changeText(
-    await screen.findByLabelText("Week (blank pushes all future weeks)"),
+    await screen.findByLabelText("Week (optional, limited to Garmin window)"),
     "2",
   );
   await fireEvent.press(screen.getByText("Preview adjustment"));
@@ -751,7 +751,7 @@ test("a stale adjustment asks for a new review without applying or retrying", as
   );
   await mount(<ActionsScreen />);
   await fireEvent.changeText(
-    await screen.findByLabelText("Week (blank pushes all future weeks)"),
+    await screen.findByLabelText("Week (optional, limited to Garmin window)"),
     "2",
   );
   await fireEvent.press(screen.getByText("Preview adjustment"));

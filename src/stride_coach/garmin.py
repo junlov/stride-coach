@@ -337,7 +337,53 @@ def owned_remote(client, inventory: list[dict], workout: Workout) -> dict | None
     return owned[0] if owned else None
 
 
-def push(store: Store, workouts: list[Workout], client=None, dry_run: bool = True) -> list[dict]:
+def reconcile_unschedule(store: Store, workout_id: str, remote: dict | None, events: list[dict]):
+    if not pending(store, f"unschedule:{workout_id}"):
+        return
+    cached = store.scheduled(workout_id)
+    if (
+        not cached
+        or not remote
+        or str(remote["workoutId"]) != cached["remote_id"]
+        or f"stride-coach:v1:{workout_id}" not in (remote.get("description") or "").splitlines()
+    ):
+        return
+    if any(
+        item.get("itemType") == "workout" and str(item.get("workoutId")) == cached["remote_id"]
+        for item in events
+    ):
+        return
+    store.save_remote(workout_id, cached["remote_id"], cached["fingerprint"], False)
+    pending(store, f"schedule:{workout_id}", False)
+    pending(store, f"unschedule:{workout_id}", False)
+
+
+def reconcile_cached_remote(
+    store: Store, workout_id: str, inventory: list[dict], events: list[dict]
+):
+    cached = store.scheduled(workout_id)
+    if not cached or pending(store, f"create:{workout_id}"):
+        return cached
+    remote_id = cached["remote_id"]
+    if any(str(item["workoutId"]) == remote_id for item in inventory) or any(
+        item.get("itemType") == "workout" and str(item.get("workoutId")) == remote_id
+        for item in events
+    ):
+        return cached
+    store.forget_remote(workout_id)
+    pending(store, f"schedule:{workout_id}", False)
+    pending(store, f"unschedule:{workout_id}", False)
+    return None
+
+
+def push(
+    store: Store,
+    workouts: list[Workout],
+    client=None,
+    dry_run: bool = True,
+    *,
+    inventory: list[dict] | None = None,
+) -> list[dict]:
     if dry_run:
         return [
             {"action": "preview", "date": w.day.isoformat(), "payload": workout_payload(w)}
@@ -350,12 +396,14 @@ def push(store: Store, workouts: list[Workout], client=None, dry_run: bool = Tru
         # Re-read after acquiring the lock, in case an adaptation changed the plan.
         ids = {w.id for w in workouts}
         workouts = [w for w in store.plan().workouts if w.id in ids]
-        inventory = workout_inventory(client)
+        inventory = workout_inventory(client) if inventory is None else list(inventory)
         for workout in workouts:
             payload = workout_payload(workout)
             digest = fingerprint(payload)
             remote = owned_remote(client, inventory, workout)
-            cached = store.scheduled(workout.id)
+            calendar = client.calendar(workout.day)
+            reconcile_unschedule(store, workout.id, remote, calendar)
+            cached = reconcile_cached_remote(store, workout.id, inventory, calendar)
             create_key, schedule_key = f"create:{workout.id}", f"schedule:{workout.id}"
             action = "skipped"
             if remote:
@@ -376,7 +424,6 @@ def push(store: Store, workouts: list[Workout], client=None, dry_run: bool = Tru
                 store.save_remote(workout.id, remote_id, digest, False)
                 pending(store, create_key, False)
                 action = "created"
-            calendar = client.calendar(workout.day)
             scheduled = any(
                 str(item.get("workoutId")) == remote_id
                 and item.get("date") == workout.day.isoformat()
@@ -394,6 +441,7 @@ def push(store: Store, workouts: list[Workout], client=None, dry_run: bool = Tru
                 action += "+scheduled"
             store.save_remote(workout.id, remote_id, digest, True)
             pending(store, schedule_key, False)
+            pending(store, f"unschedule:{workout.id}", False)
             output.append({"workout_id": workout.id, "remote_id": remote_id, "action": action})
     return output
 
@@ -406,18 +454,13 @@ def remove(store: Store, client=None, dry_run: bool = True) -> list[dict]:
         raise ValueError("A Garmin client is required for removal")
     output = []
     with store.lock():
+        store.calendar_synced(None)
         inventory = workout_inventory(client)
         for workout in workouts:
             remote = owned_remote(client, inventory, workout)
             if remote:
                 remote_id = str(remote["workoutId"])
-                for item in client.calendar(workout.day):
-                    if (
-                        item.get("itemType") == "workout"
-                        and str(item.get("workoutId")) == remote_id
-                    ):
-                        client.unschedule(str(item["id"]))
-                client.delete(remote_id)
+                delete_owned(store, client, remote, workout.id, client.calendar(workout.day))
                 inventory = [r for r in inventory if str(r["workoutId"]) != remote_id]
                 output.append({"remote_id": remote_id, "action": "removed"})
             elif pending(store, f"create:{workout.id}"):
@@ -428,4 +471,210 @@ def remove(store: Store, client=None, dry_run: bool = True) -> list[dict]:
             store.forget_remote(workout.id)
             pending(store, f"create:{workout.id}", False)
             pending(store, f"schedule:{workout.id}", False)
+            pending(store, f"unschedule:{workout.id}", False)
     return output
+
+
+def calendar_fingerprint(store: Store, today: date) -> str:
+    return fingerprint(
+        {
+            "plan": store.plan().model_dump(mode="json"),
+            "today": today.isoformat(),
+            "days": store.calendar_settings()["window_days"],
+        }
+    )
+
+
+def delete_owned(store: Store, client, remote: dict, workout_id: str, events: list[dict]):
+    """Share deletion mechanics while treating a fresh detail tag as authority."""
+    remote_id = str(remote["workoutId"])
+    detail = client.workout(remote_id)
+    if f"stride-coach:v1:{workout_id}" not in (detail.get("description") or "").splitlines():
+        raise GarminError("Workout ownership changed. Preview Garmin changes again.")
+    cached = store.scheduled(workout_id)
+    if cached and cached["remote_id"] == remote_id:
+        pending(store, f"unschedule:{workout_id}", True)
+    scheduled_events = [
+        item
+        for item in events
+        if item.get("itemType") == "workout" and str(item.get("workoutId")) == remote_id
+    ]
+    try:
+        for item in scheduled_events:
+            client.unschedule(str(item["id"]))
+    except GarminError:
+        try:
+            months = {date.fromisoformat(item["date"]).replace(day=1) for item in scheduled_events}
+            fresh_events = [item for month in sorted(months) for item in client.calendar(month)]
+            reconcile_unschedule(store, workout_id, client.workout(remote_id), fresh_events)
+        except GarminError:
+            pass
+        raise
+    reconcile_unschedule(store, workout_id, detail, [])
+    client.delete(remote_id)
+    store.forget_remote(workout_id)
+    pending(store, f"create:{workout_id}", False)
+    pending(store, f"schedule:{workout_id}", False)
+
+
+def reconcile_calendar(store: Store, client, today: date, *, apply=False, preview_id=None):
+    """Read remote inventory for a bounded plan, then apply only a confirmed snapshot."""
+    import re
+    from datetime import timedelta
+
+    from .adaptation import match_activities
+
+    with store.lock():
+        plan = store.plan()
+        days = store.calendar_settings()["window_days"]
+        end = today + timedelta(days=days)
+        desired = [w for w in plan.workouts if today <= w.day < end]
+        by_id = {w.id: w for w in plan.workouts}
+        activities = store.activities()
+        completed = {m["workout_id"] for m in match_activities(plan, activities)}
+        inventory = client.workouts()
+        owned = {}
+        dates = {w.day for w in plan.workouts} | {today, end}
+        # Inventory summaries may omit descriptions. Detail is the only authority,
+        # including old or renamed workouts that are no longer in the local plan.
+        for item in inventory:
+            remote = client.workout(str(item["workoutId"]))
+            match = next(
+                (
+                    match
+                    for line in (remote.get("description") or "").splitlines()
+                    if (match := re.fullmatch(r"stride-coach:v1:(.+)", line))
+                ),
+                None,
+            )
+            if not match:
+                continue
+            workout_id = match[1]
+            if workout_id in owned:
+                raise GarminError(
+                    "Multiple workouts share an ownership tag; resolve duplicates in Garmin."
+                )
+            owned[workout_id] = remote
+            try:
+                dates.add(date.fromisoformat(workout_id[-10:]))
+            except ValueError:
+                pass
+        events = {}
+        for year, month in sorted({(d.year, d.month) for d in dates}):
+            for item in client.calendar(date(year, month, 1)):
+                if item.get("itemType") == "workout":
+                    events[str(item["id"])] = item
+        for workout in plan.workouts:
+            reconcile_unschedule(store, workout.id, owned.get(workout.id), list(events.values()))
+            reconcile_cached_remote(store, workout.id, inventory, list(events.values()))
+        changes = []
+        for workout in desired:
+            remote = owned.get(workout.id)
+            payload = workout_payload(workout)
+            cached = store.scheduled(workout.id)
+            remote_id = str(remote["workoutId"]) if remote else None
+            scheduled = any(
+                str(e.get("workoutId")) == remote_id and e.get("date") == workout.day.isoformat()
+                for e in events.values()
+            )
+            if not remote:
+                if cached or pending(store, f"create:{workout.id}"):
+                    raise GarminError(
+                        "Previous upload is unresolved. Inspect Garmin before retrying."
+                    )
+                action = "create"
+            elif not cached or cached["fingerprint"] != fingerprint(payload):
+                action = "update"
+            elif not scheduled:
+                action = "schedule"
+            else:
+                continue
+            if (
+                remote
+                and not scheduled
+                and (pending(store, f"schedule:{workout.id}") or (cached and cached["scheduled"]))
+            ):
+                raise GarminError(
+                    "Previous calendar write is unresolved. Inspect Garmin before retrying."
+                )
+            changes.append(
+                {
+                    "action": action,
+                    "workout_id": workout.id,
+                    "remote_id": remote_id,
+                    "date": workout.day.isoformat(),
+                    "payload": payload,
+                }
+            )
+        for workout_id, remote in owned.items():
+            workout = by_id.get(workout_id)
+            scheduled_events = [
+                e for e in events.values() if str(e.get("workoutId")) == str(remote["workoutId"])
+            ]
+            past = [e for e in scheduled_events if str(e.get("date", "")) < today.isoformat()]
+            reason = None
+            if workout is None:
+                reason = "No longer in the plan"
+            elif workout.day >= end:
+                reason = "Outside the Garmin window"
+            elif workout.day < today and workout_id not in completed:
+                # A missing local activity alone is not proof of non-completion.
+                coverage = store.sync_window(complete=True)
+                missed_dates = {workout.day.isoformat()} | {e["date"] for e in past}
+                if coverage and all(
+                    coverage["since"] <= day <= coverage["until"] for day in missed_dates
+                ):
+                    reason = "Past workout without a completed run in synced history"
+            if reason:
+                changes.append(
+                    {
+                        "action": "remove",
+                        "workout_id": workout_id,
+                        "remote_id": str(remote["workoutId"]),
+                        "ownership_tag": f"stride-coach:v1:{workout_id}",
+                        "date": workout.day.isoformat() if workout else None,
+                        "reason": reason,
+                    }
+                )
+        changes.sort(key=lambda c: (c["workout_id"], c["action"]))
+        digest = calendar_fingerprint(store, today)
+        snapshot = fingerprint(
+            {
+                "plan": digest,
+                "changes": changes,
+                "owned": owned,
+                "events": sorted(events.values(), key=lambda e: str(e["id"])),
+            }
+        )
+        if apply:
+            if not preview_id or preview_id != snapshot:
+                raise ValueError("Garmin preview changed or is missing. Preview and confirm again.")
+            store.calendar_synced(None)
+            for change in changes:
+                if change["action"] == "remove":
+                    delete_owned(
+                        store,
+                        client,
+                        owned[change["workout_id"]],
+                        change["workout_id"],
+                        list(events.values()),
+                    )
+                    del owned[change["workout_id"]]
+            # The existing push path retains durable create/schedule recovery guards.
+            changed_ids = {c["workout_id"] for c in changes if c["action"] != "remove"}
+            push(
+                store,
+                [w for w in desired if w.id in changed_ids],
+                client,
+                dry_run=False,
+                inventory=list(owned.values()),
+            )
+            store.calendar_synced(digest)
+        return {
+            "window_days": days,
+            "since": today,
+            "until": end - timedelta(days=1),
+            "preview_id": snapshot,
+            "applied": apply,
+            "changes": changes,
+        }

@@ -223,10 +223,8 @@ mapping under the existing write lock. A fresh sync or intervening plan change r
 preview. The plan edit and its reasons/before/after evidence commit together. Repeating an
 accepted fingerprint returns its saved result without changing the plan again.
 
-If the workout was already sent to Garmin, confirmation only changes the local plan. Review
-and confirm the existing Garmin push to update that same owned workout. The existing removal
-preview remains available separately and still covers all owned workouts. No recovery read,
-proposal, or local confirmation writes to Garmin automatically.
+Confirmation only changes the local plan. No recovery read, proposal, or local confirmation writes to Garmin automatically.
+For Garmin updates and removal scope, see the [calendar workflow](self-hosting.md#garmin-calendar-window).
 
 ## Garmin field evidence and supported fallbacks
 

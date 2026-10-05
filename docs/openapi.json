@@ -302,6 +302,87 @@
         "title": "BackfillResult",
         "type": "object"
       },
+      "CalendarRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "apply": {
+            "default": false,
+            "title": "Apply",
+            "type": "boolean"
+          },
+          "preview_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Id"
+          }
+        },
+        "title": "CalendarRequest",
+        "type": "object"
+      },
+      "CalendarResult": {
+        "additionalProperties": false,
+        "properties": {
+          "applied": {
+            "title": "Applied",
+            "type": "boolean"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/WriteResult"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "preview_id": {
+            "title": "Preview Id",
+            "type": "string"
+          },
+          "since": {
+            "format": "date",
+            "title": "Since",
+            "type": "string"
+          },
+          "until": {
+            "format": "date",
+            "title": "Until",
+            "type": "string"
+          },
+          "window_days": {
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "window_days",
+          "since",
+          "until",
+          "preview_id",
+          "applied",
+          "changes"
+        ],
+        "title": "CalendarResult",
+        "type": "object"
+      },
+      "CalendarSettings": {
+        "additionalProperties": false,
+        "properties": {
+          "window_days": {
+            "default": 14,
+            "maximum": 28.0,
+            "minimum": 7.0,
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "title": "CalendarSettings",
+        "type": "object"
+      },
       "CaptureStatus": {
         "additionalProperties": false,
         "properties": {
@@ -2125,6 +2206,16 @@
             "title": "Daily Adjustments",
             "type": "array"
           },
+          "garmin_out_of_date": {
+            "default": true,
+            "title": "Garmin Out Of Date",
+            "type": "boolean"
+          },
+          "garmin_window_days": {
+            "default": 14,
+            "title": "Garmin Window Days",
+            "type": "integer"
+          },
           "plan_id": {
             "title": "Plan Id",
             "type": "string"
@@ -2853,6 +2944,17 @@
             ],
             "title": "Payload"
           },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
           "remote_id": {
             "anyOf": [
               {
@@ -3324,6 +3426,203 @@
           }
         ],
         "summary": "Propose Adjustment"
+      }
+    },
+    "/calendar": {
+      "post": {
+        "operationId": "reconcile_calendar",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        },
+        "security": [
+          {
+            "CoachBearer": []
+          }
+        ],
+        "summary": "Calendar"
+      }
+    },
+    "/calendar/settings": {
+      "get": {
+        "operationId": "get_calendar_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        },
+        "security": [
+          {
+            "CoachBearer": []
+          }
+        ],
+        "summary": "Calendar Settings"
+      },
+      "post": {
+        "operationId": "save_calendar_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        },
+        "security": [
+          {
+            "CoachBearer": []
+          }
+        ],
+        "summary": "Save Calendar Settings"
       }
     },
     "/compliance": {

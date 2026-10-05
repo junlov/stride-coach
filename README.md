@@ -135,10 +135,12 @@ A recent marked effort provides a VDOT-style estimate. Garmin averages are not a
 classified as maximal efforts. Without one, the engine uses recent easy paces or HR targets.
 `sync --activities PATH --since DATE --until DATE` imports normalized data offline.
 
-Each successful regular sync replaces stored activities within the inclusive date range,
-including removal of activities absent from the result.
-For an offline import, supply the complete activity list for that range.
-An empty list clears that range.
+Each successful regular sync adds or updates activities by ID within the inclusive date range.
+Activities absent from the response are preserved, including walks and rides omitted by
+Garmin's running-only fetch. For an offline import, supply the complete activity list for that range.
+Sync records complete-day coverage for adaptation, so partial offline imports are unsupported.
+Use an empty list only when the range contains no activities. Stored activities remain unchanged.
+Sync does not propagate activity deletions.
 
 ## Garmin authentication and first live check
 
@@ -185,7 +187,9 @@ Do not repeatedly retry rejected logins; check status and investigate the failur
 
 **First live verification, after reviewing the plan:**
 
-1. Run `uv run stride-coach plan --week 1` and copy one future workout's `id`.
+1. Run `uv run stride-coach plan --week 1`.
+   Copy the `id` of a workout within the [Garmin calendar window](docs/self-hosting.md#garmin-calendar-window).
+   If week 1 is outside that window, select a week within it for these steps.
 2. Run `uv run stride-coach push --workout WORKOUT_ID --dry-run`. Replace `WORKOUT_ID`
    with that ID. This is fully local: check the date, step durations, and HR or pace targets.
 3. Run `uv run stride-coach push --workout WORKOUT_ID --apply` once. This creates the
@@ -196,7 +200,8 @@ Do not repeatedly retry rejected logins; check status and investigate the failur
    then explicitly upload it with `uv run stride-coach push --week 1 --apply`.
 
 Without `--apply`, every push is a local dry run, including bulk pushes. `--apply` and
-`--dry-run` together are rejected. Past workouts are excluded. Garmin device delivery uses
+`--dry-run` together are rejected. Push selections follow the
+[Garmin calendar window](docs/self-hosting.md#garmin-calendar-window). Garmin device delivery uses
 Garmin's normal calendar/device sync; this tool does not force a device message.
 
 Workouts use short runner-facing names, such as `Easy Run 40 min` and `Tempo 3 x 8 min`,
@@ -247,9 +252,8 @@ stop Garmin generating suggestions or delete scheduled workouts.
   confirmed in those public help pages. Stop the plan in Connect, then sync your
   watch and check its upcoming workouts before sending Stride Coach workouts.
 
-Garmin settings and every push confirmation in the app include a reminder,
-including the first push. Check Garmin's calendar and the watch yourself to make
-sure you are following only the plan you intend.
+Garmin settings and the separate manual push confirmation include a reminder.
+Before confirming calendar changes, also make sure that Garmin and your watch show only the training plan you intend.
 
 ## Weekly loop
 
@@ -278,8 +282,8 @@ explicitly labeled **inferred**. A normalized activity's optional `kind` supplie
 Matches are one-to-one, preferring exact type and closest duration.
 
 Every applied adjustment retains its reasons and before/after volume. Applying the same week
-again returns the saved adjustment. Reductions also scale later weeks to preserve progression;
-if those weeks were already pushed, push them again to update Garmin. There is no automatic
+again returns the saved adjustment. Reductions also scale later weeks to preserve progression.
+Use the [calendar workflow](docs/self-hosting.md#garmin-calendar-window) to review Garmin updates. There is no automatic
 Garmin write from sync or adapt. See [training rules](docs/training-rules.md) for the thresholds
 and limitations, and [architecture](docs/architecture.md) for storage and recovery behavior.
 
@@ -417,7 +421,9 @@ Run one server instance using the same PostgreSQL database and session directory
 | `GET /plan` | Full typed plan |
 | `GET /weeks/{number}` | Workouts with total minutes and week metrics |
 | `GET /status`, `/compliance`, `/load` | Sync coverage, adjustments, completion, and TRIMP |
-| `POST /push` | Optional `week`/`workout`; defaults to dry run, `apply: true` writes Garmin |
+| `POST /push` | Optional `week`/`workout`, limited to the Garmin window; defaults to dry run, `apply: true` writes Garmin |
+| `GET /calendar/settings`, `POST /calendar/settings` | Read or save the Garmin window |
+| `POST /calendar` | Read a combined Garmin preview; `apply: true` requires its `preview_id` |
 | `POST /sync` | Pull Garmin, or pass normalized `activities` plus date range |
 | `POST /adapt` | `{week: 2}` proposes; add `apply: true` and the reviewed `inputs.proposal_fingerprint` as `proposal_fingerprint` to save locally |
 | `POST /adjustments/propose/{number}` | Read-only preview, including incomplete-week caveat |
@@ -431,6 +437,8 @@ Run one server instance using the same PostgreSQL database and session directory
 | `GET /openapi.json` | Authenticated generated client contract |
 
 See [run data storage and import](docs/activity-data.md) for activity detail endpoints, normalized imports, and resumable backfill.
+
+For the combined preview and cleanup workflow, see [Garmin calendar window](docs/self-hosting.md#garmin-calendar-window).
 
 All command bodies are JSON. For example, `POST /push` with `{"week": 1}` previews a week.
 An explicit `apply: true` is required for writes, and conflicting `dry_run: true` is rejected.

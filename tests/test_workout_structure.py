@@ -300,7 +300,7 @@ def test_downgrade_refuses_to_lose_repeat_structure(store):
 
     before = store.plan()
     with pytest.raises(RuntimeError, match="pre-upgrade backup"), store.connection.begin():
-        command.downgrade(migration_config(store.connection), "0006")
+        command.downgrade(migration_config(store.connection), "0008")
     with store.connection.begin():
         check_schema(store.connection)
     assert store.plan() == before

@@ -426,12 +426,49 @@ GPS tracks reveal locations, and FIT files may contain additional personal data.
 
 ### Structured workout storage
 
-Migration `0007` stores repeat groups and step end conditions in typed tables and columns.
+Migration `0009` stores repeat groups and step end conditions in typed tables and columns.
 Existing timed steps remain readable with their original durations. New plans include repeat
 structure, distance efforts, Lap-ended warm-up/cool-down and strides as described in
 [training rules](training-rules.md). Current Garmin HR-zone settings are stored separately
 from historical activity zones and refreshed during ordinary Garmin sync.
 
-A downgrade past `0007` is allowed for old timed plans. Once a plan uses repeats, distance,
+A downgrade past `0009` is allowed for old timed plans. Once a plan uses repeats, distance,
 Lap endings or numbered/cadence targets, downgrade refuses to discard that information;
 restore a pre-upgrade backup with the matching server release instead.
+
+## Garmin calendar window
+
+In the phone app's Settings, choose how many days to keep on Garmin.
+The default is 14 days, with 7 to 28 allowed. The window includes today, using the server's local date.
+The server stores this setting and also limits ordinary CLI and API push selections.
+Saving a setting never writes to Garmin.
+
+Coach actions offers **Preview calendar changes**. The server reads Garmin inventory
+and builds one review of creates, updates, missing schedules, and removals. Confirming
+applies that exact review. If the plan, setting, date, or remote snapshot changed,
+request a new preview. Applied plan changes leave a persistent **Garmin is out of date**
+notice until calendar confirmation succeeds. The notice also returns as the window
+moves forward each day; it describes the last confirmed plan, not continuous remote
+monitoring. There are no background pushes.
+
+Cleanup requires a Stride Coach ownership tag verified in the workout detail. It removes
+owned workouts no longer in the plan and future workouts beyond the window.
+For past, uncompleted workouts still in the plan, cleanup requires complete-day sync coverage
+of their planned dates and any past schedule dates.
+Sync first so completed runs can be matched and preserved.
+Untagged workouts are never changed. The existing manual removal action still removes all matching owned
+plan workouts when explicitly confirmed.
+
+`GET /calendar/settings` reads the window. `POST /calendar/settings` accepts
+`{"window_days":14}`. `POST /calendar` with `{}` reads Garmin and returns the preview,
+including `preview_id`; confirm with `{"apply":true,"preview_id":"..."}`. After a failed
+or uncertain apply, inspect Garmin and request a fresh preview.
+See [recovery rules](architecture.md#idempotency-and-uncertainty) for interrupted removal and uncertain writes.
+This preview needs a Garmin connection. Ordinary `/push` dry runs still work offline.
+
+Synthetic loopback proof (disposable PostgreSQL, fake Garmin only):
+
+```sh
+TEST_DATABASE_URL=postgresql://postgres:synthetic-test-password@127.0.0.1:55439/stride_test \
+  uv run python examples/calendar_demo.py
+```

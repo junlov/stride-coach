@@ -81,6 +81,7 @@ export function mockServer(overrides: Record<string, unknown> = {}) {
       reasons: ["No recovery data for today."],
     },
     "/readiness": [],
+    "/calendar/settings": { window_days: 14 },
     "/sync/status": {},
     "/sync/open": { skipped: true },
     "/garmin/status": {

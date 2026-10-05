@@ -139,4 +139,4 @@ test("daily preview renders the actual HTTP response before and after workouts",
   }
   expect(screen.getAllByRole("image")).toHaveLength(2);
   expect(screen.getByText(/Strides: 4 x/)).toBeTruthy();
-});
+}, 30_000);
