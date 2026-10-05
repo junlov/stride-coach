@@ -83,8 +83,14 @@ def main():
                 vault = app.state.garmin_connection.vault
                 with vault.locked():
                     vault.write({"tokens": "synthetic-session", "generation": "demo"})
-                response = client.post("/sync/open")
-                response.raise_for_status()
+                # The history worker can briefly hold the shared sync lock at startup.
+                for _ in range(100):
+                    response = client.post("/sync/open")
+                    response.raise_for_status()
+                    if response.json()["latest"] is not None:
+                        break
+                    assert response.json()["skipped"]
+                    time.sleep(0.05)
                 assert response.json()["latest"]["activity_count"] == 1
                 assert client.post("/sync/open").json()["skipped"]
                 print("app-open: one run synced; repeat skipped by persisted interval")
