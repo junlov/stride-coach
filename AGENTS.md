@@ -12,7 +12,7 @@
 
 - Automatic sync, resumable history imports, and persisted adjustment evidence: see docs/self-hosting.md#automatic-sync-and-import-recovery and examples/sync_demo.py.
 
-- Mobile app setup, pairing/deep links, generated API types, Expo checks, and synthetic loopback proof: see app/README.md and app/package.json. Pairing security and CLI deployment: docs/self-hosting.md#phone-pairing and src/stride_coach/pairing.py. Keep API types generated from docs/openapi.json.
+- Mobile app setup, pairing/deep links, generated API types, Expo checks, and synthetic loopback proof: see app/README.md and app/package.json. Pairing security and CLI deployment: docs/self-hosting.md#phone-pairing and src/stride_coach/pairing.py. Keep API types generated from docs/openapi.json. Expo/EAS agent skills for the app live in .claude/skills (index and refresh steps: .claude/skills/README.md); keep them out of Ruff.
 
 ## Maintaining this file
 
