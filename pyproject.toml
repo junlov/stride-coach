@@ -33,6 +33,7 @@ dev = ["pytest>=8,<10", "pytest-cov>=6,<8", "ruff>=0.12,<1"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = [".claude/skills"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
